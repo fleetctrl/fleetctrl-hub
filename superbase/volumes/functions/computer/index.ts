@@ -65,6 +65,7 @@ async function createComputer(
   supabaseClient: SupabaseClient,
   computer: Computer
 ) {
+  console.log("computer", computer);
   const { error } = await supabaseClient.from("computers").insert(computer);
   console.log("error create", error);
   if (error) {

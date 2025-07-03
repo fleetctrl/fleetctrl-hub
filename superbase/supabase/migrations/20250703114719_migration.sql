@@ -9,11 +9,15 @@ create table "public"."computers" (
     "last_connection" timestamp without time zone default now(),
     "os" character varying,
     "os_version" character varying,
-    "created_at" timestamp with time zone not null default now()
+    "created_at" timestamp with time zone not null default now(),
+    "key" uuid not null default gen_random_uuid(),
+    "login_user" character varying
 );
 
 
 alter table "public"."computers" enable row level security;
+
+CREATE UNIQUE INDEX computers_key_key ON public.computers USING btree (key);
 
 CREATE UNIQUE INDEX computers_name_key ON public.computers USING btree (name);
 
@@ -22,6 +26,8 @@ CREATE UNIQUE INDEX computers_pkey ON public.computers USING btree (id, rustdesk
 CREATE UNIQUE INDEX computers_rustdesk_id_key ON public.computers USING btree (rustdesk_id);
 
 alter table "public"."computers" add constraint "computers_pkey" PRIMARY KEY using index "computers_pkey";
+
+alter table "public"."computers" add constraint "computers_key_key" UNIQUE using index "computers_key_key";
 
 alter table "public"."computers" add constraint "computers_name_key" UNIQUE using index "computers_name_key";
 
@@ -83,12 +89,37 @@ grant truncate on table "public"."computers" to "service_role";
 
 grant update on table "public"."computers" to "service_role";
 
+create policy "Allow insert for anon"
+on "public"."computers"
+as permissive
+for insert
+to anon
+with check (true);
+
+
 create policy "Enable read access for all authenticated"
 on "public"."computers"
 as permissive
 for select
 to authenticated
 using (true);
+
+
+create policy "Enable read for anon with same id"
+on "public"."computers"
+as permissive
+for select
+to anon
+using (((rustdesk_id = rustdesk_id) AND (key = key)));
+
+
+create policy "Enable update for computers with same rustdesk_id"
+on "public"."computers"
+as permissive
+for update
+to anon
+using (((rustdesk_id = rustdesk_id) AND (key = key)))
+with check (((rustdesk_id = rustdesk_id) AND (key = key)));
 
 
 
