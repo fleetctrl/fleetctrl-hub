@@ -12,6 +12,8 @@ async function getData(): Promise<Computer[]> {
   if (!computers) return [];
 
   const data = computers.map((cp) => {
+    // 5 minutes
+    const isActive = cp?.last_connection >= Date.now() - 300;
     return {
       rustdeskID: cp.rustdesk_id,
       name: cp?.name,
@@ -19,6 +21,7 @@ async function getData(): Promise<Computer[]> {
       os: cp?.os,
       osVersion: cp?.os_version,
       loginUser: cp?.login_user,
+      lastConnection: isActive ? "Online" : "Offline",
     } as Computer;
   });
 

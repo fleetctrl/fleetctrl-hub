@@ -13,9 +13,14 @@ export type Computer = {
   os?: string;
   osVersion?: string;
   loginUser?: string;
+  lastConnection?: string;
 };
 
 export const columns: ColumnDef<Computer>[] = [
+  {
+    accessorKey: "lastConnection",
+    header: "",
+  },
   {
     accessorKey: "rustdeskID",
     header: "RustDesk ID",

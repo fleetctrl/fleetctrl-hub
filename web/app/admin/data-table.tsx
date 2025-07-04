@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -92,12 +93,34 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
+                    <>
+                      {cell.column.columnDef.header?.toString() === "" ? (
+                        <TableCell key={cell.id} className="pl-4">
+                          <div
+                            className={cn(
+                              " w-3 h-3 rounded-[50%]",
+                              {
+                                "bg-red-400":
+                                  (cell.getContext().getValue() as string) ===
+                                  "Offline",
+                              },
+                              {
+                                "bg-green-400":
+                                  (cell.getContext().getValue() as string) ===
+                                  "Online",
+                              }
+                            )}
+                          ></div>
+                        </TableCell>
+                      ) : (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
                       )}
-                    </TableCell>
+                    </>
                   ))}
                 </TableRow>
               ))
