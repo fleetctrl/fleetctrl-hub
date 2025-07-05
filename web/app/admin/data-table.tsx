@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import React from "react";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -93,9 +94,9 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <>
+                    <React.Fragment key={cell.id}>
                       {cell.column.columnDef.header?.toString() === "" ? (
-                        <TableCell key={cell.id} className="pl-4">
+                        <TableCell className="pl-4">
                           <div
                             className={cn(
                               " w-3 h-3 rounded-[50%]",
@@ -113,14 +114,14 @@ export function DataTable<TData, TValue>({
                           ></div>
                         </TableCell>
                       ) : (
-                        <TableCell key={cell.id}>
+                        <TableCell>
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext()
                           )}
                         </TableCell>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </TableRow>
               ))
