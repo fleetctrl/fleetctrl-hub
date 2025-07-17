@@ -1,0 +1,9 @@
+services:
+  app:
+    image: rustdesk-server-supa
+    build:
+      context: ./
+      target: production
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
