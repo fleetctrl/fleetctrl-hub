@@ -10,7 +10,17 @@ This is a minimal Docker Compose setup for self-hosting Supabase. Follow the ste
 npm install
 ```
 
-2. Nainstalujte makefile
+2. Vygeneruj anon a service key
+
+```
+node ./scripts/gen_anon.js
+```
+
+```
+node ./scripts/gen_service.js
+```
+
+3. Nainstalujte makefile
 
 ## Vytvoření migrace
 
