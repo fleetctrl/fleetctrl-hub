@@ -12,8 +12,28 @@ async function getData(): Promise<Computer[]> {
   if (!computers) return [];
 
   const data = computers.map((cp) => {
-    // 5 minutes
-    const isActive = cp?.last_connection >= Date.now() - 300;
+    // 6 minutes
+    const now = new Date(Date.now() - 360000);
+
+    console.log(
+      new Date(
+        now
+          .toLocaleString("sv-SE", { timeZone: "Europe/Prague" })
+          .replace(" ", "T")
+          .replace(",", "")
+      ).getTime()
+    );
+    console.log(new Date(cp?.last_connection).getTime());
+
+    const isActive =
+      new Date(cp?.last_connection).getTime() >=
+      new Date(
+        now
+          .toLocaleString("sv-SE", { timeZone: "Europe/Prague" })
+          .replace(" ", "T")
+          .replace(",", "")
+      ).getTime();
+
     return {
       rustdeskID: cp.rustdesk_id,
       name: cp?.name,
