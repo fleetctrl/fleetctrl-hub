@@ -1,11 +1,13 @@
 services:
   app:
-    image: rustdesk-server-supa
+    image: git.ondomain.org/kiskale/rustdesk-server-webui:latest
     build:
       context: ./
       target: production
       dockerfile: Dockerfile
     ports:
       - "${DOCKER_PORT:-3000}:3000"
+    volumes:
+      - ./.env:/app/.env
     env_file:
       - ./.env
