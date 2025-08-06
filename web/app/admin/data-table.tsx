@@ -123,6 +123,7 @@ export function DataTable<TData, TValue>({
                       )}
                     </React.Fragment>
                   ))}
+                  <TableCell></TableCell>
                 </TableRow>
               ))
             ) : (
