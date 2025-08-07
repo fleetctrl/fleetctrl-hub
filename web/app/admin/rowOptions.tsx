@@ -17,16 +17,20 @@ type RowOptionsProps = {
   rustdeskId?: number;
 };
 export default function RowOptions(RowOptionsProps: RowOptionsProps) {
-  const handleCopy = async () => {
-    const connectionString = `"C:\Program Files\RustDesk\RustDesk.exe" --connect ${RowOptionsProps.rustdeskId}`;
+  async function handleCopy() {
+    const connectionString = `"C:\\Program Files\\RustDesk\\RustDesk.exe" --connect ${RowOptionsProps.rustdeskId}`;
     try {
-      await navigator.clipboard.writeText(connectionString);
-      toast.success("Kopírování probehl úspěšně");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(connectionString);
+        toast.success("Kopírování probehl úspěšně");
+      } else {
+        toast.error("Kopírování selhalo");
+      }
     } catch (error) {
       console.error(error);
       toast.error("Kopírování selhalo");
     }
-  };
+  }
 
   return (
     <DropdownMenu>
@@ -38,7 +42,7 @@ export default function RowOptions(RowOptionsProps: RowOptionsProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-        <DropdownMenuItem onClick={void handleCopy}>
+        <DropdownMenuItem onClick={handleCopy}>
           Connection string
         </DropdownMenuItem>
         <DropdownMenuSeparator />
