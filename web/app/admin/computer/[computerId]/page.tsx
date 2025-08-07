@@ -14,20 +14,25 @@ export default async function Computer({ params }: { params: Params }) {
     .eq("rustdesk_id", computerId)
     .single();
 
+  const computer = {
+    id: data.id,
+    rustdeskID: data.rustdesk_id,
+    name: data?.name,
+    ip: data?.ip,
+    os: data?.os,
+    osVersion: data?.os_version,
+    loginUser: data?.login_user,
+    lastConnection: data?.last_connection,
+  };
+
   return (
-    <div className="w-screen">
-      <div className="grid grid-cols-1 w-full max-w-5xl gap-4">
+    <div className="container mx-auto w-full px-4">
+      <div className="flex flex-col w-full gap-6">
         <div className="w-full">
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-bold">Computer {data.name}</h1>
-            <p className="text-gray-500">
-              <span>OS: {data.os} | </span>
-              <span>IP: {data.ip}</span>
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold">Computer {data.name}</h1>
         </div>
-        <div className="grid grid-cols-2 w-full">
-          <Tabs />
+        <div className="flex w-full">
+          <Tabs computer={computer} />
         </div>
       </div>
     </div>
