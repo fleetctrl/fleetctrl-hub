@@ -15,16 +15,6 @@ async function getData(): Promise<Computer[]> {
     // 6 minutes
     const now = new Date(Date.now() - 360000);
 
-    console.log(
-      new Date(
-        now
-          .toLocaleString("sv-SE", { timeZone: "Europe/Prague" })
-          .replace(" ", "T")
-          .replace(",", "")
-      ).getTime()
-    );
-    console.log(new Date(cp?.last_connection).getTime());
-
     const isActive =
       new Date(cp?.last_connection).getTime() >=
       new Date(
