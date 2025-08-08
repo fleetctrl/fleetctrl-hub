@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { Computer } from "../../columns";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -11,10 +11,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
-enum Tab {
-  OVERVIEW,
-}
+import { useForm } from "react-hook-form";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 
 type Props = {
   computer: Computer;
@@ -25,77 +35,124 @@ type TableRowProps = {
   value: string;
 };
 
-export default function Tabs({ computer }: Props) {
-  const [tab, setTab] = useState(Tab.OVERVIEW);
-  const supabase = createClient();
-  const tasks = supabase
-    .from("tasks")
-    .select("task, status, created_at, error")
-    .eq("computer_id", computer.id);
+export const passwordSchema = z
+  .string()
+  .min(8, { message: "Password must be at least 8 characters long" })
+  .regex(/[A-Z]/, {
+    message: "Password must contain at least one uppercase letter",
+  })
+  .regex(/\d/, {
+    message: "Password must contain at least one number",
+  });
 
-  function handleChangePassword(password: string) {
-    const taskData = { password };
-    supabase
-      .from("tasks")
-      .insert({ task: "SET_PASSWD", status: "PENDING", task_data: taskData });
-  }
+export const passwordFormSchema = z
+  .object({
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords must match",
+    path: ["confirmPassword"],
+  });
+
+type FormValues = z.infer<typeof passwordFormSchema>;
+
+type Task = {
+  id: number;
+  task: string;
+  status: string;
+  created_at: Date;
+  error: string;
+};
+
+export default function Tabs({ computer }: Props) {
+  const [tasks, setTasks] = useState<Task[]>();
+  const [open, setOpen] = useState(false);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, task, status, created_at, error")
+        .eq("computer_id", computer.id);
+
+      if (error) {
+        console.error(error);
+      } else {
+        setTasks(data);
+      }
+    };
+
+    fetchData();
+  }, [open, computer.id, supabase]);
 
   return (
     <div className="flex gap-5 w-full">
-      <div>
-        <ul>
-          <li className="cursor-pointer" onClick={() => setTab(Tab.OVERVIEW)}>
-            Overview
-          </li>
-        </ul>
-      </div>
-      <div className="flex flex-col px-3 w-full gap-3">
+      <div className="flex flex-col w-full gap-3">
         <div className="flex gap-2 mb-2">
-          <ChangePasswordDialog />
+          <ChangePasswordDialog
+            computer={computer}
+            open={open}
+            setOpen={setOpen}
+          />
         </div>
         <hr />
-        {tab === Tab.OVERVIEW && (
-          <div className="flex flex-col gap-3 w-full">
+
+        <div className="flex flex-col gap-3 w-full">
+          <table className="w-full">
+            <tbody>
+              <TableRow
+                name="RustDesk ID"
+                value={computer.rustdeskID.toString() ?? ""}
+              />
+              <TableRow name="Computer name" value={computer.name} />
+              <TableRow name="Computer IP" value={computer.ip ?? ""} />
+              <TableRow name="User" value={computer.loginUser ?? ""} />
+              {computer.lastConnection && (
+                <TableRow
+                  name="Last check-in time"
+                  value={new Date(computer.lastConnection).toLocaleString("cs")}
+                />
+              )}
+              <TableRow name="Windows type" value={computer.os ?? ""} />
+              <TableRow
+                name="Windows version"
+                value={computer.osVersion ?? ""}
+              />
+            </tbody>
+          </table>
+          <hr className="w-full" />
+          <div>
+            <h2>Device actions</h2>
             <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="px-5 py-2 text-left">Action</th>
+                  <th className="px-5 py-2 text-left">Status</th>
+                  <th className="px-5 py-2 text-left">Date/Time</th>
+                  <th className="px-5 py-2 text-left">Error</th>
+                </tr>
+              </thead>
               <tbody>
-                <TableRow
-                  name="RustDesk ID"
-                  value={computer.rustdeskID.toString() ?? ""}
-                />
-                <TableRow name="Computer name" value={computer.name} />
-                <TableRow name="Computer IP" value={computer.ip ?? ""} />
-                <TableRow name="User" value={computer.loginUser ?? ""} />
-                {computer.lastConnection && (
-                  <TableRow
-                    name="Last check-in time"
-                    value={new Date(computer.lastConnection).toLocaleString(
-                      "cs"
-                    )}
-                  />
-                )}
-                <TableRow name="Windows type" value={computer.os ?? ""} />
-                <TableRow
-                  name="Windows version"
-                  value={computer.osVersion ?? ""}
-                />
+                {tasks?.map((task) => {
+                  return (
+                    <tr key={task.id}>
+                      <td className="px-5 py-2 text-left">{task.task}</td>
+                      <td className="px-5 py-2 text-left">{task.status}</td>
+                      <td className="px-5 py-2 text-left">
+                        {new Date(task.created_at).toLocaleString("cs")}
+                      </td>
+                      <td className="px-5 py-2 text-left">
+                        {task.error ?? ""}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            <hr className="w-full" />
-            <div>
-              <h2>Device actions</h2>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="px-5 py-2 text-left">Action</th>
-                    <th className="px-5 py-2 text-left">Status</th>
-                    <th className="px-5 py-2 text-left">Date/Time</th>
-                    <th className="px-5 py-2 text-left">Error</th>
-                  </tr>
-                </thead>
-              </table>
-            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -113,18 +170,108 @@ function TableRow({ name, value }: TableRowProps) {
   );
 }
 
-function ChangePasswordDialog() {
+function ChangePasswordDialog({
+  computer,
+  open,
+  setOpen,
+}: {
+  computer: Computer;
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+}) {
+  const supabase = createClient();
+  const form = useForm<FormValues>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+  });
+
+  async function onSubmit(values: FormValues) {
+    const taskData = {
+      password: values.password,
+    };
+
+    const { error } = await supabase
+      .from("tasks")
+      .insert([
+        {
+          task: "SET_PASSWD",
+          status: "PENDING",
+          task_data: taskData,
+          computer_id: computer.id,
+        },
+      ])
+      .select();
+
+    if (error) {
+      console.error("Insert error:", error);
+      toast.error("Failed to change password: " + error.message);
+      return;
+    }
+
+    toast.success("Password was changed");
+    setOpen(false);
+    form.reset();
+  }
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={"secondary"}>Change password</Button>
+        <Button variant={"secondary"}>Change Password</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Set new RustDesk password</DialogTitle>
-          <DialogDescription>
-            This action cannot be undone. This will permanently delete your
-            account and remove your data from our servers.
+          <DialogDescription asChild>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
+                {/* Password */}
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Must be at least 8 characters, contain one uppercase
+                        letter and one number.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Confirm Password */}
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Re-enter your new password to confirm.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button type="submit" className="w-full">
+                  Change Password
+                </Button>
+              </form>
+            </Form>
           </DialogDescription>
         </DialogHeader>
       </DialogContent>
