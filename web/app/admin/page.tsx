@@ -15,16 +15,6 @@ async function getData(): Promise<Computer[]> {
     // 6 minutes
     const now = new Date(Date.now() - 360000);
 
-    console.log(
-      new Date(
-        now
-          .toLocaleString("sv-SE", { timeZone: "Europe/Prague" })
-          .replace(" ", "T")
-          .replace(",", "")
-      ).getTime()
-    );
-    console.log(new Date(cp?.last_connection).getTime());
-
     const isActive =
       new Date(cp?.last_connection).getTime() >=
       new Date(
@@ -51,7 +41,7 @@ async function getData(): Promise<Computer[]> {
 export default async function ProtectedPage() {
   const data = await getData();
   return (
-    <div className="flex-1 w-full flex flex-col gap-12">
+    <div className="flex-1 w-full flex flex-col gap-5">
       <div className="flex flex-col gap-2 items-start">
         <DataTable columns={columns} data={data} />
       </div>
