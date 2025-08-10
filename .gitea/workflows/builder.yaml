@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*.*.*" # spustí se i při pushnutí verze
 
 jobs:
   build-and-push:
@@ -30,6 +32,17 @@ jobs:
           username: ${{ env.REPO_OWNER }}
           password: ${{ secrets.REPO_OWNER_PASSWORD }}
 
+      - name: Set image tags
+        id: vars
+        run: |
+          if [[ "${GITEA_REF_TYPE}" == "tag" ]]; then
+            VERSION_TAG="${GITEA_REF_NAME}"
+          else
+            SHORT_SHA=$(echo "${GITEA_SHA}" | cut -c1-7)
+            VERSION_TAG="${GITEA_REF_NAME}-${SHORT_SHA}"
+          fi
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -38,5 +51,5 @@ jobs:
           target: production
           push: true
           tags: |
-            ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:${{ gitea.sha }}
+            ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:${{ env.VERSION_TAG }}
             ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:latest
