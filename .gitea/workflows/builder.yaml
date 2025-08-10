@@ -30,6 +30,15 @@ jobs:
           username: ${{ env.REPO_OWNER }}
           password: ${{ secrets.REPO_OWNER_PASSWORD }}
 
+      - name: Read version from package.json
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' ./web/package.json)
+          FULL_VERSION="${VERSION}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "Image version: $FULL_VERSION"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -38,5 +47,5 @@ jobs:
           target: production
           push: true
           tags: |
-            ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:${{ gitea.sha }}
+            ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:${{ env.FULL_VERSION }}
             ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:latest
