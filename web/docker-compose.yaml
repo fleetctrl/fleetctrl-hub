@@ -7,7 +7,5 @@ services:
       dockerfile: Dockerfile
     ports:
       - "${DOCKER_PORT:-3000}:3000"
-    volumes:
-      - ./.env:/app/.env
     env_file:
       - ./.env
