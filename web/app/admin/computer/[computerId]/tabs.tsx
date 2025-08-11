@@ -75,7 +75,8 @@ export default function Tabs({ computer }: Props) {
       const { data, error } = await supabase
         .from("tasks")
         .select("id, task, status, created_at, error")
-        .eq("computer_id", computer.id);
+        .eq("computer_id", computer.id)
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.error(error);
