@@ -55,7 +55,11 @@ export const passwordFormSchema = z
     path: ["confirmPassword"],
   });
 
-type FormValues = z.infer<typeof passwordFormSchema>;
+type ChangePassworFormValues = z.infer<typeof passwordFormSchema>;
+
+const changeNetworkStringSchema = z.object({ networkString: z.string().min(1, { message: "Network string is required" }) });
+
+type ChangeNetworkStringSchema = z.infer<typeof changeNetworkStringSchema>;
 
 type Task = {
   id: number;
@@ -67,7 +71,8 @@ type Task = {
 
 export default function Tabs({ computer }: Props) {
   const [tasks, setTasks] = useState<Task[]>();
-  const [open, setOpen] = useState(false);
+  const [openChangePassword, setOpenChangePassword] = useState(false);
+  const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -86,7 +91,7 @@ export default function Tabs({ computer }: Props) {
     };
 
     fetchData();
-  }, [open, computer.id, supabase]);
+  }, [openChangePassword, openChangeNetwork, computer.id, supabase]);
 
   return (
     <div className="flex gap-5 w-full">
@@ -94,9 +99,10 @@ export default function Tabs({ computer }: Props) {
         <div className="flex gap-2 mb-2">
           <ChangePasswordDialog
             computer={computer}
-            open={open}
-            setOpen={setOpen}
+            open={openChangePassword}
+            setOpen={setOpenChangePassword}
           />
+          <ChangeNetworkStringDialog computer={computer} open={openChangeNetwork} setOpen={setOpenChangeNetwork} />
         </div>
         <hr />
 
@@ -181,7 +187,7 @@ function ChangePasswordDialog({
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) {
   const supabase = createClient();
-  const form = useForm<FormValues>({
+  const form = useForm<ChangePassworFormValues>({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: {
       password: "",
@@ -189,7 +195,7 @@ function ChangePasswordDialog({
     },
   });
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: ChangePassworFormValues) {
     const taskData = {
       password: values.password,
     };
@@ -270,6 +276,95 @@ function ChangePasswordDialog({
 
                 <Button type="submit" className="w-full">
                   Change Password
+                </Button>
+              </form>
+            </Form>
+          </DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ChangeNetworkStringDialog({
+  computer,
+  open,
+  setOpen,
+}: {
+  computer: Computer;
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+}) {
+  const supabase = createClient();
+  const form = useForm<ChangeNetworkStringSchema>({
+    resolver: zodResolver(changeNetworkStringSchema),
+    defaultValues: {
+      networkString: "",
+    },
+  });
+
+  async function onSubmit(values: ChangeNetworkStringSchema) {
+    const taskData = {
+      networkString: values.networkString,
+    };
+
+    const { error } = await supabase
+      .from("tasks")
+      .insert([
+        {
+          task: "SET_NETWORK_STRING",
+          status: "PENDING",
+          task_data: taskData,
+          computer_id: computer.id,
+        },
+      ])
+      .select();
+
+    if (error) {
+      console.error("Insert error:", error);
+      toast.error("Failed to change network: " + error.message);
+      return;
+    }
+
+    toast.success("Network was changed");
+    setOpen(false);
+    form.reset();
+
+    setOpen(false);
+    form.reset();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant={"secondary"}>Change Network</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Change Network</DialogTitle>
+          <DialogDescription asChild>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
+                {/* Network String */}
+                <FormField
+                  control={form.control}
+                  name="networkString"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Network String</FormLabel>
+                      <FormControl>
+                        <Input type="networkString" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button type="submit" className="w-full">
+                  Change Network
                 </Button>
               </form>
             </Form>
