@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 
 type RowOptionsProps = {
@@ -64,9 +65,9 @@ export default function RowOptions({ rustdeskId }: RowOptionsProps) {
           Connection string
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <a href={`/admin/computer/${rustdeskId}`}>
+        <Link href={`/admin/computer/${rustdeskId}`}>
           <DropdownMenuItem>Computer info</DropdownMenuItem>
-        </a>
+        </Link>
         <DropdownMenuSeparator />
         {rustdeskId && (
           <DropdownMenuItem variant="destructive" onClick={handleDelete}>
