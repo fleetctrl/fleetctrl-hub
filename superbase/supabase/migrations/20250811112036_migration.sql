@@ -40,6 +40,25 @@ WHERE computers.rustdesk_id = $1 AND computers.key = $2;
 $function$
 ;
 
+-- Remove the old version that returned 'record'
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'get_tasks_by_rustdesk_id'
+      AND p.proargtypes = ARRAY[
+        'integer'::regtype::oid,
+        'uuid'::regtype::oid
+      ]::oidvector
+  ) THEN
+    DROP FUNCTION public.get_tasks_by_rustdesk_id(integer, uuid);
+  END IF;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.get_tasks_by_rustdesk_id(in_rustdesk_id integer, in_key uuid)
  RETURNS SETOF record
  LANGUAGE sql
