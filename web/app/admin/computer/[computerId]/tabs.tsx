@@ -328,9 +328,6 @@ function ChangeNetworkStringDialog({
     toast.success("Network was changed");
     setOpen(false);
     form.reset();
-
-    setOpen(false);
-    form.reset();
   }
 
   return (
