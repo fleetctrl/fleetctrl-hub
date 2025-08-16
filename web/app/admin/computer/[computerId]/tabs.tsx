@@ -26,6 +26,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
+const supabase = createClient();
+
 type Props = {
   computer: Computer;
 };
@@ -73,7 +75,6 @@ export default function Tabs({ computer }: Props) {
   const [tasks, setTasks] = useState<Task[]>();
   const [openChangePassword, setOpenChangePassword] = useState(false);
   const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
-  const supabase = createClient();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -91,7 +92,7 @@ export default function Tabs({ computer }: Props) {
     };
 
     fetchData();
-  }, [openChangePassword, openChangeNetwork, computer.id, supabase]);
+  }, [openChangePassword, openChangeNetwork, computer.id]);
 
   return (
     <div className="flex gap-5 w-full">
@@ -186,7 +187,6 @@ function ChangePasswordDialog({
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) {
-  const supabase = createClient();
   const form = useForm<ChangePassworFormValues>({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: {
@@ -295,7 +295,6 @@ function ChangeNetworkStringDialog({
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) {
-  const supabase = createClient();
   const form = useForm<ChangeNetworkStringSchema>({
     resolver: zodResolver(changeNetworkStringSchema),
     defaultValues: {
