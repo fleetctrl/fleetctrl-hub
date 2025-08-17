@@ -42,10 +42,10 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./web
-          file: ./web/Dockerfile
+          context: .
+          file: ./Dockerfile
           target: production
           push: true
           tags: |
-            ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:${{ env.FULL_VERSION }}
-            ${{ env.REGISTRY }}/kiskale/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/fleetctrl/${{ env.IMAGE_NAME }}:${{ env.FULL_VERSION }}
+            ${{ env.REGISTRY }}/fleetctrl/${{ env.IMAGE_NAME }}:latest
