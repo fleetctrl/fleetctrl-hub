@@ -1,5 +1,7 @@
 name: Build and push Docker image
 
+runs-on: self-hosted
+
 on:
   push:
     branches:
