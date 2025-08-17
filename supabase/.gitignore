@@ -3,3 +3,4 @@ dev
 node_modules
 .temp
 volumes/db/data
+db/data
