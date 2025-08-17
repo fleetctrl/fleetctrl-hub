@@ -4,9 +4,10 @@ This is a minimal Docker Compose setup for self-hosting Supabase. Follow the ste
 
 ## Start
 
-1. Nainstalujte node moduly
+1. Nainstalujte node moduly ve složce `web`
 
 ```
+cd ..
 npm install
 ```
 

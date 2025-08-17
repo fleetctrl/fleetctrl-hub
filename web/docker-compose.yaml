@@ -8,4 +8,4 @@ services:
     ports:
       - "${DOCKER_PORT:-3000}:3000"
     env_file:
-      - ./.env
+      - ../.env

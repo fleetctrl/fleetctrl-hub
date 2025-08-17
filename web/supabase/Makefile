@@ -1,4 +1,4 @@
-include .env
+include ../../.env
 # Vygeneruje migraci z aktuální databáze
 .PHONY: pull-schema
 diff-schema:
