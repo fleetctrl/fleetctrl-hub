@@ -12,7 +12,7 @@ jobs:
       image: ghcr.io/catthehacker/ubuntu:act-latest
 
     env:
-      IMAGE_NAME: rustdesk-server-webui
+      IMAGE_NAME: fleetctrl-hub
       REGISTRY: git.ondomain.org
       REPO_OWNER: KiskaLE
 
