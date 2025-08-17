@@ -12,9 +12,7 @@ npm install
 
 ```
 node ./supabase/scripts/gen_anon.cjs
-```
 
-```
 node ./supabase/scripts/gen_service.cjs
 ```
 
