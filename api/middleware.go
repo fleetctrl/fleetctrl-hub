@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"os"
-	"time"
+    "errors"
+    "log"
+    "net/http"
+    "os"
+    "time"
 )
 
 // withMiddleware applies authentication and logging to handlers.
@@ -17,10 +18,10 @@ func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if token != "" {
 			auth := r.Header.Get("Authorization")
-			if auth != "Bearer "+token {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
+            if auth != "Bearer "+token {
+                _ = writeError(w, http.StatusUnauthorized, errors.New("unauthorized"))
+                return
+            }
 		}
 		next.ServeHTTP(w, r)
 	})
