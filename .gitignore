@@ -3,6 +3,10 @@
 # vscode
 .vscode
 
+# api
+/api/api
+/api/bin
+
 # dependencies
 /node_modules
 /.pnp

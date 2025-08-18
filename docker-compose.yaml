@@ -9,7 +9,17 @@ services:
       - "${DOCKER_PORT:-3000}:3000"
     env_file:
       - ./.env
-  
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SERVICE_ROLE_KEY}
+    ports:
+      - "${API_PORT:-8080}:8080"
+
   studio:
     container_name: supabase-studio
     image: supabase/studio:2025.06.02-sha-8f2993d
