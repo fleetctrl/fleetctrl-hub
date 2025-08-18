@@ -30,6 +30,17 @@ docker compose up -d
 make push-schema
 ```
 
+## Go API
+
+V adresáři `api` je jednoduché Go API nahrazující postgres funkce Supabase. API očekává proměnné prostředí `SUPABASE_URL`, `SUPABASE_KEY` a `API_TOKEN`.
+Token se předává v hlavičce `Authorization: Bearer <token>` a je ověřován middlewarem.
+
+```bash
+go run ./api
+# nebo
+docker compose up api
+```
+
 ## Vytvoření migrace
 
 ```
