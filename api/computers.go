@@ -8,6 +8,12 @@ import (
     "time"
 )
 
+type registerPayload struct {
+	Name       string `json:"name"`
+	RustDeskID string `json:"rustdesk_id"`
+	Key        string `json:"key"`
+}
+
 func getComputerByKey(w http.ResponseWriter, r *http.Request) {
 	rustdeskIDStr := r.URL.Query().Get("rustdesk_id")
 	key := r.URL.Query().Get("key")
