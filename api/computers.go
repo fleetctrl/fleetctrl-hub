@@ -36,50 +36,38 @@ func getComputerByKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func isComputerRegistered(w http.ResponseWriter, r *http.Request) {
-	rustdeskIDStr := r.URL.Query().Get("rustdesk_id")
-    if rustdeskIDStr == "" {
-        _ = writeError(w, http.StatusBadRequest, errors.New("missing rustdesk_id"))
-        return
-    }
-    if _, err := strconv.Atoi(rustdeskIDStr); err != nil {
-        _ = writeError(w, http.StatusBadRequest, errors.New("invalid rustdesk_id"))
-        return
-    }
-	var comps []Computer
-    if err := sb.DB.From("computers").Select("id").
-        Eq("rustdesk_id", rustdeskIDStr).
-        Execute(&comps); err != nil {
-        _ = writeError(w, http.StatusInternalServerError, err)
-        return
-    }
-	writeJSON(w, map[string]bool{"registered": len(comps) > 0})
+	key := r.PathValue("key")
+
+	var computer []Computer
+	if err := sb.DB.From("computers").Select("id").
+		Eq("key", key).
+		Execute(&computer); err != nil {
+		_ = writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"registered": len(computer) > 0})
 }
 
 func registerComputer(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        _ = writeError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-        return
-    }
-	var req struct {
-		Name       string `json:"name"`
-		RustdeskID int    `json:"rustdesk_id"`
-		Key        string `json:"key"`
+	var payload registerPayload
+
+	err := parseJSON(r, &payload)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
 	}
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        _ = writeError(w, http.StatusBadRequest, err)
-        return
-    }
-	data := map[string]interface{}{
-		"name":        req.Name,
-		"rustdesk_id": req.RustdeskID,
-		"key":         req.Key,
+
+	data := map[string]any{
+		"name":        payload.Name,
+		"rustdesk_id": payload.RustDeskID,
+		"key":         payload.Key,
 	}
-	var inserted []Computer
-    if err := sb.DB.From("computers").Insert(data).Execute(&inserted); err != nil {
-        _ = writeError(w, http.StatusInternalServerError, err)
-        return
-    }
-	writeJSON(w, map[string]bool{"success": len(inserted) > 0})
+	var inserted []any
+	if err := sb.DB.From("computers").Insert(data).Execute(&inserted); err != nil {
+		_ = writeError(w, http.StatusConflict, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]bool{"success": len(inserted) > 0})
 }
 
 func updateComputer(w http.ResponseWriter, r *http.Request) {
