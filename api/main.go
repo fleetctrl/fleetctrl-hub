@@ -5,12 +5,18 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
 )
 
 var sb *supabase.Client
 
 func main() {
+	err := godotenv.Load("../.env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	url := os.Getenv("SUPABASE_URL")
 	key := os.Getenv("SUPABASE_KEY")
 	if url == "" || key == "" {
