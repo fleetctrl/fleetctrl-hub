@@ -1,11 +1,8 @@
 package main
 
 import (
-    "encoding/json"
-    "errors"
-    "net/http"
-    "strconv"
-    "time"
+	"net/http"
+	"time"
 )
 
 type registerPayload struct {
