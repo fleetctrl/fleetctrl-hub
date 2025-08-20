@@ -18,10 +18,18 @@ type Computer struct {
 	LoginUser      *string   `json:"login_user,omitempty"`
 }
 
+type TaskStatus string
+
+const (
+	taskStatusPending TaskStatus = "PENDING"
+	taskStatusSuccess TaskStatus = "SUCCESS"
+	taskStatusError   TaskStatus = "ERROR"
+)
+
 type Task struct {
 	UUID      string          `json:"uuid"`
 	CreatedAt time.Time       `json:"created_at"`
-	Status    string          `json:"status"`
+	Status    TaskStatus      `json:"status"`
 	Task      string          `json:"task"`
 	TaskData  json.RawMessage `json:"task_data"`
 }

@@ -1,69 +1,63 @@
 package main
 
 import (
-    "encoding/json"
-    "errors"
-    "net/http"
-    "strconv"
+	"errors"
+	"net/http"
+	"strconv"
 )
 
-func getTasksByRustdeskID(w http.ResponseWriter, r *http.Request) {
-	rustdeskIDStr := r.URL.Query().Get("rustdesk_id")
-	key := r.URL.Query().Get("key")
-    if rustdeskIDStr == "" || key == "" {
-        _ = writeError(w, http.StatusBadRequest, errors.New("missing parameters"))
-        return
-    }
-    if _, err := strconv.Atoi(rustdeskIDStr); err != nil {
-        _ = writeError(w, http.StatusBadRequest, errors.New("invalid rustdesk_id"))
-        return
-    }
-	var comps []Computer
-    if err := sb.DB.From("computers").Select("id").
-        Eq("rustdesk_id", rustdeskIDStr).
-        Eq("key", key).
-        Execute(&comps); err != nil {
-        _ = writeError(w, http.StatusInternalServerError, err)
-        return
-    }
-    if len(comps) == 0 {
-        _ = writeError(w, http.StatusNotFound, errors.New("not found"))
-        return
-    }
-	compIDStr := strconv.FormatInt(comps[0].ID, 10)
-	var tasks []Task
-    if err := sb.DB.From("tasks").
-        Select("uuid,created_at,status,task,task_data").
-        Eq("computer_id", compIDStr).
-        Eq("status", "PENDING").
-        Execute(&tasks); err != nil {
-        _ = writeError(w, http.StatusInternalServerError, err)
-        return
-    }
-	writeJSON(w, tasks)
+type updateTaskPayload struct {
+	Status string `json:"status"`
+	Error  string `json:"error"`
 }
 
-func editTaskStatus(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        _ = writeError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-        return
-    }
-	var req struct {
-		UUID      string `json:"uuid"`
-		NewStatus string `json:"new_status"`
+func getTasksByKey(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+
+	var computer []Computer
+	if err := sb.DB.From("computers").Select("id").
+		Limit(1).
+		Eq("key", key).
+		Execute(&computer); err != nil {
+		_ = writeError(w, http.StatusInternalServerError, err)
+		return
 	}
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        _ = writeError(w, http.StatusBadRequest, err)
-        return
-    }
-	update := map[string]interface{}{"status": req.NewStatus}
+	if len(computer) == 0 {
+		_ = writeError(w, http.StatusNotFound, errors.New("not found"))
+		return
+	}
+
+	var tasks []Task
+	if err := sb.DB.From("tasks").
+		Select("uuid,created_at,status,task,task_data").
+		Eq("computer_id", strconv.Itoa(int(computer[0].ID))).
+		Eq("status", "PENDING").
+		Execute(&tasks); err != nil {
+		_ = writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tasks": tasks,
+	})
+}
+
+func updateTaskStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var payload updateTaskPayload
+
+	err := parseJSON(r, &payload)
+	if err != nil {
+		_ = writeError(w, http.StatusBadRequest, err)
+	}
+
+	update := map[string]interface{}{"status": payload.Status, "error": payload.Error}
 	var updated []Task
-    if err := sb.DB.From("tasks").
-        Update(update).
-        Eq("uuid", req.UUID).
-        Execute(&updated); err != nil {
-        _ = writeError(w, http.StatusInternalServerError, err)
-        return
-    }
-	writeJSON(w, map[string]string{"status": "ok"})
+	if err := sb.DB.From("tasks").
+		Update(update).
+		Eq("uuid", id).
+		Execute(&updated); err != nil {
+		_ = writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

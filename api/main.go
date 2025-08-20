@@ -43,8 +43,8 @@ func main() {
 	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(rustDeskSync))
 
 	// tasks
-	mux.Handle("GET /tasks/{key}", withMiddleware(getTasksByRustdeskID))
-	mux.Handle("PUT /task/update", withMiddleware(updateTaskStatus))
+	mux.Handle("GET /computer/{key}/tasks", withMiddleware(getTasksByKey))
+	mux.Handle("PATCH /task/{id}", withMiddleware(updateTaskStatus))
 
 	// other
 	mux.Handle("GET /health", withMiddleware(health))
