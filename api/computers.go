@@ -11,7 +11,15 @@ import (
 type registerPayload struct {
 	Name       string `json:"name"`
 	RustDeskID string `json:"rustdesk_id"`
-	Key        string `json:"key"`
+}
+
+type rustdeskSyncPaylod struct {
+	Name       string `json:"name"`
+	RustDeskID string `json:"rustdesk_id"`
+	IP         string `json:"ip"`
+	OS         string `json:"os"`
+	OSVersion  string `json:"os_version"`
+	LoginUser  string `json:"login_user"`
 }
 
 func isComputerRegistered(w http.ResponseWriter, r *http.Request) {
