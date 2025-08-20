@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/tls"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
@@ -18,20 +20,13 @@ func main() {
 	}
 
 	url := os.Getenv("SUPABASE_URL")
-	key := os.Getenv("SUPABASE_KEY")
+	key := os.Getenv("SERVICE_ROLE_KEY")
 	if url == "" || key == "" {
 		log.Fatal("SUPABASE_URL or SUPABASE_KEY is not set")
 	}
 	sb = supabase.CreateClient(url, key)
 
-	http.Handle("/computer", withMiddleware(getComputerByKey))
-	http.Handle("/tasks", withMiddleware(getTasksByRustdeskID))
-	http.Handle("/is_computer_registered", withMiddleware(isComputerRegistered))
-	http.Handle("/register_computer", withMiddleware(registerComputer))
-	http.Handle("/update_computer", withMiddleware(updateComputer))
-	http.Handle("/edit_task_status", withMiddleware(editTaskStatus))
-
-	port := os.Getenv("PORT")
+	port := os.Getenv("API_PORT")
 	if port == "" {
 		port = "8080"
 	}
@@ -41,8 +36,8 @@ func main() {
 
 	// coputers
 	mux.Handle("GET /computer/{key}/registered", withMiddleware(isComputerRegistered))
-	mux.Handle("POST /computer/register", withMiddleware(registerComputer))
-	mux.Handle("PUT /computer/update", withMiddleware(updateComputer))
+	mux.Handle("POST /computer/{key}/register", withMiddleware(registerComputer))
+	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(rustDeskSync))
 
 	// tasks
 	mux.Handle("GET /tasks/{key}", withMiddleware(getTasksByRustdeskID))
