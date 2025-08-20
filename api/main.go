@@ -40,7 +40,6 @@ func main() {
 	mux := http.NewServeMux()
 
 	// coputers
-	mux.Handle("GET /computer/{key}", withMiddleware(getComputerByKey))
 	mux.Handle("GET /computer/{key}/registered", withMiddleware(isComputerRegistered))
 	mux.Handle("POST /computer/register", withMiddleware(registerComputer))
 	mux.Handle("PUT /computer/update", withMiddleware(updateComputer))

@@ -14,33 +14,6 @@ type registerPayload struct {
 	Key        string `json:"key"`
 }
 
-func getComputerByKey(w http.ResponseWriter, r *http.Request) {
-	rustdeskIDStr := r.URL.Query().Get("rustdesk_id")
-	key := r.URL.Query().Get("key")
-    if rustdeskIDStr == "" || key == "" {
-        _ = writeError(w, http.StatusBadRequest, errors.New("missing parameters"))
-        return
-    }
-    if _, err := strconv.Atoi(rustdeskIDStr); err != nil {
-        _ = writeError(w, http.StatusBadRequest, errors.New("invalid rustdesk_id"))
-        return
-    }
-	var comps []Computer
-    if err := sb.DB.From("computers").
-        Select("*").
-        Eq("rustdesk_id", rustdeskIDStr).
-        Eq("key", key).
-        Execute(&comps); err != nil {
-        _ = writeError(w, http.StatusInternalServerError, err)
-        return
-    }
-    if len(comps) == 0 {
-        _ = writeError(w, http.StatusNotFound, errors.New("not found"))
-        return
-    }
-	writeJSON(w, comps[0])
-}
-
 func isComputerRegistered(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
