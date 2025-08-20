@@ -1,11 +1,17 @@
 # fleetctrl-hub
 
+## Install package manager
+
+```
+npm install -g pnpm@latest-10
+```
+
 ## Start
 
 1. Nainstalujte node moduly
 
 ```
-npm install
+pnpm install --frozen-lockfile
 ```
 
 2. Vygeneruj anon a service key
