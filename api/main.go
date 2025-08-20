@@ -12,11 +12,14 @@ import (
 )
 
 var sb *supabase.Client
+var runningInDocker string = "false"
 
 func main() {
-	err := godotenv.Load("../.env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	if runningInDocker == "false" {
+		err := godotenv.Load("../.env")
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
 	}
 
 	url := os.Getenv("SUPABASE_URL")
