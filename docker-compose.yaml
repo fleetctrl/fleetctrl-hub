@@ -1,6 +1,6 @@
 services:
   app:
-    image: git.ondomain.org/kiskale/rustdesk-server-webui:latest
+    image: ghcr.io/fleetctrl/fleetctrl-hub:latest
     build:
       context: ./
       target: production
@@ -16,7 +16,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SERVICE_ROLE_KEY}
+      - SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
     ports:
       - "${API_PORT:-8080}:8080"
 

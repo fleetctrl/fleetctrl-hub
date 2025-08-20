@@ -1,9 +1,9 @@
-FROM golang:1.22-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o fleetctrl-api main.go
+RUN go build -ldflags="-X 'main.runningInDocker=true'" -o fleetctrl-api ./
 
 FROM alpine:3.19
 WORKDIR /app
