@@ -49,41 +49,33 @@ func registerComputer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]bool{"success": len(inserted) > 0})
 }
 
-func updateComputer(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        _ = writeError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-        return
-    }
-	var req struct {
-		Name           string    `json:"name"`
-		RustdeskID     int       `json:"rustdesk_id"`
-		Key            string    `json:"key"`
-		IP             *string   `json:"ip"`
-		OS             *string   `json:"os"`
-		OSVersion      *string   `json:"os_version"`
-		LoginUser      *string   `json:"login_user"`
-		LastConnection time.Time `json:"last_connection"`
+func rustDeskSync(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+
+	var payload rustdeskSyncPaylod
+	err := parseJSON(r, &payload)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
 	}
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        _ = writeError(w, http.StatusBadRequest, err)
-        return
-    }
-	update := map[string]interface{}{
-		"name":            req.Name,
-		"ip":              req.IP,
-		"os":              req.OS,
-		"os_version":      req.OSVersion,
-		"login_user":      req.LoginUser,
-		"last_connection": req.LastConnection,
+
+	nowUTC := time.Now().UTC()
+
+	update := map[string]any{
+		"name":            payload.Name,
+		"ip":              payload.IP,
+		"os":              payload.OS,
+		"os_version":      payload.OSVersion,
+		"login_user":      payload.LoginUser,
+		"last_connection": nowUTC,
 	}
 	var updated []Computer
-    if err := sb.DB.From("computers").
-        Update(update).
-        Eq("rustdesk_id", strconv.Itoa(req.RustdeskID)).
-        Eq("key", req.Key).
-        Execute(&updated); err != nil {
-        _ = writeError(w, http.StatusInternalServerError, err)
-        return
-    }
-	writeJSON(w, map[string]bool{"success": len(updated) > 0})
+	if err := sb.DB.From("computers").
+		Update(update).
+		Eq("key", key).
+		Execute(&updated); err != nil {
+		_ = writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": len(updated) > 0})
 }
