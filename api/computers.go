@@ -28,6 +28,7 @@ func isComputerRegistered(w http.ResponseWriter, r *http.Request) {
 }
 
 func registerComputer(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
 	var payload registerPayload
 
 	err := parseJSON(r, &payload)
@@ -39,7 +40,7 @@ func registerComputer(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"name":        payload.Name,
 		"rustdesk_id": payload.RustDeskID,
-		"key":         payload.Key,
+		"key":         key,
 	}
 	var inserted []any
 	if err := sb.DB.From("computers").Insert(data).Execute(&inserted); err != nil {
