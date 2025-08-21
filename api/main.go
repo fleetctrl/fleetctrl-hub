@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,10 +13,11 @@ import (
 )
 
 var sb *supabase.Client
-var runningInDocker string = "false"
 
 func main() {
-	if runningInDocker == "false" {
+	docker := os.Getenv("RUNNING_IN_DOCKER")
+	if docker == "true" {
+	} else {
 		err := godotenv.Load("../.env")
 		if err != nil {
 			log.Fatal("Error loading .env file")
@@ -24,6 +26,8 @@ func main() {
 
 	url := os.Getenv("SUPABASE_URL")
 	key := os.Getenv("SERVICE_ROLE_KEY")
+
+	fmt.Printf("url: %s\n", url)
 	if url == "" || key == "" {
 		log.Fatal("SUPABASE_URL or SUPABASE_KEY is not set")
 	}
