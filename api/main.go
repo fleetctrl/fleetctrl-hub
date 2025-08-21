@@ -46,13 +46,17 @@ func main() {
 	mux.Handle("GET /computer/{key}/tasks", withMiddleware(getTasksByKey))
 	mux.Handle("PATCH /task/{id}", withMiddleware(updateTaskStatus))
 
+	// cert management
+	mux.Handle("POST /enroll/csr", withMiddleware(enrollCSR))
+	mux.Handle("POST /cert/rotate", withMiddleware(rotateCert))
+
 	// other
 	mux.Handle("GET /health", withMiddleware(health))
 
 	isHttps := os.Getenv("API_HTTPS")
 	if isHttps == "true" {
-		certFilePath := os.Getenv("CERT_FILE_PATH")
-		keyFilePath := os.Getenv("KEY_FILE_PATH")
+		certFilePath := os.Getenv("TLS_SERVER_CERT")
+		keyFilePath := os.Getenv("TLS_SERVER_KEY")
 
 		serverTLSCert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
 		if err != nil {
@@ -61,6 +65,17 @@ func main() {
 
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{serverTLSCert},
+			MinVersion:   tls.VersionTLS12,
+		}
+		if os.Getenv("MTLS_REQUIRED") == "true" {
+			caBundle := os.Getenv("TLS_CLIENT_CA_BUNDLE")
+			pool, err := loadClientCAs(caBundle)
+			if err != nil {
+				log.Fatal(err)
+			}
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			tlsConfig.ClientCAs = pool
+			tlsConfig.VerifyPeerCertificate = verifyDeviceCert
 		}
 
 		s := &http.Server{
