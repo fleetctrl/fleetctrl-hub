@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"time"
+
+	"github.com/fleetctrl/fleetctrl-hub/api/pkgs/utils"
 )
 
 type registerPayload struct {
@@ -26,19 +28,19 @@ func isComputerRegistered(w http.ResponseWriter, r *http.Request) {
 	if err := sb.DB.From("computers").Select("id").
 		Eq("key", key).
 		Execute(&computer); err != nil {
-		_ = writeError(w, http.StatusInternalServerError, err)
+		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"registered": len(computer) > 0})
+	utils.WriteJSON(w, http.StatusOK, map[string]bool{"registered": len(computer) > 0})
 }
 
 func registerComputer(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	var payload registerPayload
 
-	err := parseJSON(r, &payload)
+	err := utils.ParseJSON(r, &payload)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		utils.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -49,19 +51,19 @@ func registerComputer(w http.ResponseWriter, r *http.Request) {
 	}
 	var inserted []any
 	if err := sb.DB.From("computers").Insert(data).Execute(&inserted); err != nil {
-		_ = writeError(w, http.StatusConflict, err)
+		_ = utils.WriteError(w, http.StatusConflict, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]bool{"success": len(inserted) > 0})
+	utils.WriteJSON(w, http.StatusCreated, map[string]bool{"success": len(inserted) > 0})
 }
 
 func rustDeskSync(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
 	var payload rustdeskSyncPaylod
-	err := parseJSON(r, &payload)
+	err := utils.ParseJSON(r, &payload)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		utils.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -80,8 +82,8 @@ func rustDeskSync(w http.ResponseWriter, r *http.Request) {
 		Update(update).
 		Eq("key", key).
 		Execute(&updated); err != nil {
-		_ = writeError(w, http.StatusInternalServerError, err)
+		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"success": len(updated) > 0})
+	utils.WriteJSON(w, http.StatusOK, map[string]bool{"success": len(updated) > 0})
 }

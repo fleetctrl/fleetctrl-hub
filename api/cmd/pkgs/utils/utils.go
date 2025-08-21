@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"encoding/json"
@@ -6,19 +6,19 @@ import (
 	"net/http"
 )
 
-func writeJSON(w http.ResponseWriter, statusCode int, v any) error {
+func WriteJSON(w http.ResponseWriter, statusCode int, v any) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	return json.NewEncoder(w).Encode(v)
 }
 
-func writeError(w http.ResponseWriter, statusCode int, err error) error {
+func WriteError(w http.ResponseWriter, statusCode int, err error) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	return json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 }
 
-func parseJSON(r *http.Request, payload any) error {
+func ParseJSON(r *http.Request, payload any) error {
 	if r.Body == nil {
 		return fmt.Errorf("missing request body")
 	}
