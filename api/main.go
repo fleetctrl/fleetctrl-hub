@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,10 +13,11 @@ import (
 )
 
 var sb *supabase.Client
-var runningInDocker string = "false"
 
 func main() {
-	if runningInDocker == "false" {
+	docker := os.Getenv("RUNNING_IN_DOCKER")
+	if docker == "true" {
+	} else {
 		err := godotenv.Load("../.env")
 		if err != nil {
 			log.Fatal("Error loading .env file")
@@ -24,6 +26,8 @@ func main() {
 
 	url := os.Getenv("SUPABASE_URL")
 	key := os.Getenv("SERVICE_ROLE_KEY")
+
+	fmt.Printf("url: %s\n", url)
 	if url == "" || key == "" {
 		log.Fatal("SUPABASE_URL or SUPABASE_KEY is not set")
 	}
@@ -46,13 +50,17 @@ func main() {
 	mux.Handle("GET /computer/{key}/tasks", withMiddleware(getTasksByKey))
 	mux.Handle("PATCH /task/{id}", withMiddleware(updateTaskStatus))
 
+	// cert management
+	mux.Handle("POST /enroll/csr", withMiddleware(enrollCSR))
+	mux.Handle("POST /cert/rotate", withMiddleware(rotateCert))
+
 	// other
 	mux.Handle("GET /health", withMiddleware(health))
 
 	isHttps := os.Getenv("API_HTTPS")
 	if isHttps == "true" {
-		certFilePath := os.Getenv("CERT_FILE_PATH")
-		keyFilePath := os.Getenv("KEY_FILE_PATH")
+		certFilePath := os.Getenv("TLS_SERVER_CERT")
+		keyFilePath := os.Getenv("TLS_SERVER_KEY")
 
 		serverTLSCert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
 		if err != nil {
@@ -61,6 +69,17 @@ func main() {
 
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{serverTLSCert},
+			MinVersion:   tls.VersionTLS12,
+		}
+		if os.Getenv("MTLS_REQUIRED") == "true" {
+			caBundle := os.Getenv("TLS_CLIENT_CA_BUNDLE")
+			pool, err := loadClientCAs(caBundle)
+			if err != nil {
+				log.Fatal(err)
+			}
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			tlsConfig.ClientCAs = pool
+			tlsConfig.VerifyPeerCertificate = verifyDeviceCert
 		}
 
 		s := &http.Server{

@@ -10,4 +10,5 @@ WORKDIR /app
 COPY --from=build /app/fleetctrl-api .
 EXPOSE 8080
 ENV PORT=8080
+ENV RUNNING_IN_DOCKER=true
 CMD ["./fleetctrl-api"]
