@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	authpkg "github.com/fleetctrl/fleetctrl-hub/api/auth"
 	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
 )
@@ -29,6 +31,26 @@ func main() {
 	}
 	sb = supabase.CreateClient(url, key)
 
+	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+	if len(jwtSecret) == 0 {
+		log.Fatal("JWT_SECRET not set")
+	}
+	atLifetime := 30 * time.Minute
+	if d := os.Getenv("ACCESS_TOKEN_LIFETIME"); d != "" {
+		if dur, err := time.ParseDuration(d); err == nil {
+			atLifetime = dur
+		}
+	}
+	repo := authpkg.NewMemoryRepository()
+	tokenManager := authpkg.NewTokenManager(jwtSecret, atLifetime)
+	authSvc = authpkg.NewService(repo, tokenManager)
+	limiter := authpkg.NewRateLimiter(5, time.Minute)
+	tokenHandler := &authpkg.TokenHandler{Service: authSvc, Limiter: limiter}
+	if id := os.Getenv("DEMO_DEVICE_ID"); id != "" {
+		secret := os.Getenv("DEMO_DEVICE_SECRET")
+		_ = repo.SaveDevice(context.Background(), &authpkg.Device{ID: id, SecretHash: authpkg.HashSecret(secret)})
+	}
+
 	port := os.Getenv("API_PORT")
 	if port == "" {
 		port = "8080"
@@ -37,7 +59,10 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// coputers
+	// auth
+	mux.Handle("POST /oauth/token", withoutAuth(tokenHandler.ServeHTTP))
+
+	// computers
 	mux.Handle("GET /computer/{key}/registered", withMiddleware(isComputerRegistered))
 	mux.Handle("POST /computer/{key}/register", withMiddleware(registerComputer))
 	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(rustDeskSync))
@@ -47,7 +72,7 @@ func main() {
 	mux.Handle("PATCH /task/{id}", withMiddleware(updateTaskStatus))
 
 	// other
-	mux.Handle("GET /health", withMiddleware(health))
+	mux.Handle("GET /health", withoutAuth(health))
 
 	isHttps := os.Getenv("API_HTTPS")
 	if isHttps == "true" {
