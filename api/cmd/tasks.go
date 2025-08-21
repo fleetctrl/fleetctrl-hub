@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/pkgs/utils"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
 )
 
 type updateTaskPayload struct {

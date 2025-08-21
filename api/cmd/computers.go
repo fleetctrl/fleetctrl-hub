@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/pkgs/utils"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
 )
 
 type registerPayload struct {

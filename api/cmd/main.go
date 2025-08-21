@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/pkgs/utils"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
 	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
 )
