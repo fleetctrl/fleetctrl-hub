@@ -1,13 +1,14 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
@@ -82,4 +83,12 @@ func DPoPRequired(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func cnfJKTFromContext(context context.Context) any {
+	panic("unimplemented")
+}
+
+func base64urlSha256JWK(pub jwk.Key) (any, any) {
+	panic("unimplemented")
 }

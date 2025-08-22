@@ -1,23 +1,35 @@
-package main
+package tasks
 
 import (
 	"errors"
 	"net/http"
 	"strconv"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/models"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
+	"github.com/nedpals/supabase-go"
 )
+
+type TasksService struct {
+	sb *supabase.Client
+}
 
 type updateTaskPayload struct {
 	Status string `json:"status"`
 	Error  string `json:"error"`
 }
 
-func getTasksByKey(w http.ResponseWriter, r *http.Request) {
+func NewTasksService(sb *supabase.Client) *TasksService {
+	return &TasksService{
+		sb: sb,
+	}
+}
+
+func (ts TasksService) GetTasksByKey(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
-	var computer []Computer
-	if err := sb.DB.From("computers").Select("id").
+	var computer []models.Computer
+	if err := ts.sb.DB.From("computers").Select("id").
 		Limit(1).
 		Eq("key", key).
 		Execute(&computer); err != nil {
@@ -29,8 +41,8 @@ func getTasksByKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var tasks []Task
-	if err := sb.DB.From("tasks").
+	var tasks []models.Task
+	if err := ts.sb.DB.From("tasks").
 		Select("uuid,created_at,status,task,task_data").
 		Eq("computer_id", strconv.Itoa(int(computer[0].ID))).
 		Eq("status", "PENDING").
@@ -43,7 +55,7 @@ func getTasksByKey(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func updateTaskStatus(w http.ResponseWriter, r *http.Request) {
+func (ts TasksService) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var payload updateTaskPayload
 
@@ -53,8 +65,8 @@ func updateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	update := map[string]interface{}{"status": payload.Status, "error": payload.Error}
-	var updated []Task
-	if err := sb.DB.From("tasks").
+	var updated []models.Task
+	if err := ts.sb.DB.From("tasks").
 		Update(update).
 		Eq("uuid", id).
 		Execute(&updated); err != nil {

@@ -1,11 +1,17 @@
-package main
+package computers
 
 import (
 	"net/http"
 	"time"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/models"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
+	"github.com/nedpals/supabase-go"
 )
+
+type ComputersService struct {
+	sb *supabase.Client
+}
 
 type registerPayload struct {
 	Name       string `json:"name"`
@@ -21,11 +27,17 @@ type rustdeskSyncPaylod struct {
 	LoginUser  string `json:"login_user"`
 }
 
-func isComputerRegistered(w http.ResponseWriter, r *http.Request) {
+func NewComputersService(sb *supabase.Client) *ComputersService {
+	return &ComputersService{
+		sb: sb,
+	}
+}
+
+func (cs ComputersService) IsComputerRegistered(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
-	var computer []Computer
-	if err := sb.DB.From("computers").Select("id").
+	var computer []models.Computer
+	if err := cs.sb.DB.From("computers").Select("id").
 		Eq("key", key).
 		Execute(&computer); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
@@ -34,7 +46,7 @@ func isComputerRegistered(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusOK, map[string]bool{"registered": len(computer) > 0})
 }
 
-func registerComputer(w http.ResponseWriter, r *http.Request) {
+func (cs ComputersService) RegisterComputer(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	var payload registerPayload
 
@@ -50,14 +62,14 @@ func registerComputer(w http.ResponseWriter, r *http.Request) {
 		"key":         key,
 	}
 	var inserted []any
-	if err := sb.DB.From("computers").Insert(data).Execute(&inserted); err != nil {
+	if err := cs.sb.DB.From("computers").Insert(data).Execute(&inserted); err != nil {
 		_ = utils.WriteError(w, http.StatusConflict, err)
 		return
 	}
 	utils.WriteJSON(w, http.StatusCreated, map[string]bool{"success": len(inserted) > 0})
 }
 
-func rustDeskSync(w http.ResponseWriter, r *http.Request) {
+func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
 	var payload rustdeskSyncPaylod
@@ -77,8 +89,8 @@ func rustDeskSync(w http.ResponseWriter, r *http.Request) {
 		"login_user":      payload.LoginUser,
 		"last_connection": nowUTC,
 	}
-	var updated []Computer
-	if err := sb.DB.From("computers").
+	var updated []models.Computer
+	if err := cs.sb.DB.From("computers").
 		Update(update).
 		Eq("key", key).
 		Execute(&updated); err != nil {

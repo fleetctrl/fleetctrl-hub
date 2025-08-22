@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
 )
 
 // withMiddleware applies authentication and logging to handlers.

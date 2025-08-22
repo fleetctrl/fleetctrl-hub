@@ -3,7 +3,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -ldflags="-X 'main.runningInDocker=true'" -o fleetctrl-api ./
+RUN go build -ldflags="-X 'main.runningInDocker=true'" -o fleetctrl-api ./cmd/api/
 
 FROM alpine:3.19
 WORKDIR /app
