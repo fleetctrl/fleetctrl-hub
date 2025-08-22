@@ -7,7 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/fleetctrl/fleetctrl-hub/api/cmd/pkgs/utils"
+	computers "github.com/fleetctrl/fleetctrl-hub/api/internal/handlers/computers"
+	health "github.com/fleetctrl/fleetctrl-hub/api/internal/handlers/health"
+	tasks "github.com/fleetctrl/fleetctrl-hub/api/internal/handlers/tasks"
 	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
 )
@@ -38,17 +40,14 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// coputers
-	mux.Handle("GET /computer/{key}/registered", withMiddleware(isComputerRegistered))
-	mux.Handle("POST /computer/{key}/register", withMiddleware(registerComputer))
-	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(rustDeskSync))
+	mux.Handle("GET /computer/{key}/registered", withMiddleware(computers.IsComputerRegistered(sb)))
+	mux.Handle("POST /computer/{key}/register", withMiddleware(computers.RegisterComputer(sb)))
+	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(computers.RustDeskSync(sb)))
 
-	// tasks
-	mux.Handle("GET /computer/{key}/tasks", withMiddleware(getTasksByKey))
-	mux.Handle("PATCH /task/{id}", withMiddleware(updateTaskStatus))
+	mux.Handle("GET /computer/{key}/tasks", withMiddleware(tasks.GetTasksByKey(sb)))
+	mux.Handle("PATCH /task/{id}", withMiddleware(tasks.UpdateTaskStatus(sb)))
 
-	// other
-	mux.Handle("GET /health", withMiddleware(health))
+	mux.Handle("GET /health", withMiddleware(health.Health()))
 
 	isHttps := os.Getenv("API_HTTPS")
 	if isHttps == "true" {
@@ -91,8 +90,4 @@ func main() {
 			log.Fatal("Server startup failed")
 		}
 	}
-}
-
-func health(w http.ResponseWriter, r *http.Request) {
-	utils.WriteJSON(w, http.StatusOK, "")
 }
