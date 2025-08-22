@@ -19,6 +19,17 @@ services:
       - SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
     ports:
       - "${API_PORT:-8080}:8080"
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:latest
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+    command: ["redis-server"]
 
   studio:
     container_name: supabase-studio

@@ -27,8 +27,9 @@ func main() {
 
 	url := os.Getenv("SUPABASE_URL")
 	key := os.Getenv("SERVICE_ROLE_KEY")
-	if url == "" || key == "" {
-		log.Fatal("SUPABASE_URL or SUPABASE_KEY is not set")
+	redisAddr := os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT")
+	if url == "" || key == "" || redisAddr == "" {
+		log.Fatal("SUPABASE_URL, SUPABASE_KEY, REDIS_HOST or REDIS_PORT is not set")
 	}
 	sb = supabase.CreateClient(url, key)
 
@@ -39,6 +40,17 @@ func main() {
 	log.Printf("listening on :%s", port)
 
 	mux := http.NewServeMux()
+
+	// redisPass := os.Getenv("REDIS_PASSWORD")
+	// client := redis.NewClient(&redis.Options{
+	// 	Addr:     redisAddr,
+	// 	Password: redisPass,
+	// 	DB:       0, // Use default DB
+	// 	Protocol: 2, // Connection protocol
+	// })
+
+	// //auth
+	// as := auth.NewAuthService(sb, client)
 
 	// coputers
 	cs := computers.NewComputersService(sb)
