@@ -3,7 +3,6 @@ package tasks
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/models"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
@@ -44,7 +43,7 @@ func (ts TasksService) GetTasksByKey(w http.ResponseWriter, r *http.Request) {
 	var tasks []models.Task
 	if err := ts.sb.DB.From("tasks").
 		Select("uuid,created_at,status,task,task_data").
-		Eq("computer_id", strconv.Itoa(int(computer[0].ID))).
+		Eq("computer_id", computer[0].ID).
 		Eq("status", "PENDING").
 		Execute(&tasks); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)

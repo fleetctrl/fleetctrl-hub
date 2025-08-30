@@ -7,14 +7,17 @@ import (
 	"os"
 	"time"
 
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/auth"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/computers"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/tasks"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
 	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
+	"github.com/redis/go-redis/v9"
 )
 
 var sb *supabase.Client
+var rdb *redis.Client
 var runningInDocker string = "false"
 
 func main() {
@@ -41,27 +44,39 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// redisPass := os.Getenv("REDIS_PASSWORD")
-	// client := redis.NewClient(&redis.Options{
-	// 	Addr:     redisAddr,
-	// 	Password: redisPass,
-	// 	DB:       0, // Use default DB
-	// 	Protocol: 2, // Connection protocol
-	// })
+	// Redis client
+	redisPass := os.Getenv("REDIS_PASSWORD")
+	client := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: redisPass,
+		DB:       0, // default DB
+		Protocol: 2, // RESP2 for compatibility
+	})
+	rdb = client
 
-	// //auth
-	// as := auth.NewAuthService(sb, client)
+	// JWT signing config (HS256 with JWT_SECRET)
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if len(jwtSecret) < 32 {
+		log.Fatal("JWT_SECRET is missing or too short (>=32 chars)")
+	}
+	signAlg := "HS256"
+	var signKey any = []byte(jwtSecret)
+	var verifyKey any = []byte(jwtSecret)
+
+	// auth
+	as := auth.NewAuthService(sb, client, 300*time.Second, 15000*time.Second, signAlg, signKey, verifyKey)
+	mux.Handle("POST /enroll", withMiddleware(as.Enroll))
+	mux.Handle("GET /enroll/{fingerprintHash}/is-enrolled", withMiddleware(as.IsEnrolled))
 
 	// coputers
 	cs := computers.NewComputersService(sb)
-	mux.Handle("GET /computer/{key}/registered", withMiddleware(cs.IsComputerRegistered))
-	mux.Handle("POST /computer/{key}/register", withMiddleware(cs.RegisterComputer))
-	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(cs.RustDeskSync))
+	mux.Handle("GET /computer/{computerHash}/registered", withMiddleware(cs.IsComputerEnrolled))
+	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(withDPoP(cs.RustDeskSync)))
 
 	// tasks
 	ts := tasks.NewTasksService(sb)
-	mux.Handle("GET /computer/{key}/tasks", withMiddleware(ts.GetTasksByKey))
-	mux.Handle("PATCH /task/{id}", withMiddleware(ts.UpdateTaskStatus))
+	mux.Handle("GET /computer/{key}/tasks", withMiddleware(withDPoP(ts.GetTasksByKey)))
+	mux.Handle("PATCH /task/{id}", withMiddleware(withDPoP(ts.UpdateTaskStatus)))
 
 	// other
 	mux.Handle("GET /health", withMiddleware(health))

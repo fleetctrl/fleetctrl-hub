@@ -33,12 +33,12 @@ func NewComputersService(sb *supabase.Client) *ComputersService {
 	}
 }
 
-func (cs ComputersService) IsComputerRegistered(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+func (cs ComputersService) IsComputerEnrolled(w http.ResponseWriter, r *http.Request) {
+	hash := r.PathValue("computerHash")
 
 	var computer []models.Computer
 	if err := cs.sb.DB.From("computers").Select("id").
-		Eq("key", key).
+		Eq("fingerprint_hash", hash).
 		Execute(&computer); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
