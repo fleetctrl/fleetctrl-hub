@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -17,7 +18,11 @@ func defaultNow() time.Time { return time.Now().UTC() }
 func DefaultExternalURL(r *http.Request) *url.URL {
 	scheme := r.Header.Get("X-Forwarded-Proto")
 	if scheme == "" {
-		scheme = "https"
+		if os.Getenv("API_HTTPS") == "true" {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
 	}
 	host := r.Header.Get("X-Forwarded-Host")
 	if host == "" {

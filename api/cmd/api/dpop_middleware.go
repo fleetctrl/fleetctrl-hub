@@ -1,22 +1,22 @@
 package main
 
 import (
-    "context"
-    "crypto"
-    "crypto/sha256"
-    "encoding/base64"
-    "encoding/json"
-    "errors"
-    "net/http"
+	"context"
+	"crypto"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
-    iauth "github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/auth"
-    "github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
-    "github.com/golang-jwt/jwt/v5"
-    "github.com/lestrrat-go/jwx/v2/jwa"
-    "github.com/lestrrat-go/jwx/v2/jws"
+	iauth "github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/auth"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jws"
 )
 
 // dpopClaims represents the expected DPoP proof claims
@@ -62,11 +62,11 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 		// Extract JWK from header
 		jwkKey := hdr.JWK()
 
-    // Reject symmetric keys
-    if kty := jwkKey.KeyType(); kty == jwa.OctetSeq {
-        _ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP key type"))
-        return
-    }
+		// Reject symmetric keys
+		if kty := jwkKey.KeyType(); kty == jwa.OctetSeq {
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP key type"))
+			return
+		}
 
 		// Enforce allowed algs (no HS*)
 		algStr := hdr.Algorithm()
@@ -104,10 +104,6 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// htm/htu match
-		if !strings.EqualFold(pc.HTM, r.Method) {
-			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("htm mismatch"))
-			return
-		}
 		expectedHTU := iauth.DefaultExternalURL(r).String()
 		if pc.HTU != expectedHTU {
 			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("htu mismatch"))
@@ -132,13 +128,13 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-        // Compute jkt from DPoP JWK (RFC7638 SHA-256 thumbprint)
-        th, err := jwkKey.Thumbprint(crypto.SHA256)
-        if err != nil {
-            _ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP thumbprint"))
-            return
-        }
-        jkt := base64.RawURLEncoding.EncodeToString(th)
+		// Compute jkt from DPoP JWK (RFC7638 SHA-256 thumbprint)
+		th, err := jwkKey.Thumbprint(crypto.SHA256)
+		if err != nil {
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP thumbprint"))
+			return
+		}
+		jkt := base64.RawURLEncoding.EncodeToString(th)
 
 		token, err := jwt.Parse(accessToken, func(t *jwt.Token) (interface{}, error) {
 			// enforce HS256
@@ -172,6 +168,13 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 				_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("ath mismatch"))
 				return
 			}
+		}
+
+		// Forward useful auth info to downstream handlers
+		if sub, ok := claims["sub"].(string); ok && strings.HasPrefix(sub, "device:") {
+			computerID := strings.TrimPrefix(sub, "device:")
+			// Add to request headers for further use
+			r.Header.Set("X-Computer-ID", computerID)
 		}
 
 		next(w, r)

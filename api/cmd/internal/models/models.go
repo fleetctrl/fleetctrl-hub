@@ -6,16 +6,17 @@ import (
 )
 
 type Computer struct {
-	ID             string    `json:"id"`
-	RustdeskID     int       `json:"rustdesk_id"`
-	Name           string    `json:"name"`
-	IP             string    `json:"ip,omitempty"`
-	LastConnection time.Time `json:"last_connection"`
-	OS             string    `json:"os,omitempty"`
-	OSVersion      string    `json:"os_version,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	Key            string    `json:"key"`
-	LoginUser      string    `json:"login_user,omitempty"`
+	ID             string     `json:"id"`
+	RustdeskID     *int       `json:"rustdesk_id"`
+	Name           *string    `json:"name"`
+	IP             *string    `json:"ip,omitempty"`
+	LastConnection *time.Time `json:"last_connection"`
+	OS             *string    `json:"os,omitempty"`
+	OSVersion      *string    `json:"os_version,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	LoginUser      *string    `json:"login_user,omitempty"`
+	FingeprintHash string     `json:"fingerprint_hash"`
+	Jkt            string     `json:"jkt"`
 }
 
 type TaskStatus string

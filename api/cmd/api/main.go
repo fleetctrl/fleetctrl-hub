@@ -66,12 +66,12 @@ func main() {
 	// auth
 	as := auth.NewAuthService(sb, client, 300*time.Second, 15000*time.Second, signAlg, signKey, verifyKey)
 	mux.Handle("POST /enroll", withMiddleware(as.Enroll))
+	mux.Handle("POST /token/refresh", withMiddleware(as.RefreshTokens))
 	mux.Handle("GET /enroll/{fingerprintHash}/is-enrolled", withMiddleware(as.IsEnrolled))
 
 	// coputers
 	cs := computers.NewComputersService(sb)
-	mux.Handle("GET /computer/{computerHash}/registered", withMiddleware(cs.IsComputerEnrolled))
-	mux.Handle("PATCH /computer/{key}/rustdesk-sync", withMiddleware(withDPoP(cs.RustDeskSync)))
+	mux.Handle("PATCH /computer/rustdesk-sync", withMiddleware(withDPoP(cs.RustDeskSync)))
 
 	// tasks
 	ts := tasks.NewTasksService(sb)

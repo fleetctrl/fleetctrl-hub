@@ -1,6 +1,8 @@
 package computers
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -33,44 +35,23 @@ func NewComputersService(sb *supabase.Client) *ComputersService {
 	}
 }
 
-func (cs ComputersService) IsComputerEnrolled(w http.ResponseWriter, r *http.Request) {
-	hash := r.PathValue("computerHash")
+func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) {
+	computerID := r.Header.Get("X-Computer-ID")
+	fmt.Println(computerID)
 
-	var computer []models.Computer
-	if err := cs.sb.DB.From("computers").Select("id").
-		Eq("fingerprint_hash", hash).
-		Execute(&computer); err != nil {
+	type ComputerRow struct {
+		ID string `json:"id"`
+	}
+
+	var computer []ComputerRow
+	if err := cs.sb.DB.From("computers").Select("id").Eq("id", computerID).Execute(&computer); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, map[string]bool{"registered": len(computer) > 0})
-}
-
-func (cs ComputersService) RegisterComputer(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
-	var payload registerPayload
-
-	err := utils.ParseJSON(r, &payload)
-	if err != nil {
-		utils.WriteError(w, http.StatusBadRequest, err)
+	if len(computer) == 0 {
+		_ = utils.WriteError(w, http.StatusBadRequest, errors.New("no computer was found"))
 		return
 	}
-
-	data := map[string]any{
-		"name":        payload.Name,
-		"rustdesk_id": payload.RustDeskID,
-		"key":         key,
-	}
-	var inserted []any
-	if err := cs.sb.DB.From("computers").Insert(data).Execute(&inserted); err != nil {
-		_ = utils.WriteError(w, http.StatusConflict, err)
-		return
-	}
-	utils.WriteJSON(w, http.StatusCreated, map[string]bool{"success": len(inserted) > 0})
-}
-
-func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
 
 	var payload rustdeskSyncPaylod
 	err := utils.ParseJSON(r, &payload)
@@ -83,6 +64,7 @@ func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) 
 
 	update := map[string]any{
 		"name":            payload.Name,
+		"rustdesk_id":     payload.RustDeskID,
 		"ip":              payload.IP,
 		"os":              payload.OS,
 		"os_version":      payload.OSVersion,
@@ -92,9 +74,13 @@ func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) 
 	var updated []models.Computer
 	if err := cs.sb.DB.From("computers").
 		Update(update).
-		Eq("key", key).
+		Eq("id", computer[0].ID).
 		Execute(&updated); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if len(updated) == 0 {
+		_ = utils.WriteError(w, http.StatusInternalServerError, errors.New("no record updated"))
 		return
 	}
 	utils.WriteJSON(w, http.StatusOK, map[string]bool{"success": len(updated) > 0})

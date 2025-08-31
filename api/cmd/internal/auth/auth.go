@@ -21,6 +21,10 @@ type dpopPayload struct {
 	JTI string `json:"jti"`
 }
 
+type refreshTokensPayload struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type TokenPair struct {
 	AccessToken   string `json:"access_token"`
 	RefreshToken  string `json:"refresh_token"`
@@ -164,6 +168,107 @@ func (as *AuthService) Enroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJSON(w, http.StatusCreated, map[string]any{
+		"tokens": tokens,
+	})
+}
+
+func (as *AuthService) RefreshTokens(w http.ResponseWriter, r *http.Request) {
+	// Parse payload
+	var payload refreshTokensPayload
+	if err := utils.ParseJSON(r, &payload); err != nil {
+		_ = utils.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if payload.RefreshToken == "" {
+		_ = utils.WriteError(w, http.StatusBadRequest, errors.New("missing refresh_token"))
+		return
+	}
+
+	// Lookup refresh token by hash
+	hash := b64urlSHA256(payload.RefreshToken)
+	type rtRow struct {
+		ID         string     `json:"id"`
+		ComputerID string     `json:"computer_id"`
+		Jkt        string     `json:"jkt"`
+		ExpiresAt  time.Time  `json:"expires_at"`
+		Status     string     `json:"status"`
+		GraceUntil *time.Time `json:"grace_until"`
+		LastUsedAt *time.Time `json:"last_used_at"`
+	}
+
+	var rows []rtRow
+	if err := as.sb.DB.From("refresh_tokens").
+		Select("id,computer_id,jkt,expires_at,status,grace_until,last_used_at").
+		Limit(1).
+		Eq("token_hash", hash).
+		Execute(&rows); err != nil {
+		_ = utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if len(rows) == 0 {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid refresh token"))
+		return
+	}
+
+	now := defaultNow()
+	rt := rows[0]
+
+	// Grace period support
+	graceTTL := 2 * time.Minute
+
+	if rt.Status == "ACTIVE" {
+		// Active and not expired is required for first-time rotation
+		if !rt.ExpiresAt.IsZero() && now.After(rt.ExpiresAt) {
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("refresh token expired"))
+			return
+		}
+
+		// Rotate: revoke old token and set grace_until
+		var updated []map[string]any
+		if err := as.sb.DB.From("refresh_tokens").
+			Update(map[string]any{"status": "REVOKED", "grace_until": now.Add(graceTTL)}).
+			Eq("id", rt.ID).
+			Execute(&updated); err != nil {
+			_ = utils.WriteError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if len(updated) == 0 {
+			_ = utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to update refresh token status"))
+			return
+		}
+	} else {
+		// Allow exactly one extra use within grace window if not already used
+		if rt.GraceUntil == nil || now.After(*rt.GraceUntil) {
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("refresh token not in grace period"))
+			return
+		}
+		if rt.LastUsedAt != nil {
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("refresh token grace already used"))
+			return
+		}
+		// Mark grace usage
+		var updated []map[string]any
+		if err := as.sb.DB.From("refresh_tokens").
+			Update(map[string]any{"last_used_at": now}).
+			Eq("id", rt.ID).
+			Execute(&updated); err != nil {
+			_ = utils.WriteError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if len(updated) == 0 {
+			_ = utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to mark grace usage"))
+			return
+		}
+	}
+
+	sub := "device:" + rt.ComputerID
+	tokens, err := as.issueTokens(sub, rt.ComputerID, rt.Jkt)
+	if err != nil {
+		_ = utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	_ = utils.WriteJSON(w, http.StatusOK, map[string]any{
 		"tokens": tokens,
 	})
 }
