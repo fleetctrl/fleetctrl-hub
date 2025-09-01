@@ -95,10 +95,10 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// iat freshness (5 minutes)
+		// iat freshness (15 minutes)
 		now := time.Now().UTC()
 		iat := time.Unix(pc.IAT, 0).UTC()
-		if iat.After(now.Add(2*time.Minute)) || now.Sub(iat) > 5*time.Minute {
+		if iat.After(now.Add(2*time.Minute)) || now.Sub(iat) > 15*time.Minute {
 			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("stale DPoP proof"))
 			return
 		}
@@ -113,8 +113,8 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 		// 4) Anti-replay: jti uniqueness within window
 		if rdb != nil {
 			key := "dpop:jti:" + pc.JTI
-			// 5 min TTL to match freshness window
-			ok, err := rdb.SetNX(context.Background(), key, 1, 5*time.Minute).Result()
+			// 15 min TTL to match freshness window
+			ok, err := rdb.SetNX(context.Background(), key, 1, 15*time.Minute).Result()
 			if err != nil || !ok {
 				_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("replayed DPoP proof"))
 				return
