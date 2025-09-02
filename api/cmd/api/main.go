@@ -64,7 +64,7 @@ func main() {
 	var verifyKey any = []byte(jwtSecret)
 
 	// auth
-	as := auth.NewAuthService(sb, client, 300*time.Second, 15000*time.Second, signAlg, signKey, verifyKey)
+	as := auth.NewAuthService(sb, client, 900*time.Second, 2592000*time.Second, signAlg, signKey, verifyKey)
 	mux.Handle("POST /enroll", withMiddleware(as.Enroll))
 	mux.Handle("POST /token/refresh", withMiddleware(as.RefreshTokens))
 	mux.Handle("GET /enroll/{fingerprintHash}/is-enrolled", withMiddleware(as.IsEnrolled))
@@ -75,7 +75,7 @@ func main() {
 
 	// tasks
 	ts := tasks.NewTasksService(sb)
-	mux.Handle("GET /computer/{key}/tasks", withMiddleware(withDPoP(ts.GetTasksByKey)))
+	mux.Handle("GET /tasks", withMiddleware(withDPoP(ts.GetTasks)))
 	mux.Handle("PATCH /task/{id}", withMiddleware(withDPoP(ts.UpdateTaskStatus)))
 
 	// other

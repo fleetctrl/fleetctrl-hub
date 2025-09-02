@@ -18,7 +18,7 @@ export default async function Computer({ params }: { params: Params }) {
   const { data } = await supabase
     .from("computers")
     .select("*")
-    .eq("rustdesk_id", computerId)
+    .eq("id", computerId)
     .single();
 
   const computer = {
@@ -45,7 +45,7 @@ export default async function Computer({ params }: { params: Params }) {
           </BreadcrumbList>
         </Breadcrumb>
         <div className="w-full">
-          <h1 className="text-3xl font-bold">Computer {data.name}</h1>
+          <h1 className="text-3xl font-bold">{data?.name ?? ""}</h1>
         </div>
         <div className="flex w-full">
           <Tabs computer={computer} />

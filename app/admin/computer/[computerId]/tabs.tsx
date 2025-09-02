@@ -112,9 +112,9 @@ export default function Tabs({ computer }: Props) {
             <tbody>
               <TableRow
                 name="RustDesk ID"
-                value={computer.rustdeskID.toString() ?? ""}
+                value={computer.rustdeskID?.toString() ?? ""}
               />
-              <TableRow name="Computer name" value={computer.name} />
+              <TableRow name="Computer name" value={computer?.name ?? ""} />
               <TableRow name="Computer IP" value={computer.ip ?? ""} />
               <TableRow name="User" value={computer.loginUser ?? ""} />
               {computer.lastConnection && (

@@ -2,7 +2,6 @@ package computers
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -13,11 +12,6 @@ import (
 
 type ComputersService struct {
 	sb *supabase.Client
-}
-
-type registerPayload struct {
-	Name       string `json:"name"`
-	RustDeskID string `json:"rustdesk_id"`
 }
 
 type rustdeskSyncPaylod struct {
@@ -37,7 +31,6 @@ func NewComputersService(sb *supabase.Client) *ComputersService {
 
 func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) {
 	computerID := r.Header.Get("X-Computer-ID")
-	fmt.Println(computerID)
 
 	type ComputerRow struct {
 		ID string `json:"id"`

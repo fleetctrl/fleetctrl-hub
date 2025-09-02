@@ -1,8 +1,8 @@
 package tasks
 
 import (
-	"errors"
 	"net/http"
+	"time"
 
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/models"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
@@ -24,31 +24,19 @@ func NewTasksService(sb *supabase.Client) *TasksService {
 	}
 }
 
-func (ts TasksService) GetTasksByKey(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
-
-	var computer []models.Computer
-	if err := ts.sb.DB.From("computers").Select("id").
-		Limit(1).
-		Eq("key", key).
-		Execute(&computer); err != nil {
-		_ = utils.WriteError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if len(computer) == 0 {
-		_ = utils.WriteError(w, http.StatusNotFound, errors.New("not found"))
-		return
-	}
+func (ts TasksService) GetTasks(w http.ResponseWriter, r *http.Request) {
+	computerID := r.Header.Get("X-Computer-ID")
 
 	var tasks []models.Task
 	if err := ts.sb.DB.From("tasks").
-		Select("uuid,created_at,status,task,task_data").
-		Eq("computer_id", computer[0].ID).
+		Select("id", "created_at", "status", "task", "task_data").
+		Eq("computer_id", computerID).
 		Eq("status", "PENDING").
 		Execute(&tasks); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
+
 	utils.WriteJSON(w, http.StatusOK, map[string]any{
 		"tasks": tasks,
 	})
@@ -56,6 +44,7 @@ func (ts TasksService) GetTasksByKey(w http.ResponseWriter, r *http.Request) {
 
 func (ts TasksService) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	computerID := r.Header.Get("X-Computer-ID")
 	var payload updateTaskPayload
 
 	err := utils.ParseJSON(r, &payload)
@@ -63,11 +52,20 @@ func (ts TasksService) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) 
 		_ = utils.WriteError(w, http.StatusBadRequest, err)
 	}
 
-	update := map[string]interface{}{"status": payload.Status, "error": payload.Error}
+	now := time.Now().UTC()
+
+	var update map[string]any
+	if payload.Status == "SUCCESS" || payload.Status == "ERROR" {
+		update = map[string]any{"status": payload.Status, "error": payload.Error, "finish_at": now}
+	} else {
+		update = map[string]any{"status": payload.Status, "error": payload.Error, "started_at": now}
+	}
+
 	var updated []models.Task
 	if err := ts.sb.DB.From("tasks").
 		Update(update).
-		Eq("uuid", id).
+		Eq("id", id).
+		Eq("computer_id", computerID).
 		Execute(&updated); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return

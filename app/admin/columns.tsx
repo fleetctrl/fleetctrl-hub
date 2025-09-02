@@ -7,9 +7,9 @@ import RowOptions from "./rowOptions";
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
 export type Computer = {
-  id: number;
-  rustdeskID: number;
-  name: string;
+  id: string;
+  rustdeskID?: number;
+  name?: string;
   ip?: string;
   os?: string;
   osVersion?: string;
@@ -80,7 +80,7 @@ export const columns: ColumnDef<Computer>[] = [
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      return <RowOptions rustdeskId={row.original.rustdeskID} />;
+      return <RowOptions rustdeskId={row.original.rustdeskID} computerId={row.original.id} />;
     },
   },
 ];
