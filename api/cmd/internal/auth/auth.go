@@ -1,15 +1,22 @@
 package auth
 
 import (
+	"context"
+	"crypto"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/models"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/nedpals/supabase-go"
 	"github.com/redis/go-redis/v9"
 )
@@ -263,6 +270,132 @@ func (as *AuthService) RefreshTokens(w http.ResponseWriter, r *http.Request) {
 
 	sub := "device:" + rt.ComputerID
 	tokens, err := as.issueTokens(sub, rt.ComputerID, rt.Jkt)
+	if err != nil {
+		_ = utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	_ = utils.WriteJSON(w, http.StatusOK, map[string]any{
+		"tokens": tokens,
+	})
+}
+
+func (as *AuthService) Recover(w http.ResponseWriter, r *http.Request) {
+	// Expect a DPoP proof as proof-of-access (no bearer/RT required)
+	dpop := r.Header.Get("DPoP")
+	if dpop == "" {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("missing DPoP header"))
+		return
+	}
+
+	// Parse the DPoP JWS and verify signature
+	msg, err := jws.ParseString(dpop)
+	if err != nil || len(msg.Signatures()) == 0 {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP format"))
+		return
+	}
+	hdr := msg.Signatures()[0].ProtectedHeaders()
+
+	// typ must be dpop+jwt
+	if typ := hdr.Type(); !strings.EqualFold(typ, "dpop+jwt") {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP typ"))
+		return
+	}
+
+	// Extract JWK and enforce asymmetric algs
+	jwkKey := hdr.JWK()
+	if jwkKey == nil {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("missing DPoP jwk"))
+		return
+	}
+	if kty := jwkKey.KeyType(); kty == jwa.OctetSeq {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP key type"))
+		return
+	}
+	algStr := hdr.Algorithm()
+	if strings.HasPrefix(strings.ToUpper(algStr.String()), "HS") {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("DPoP alg not allowed"))
+		return
+	}
+	var pubKey any
+	if err := jwkKey.Raw(&pubKey); err != nil {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP key"))
+		return
+	}
+	payload, err := jws.Verify([]byte(dpop), jws.WithKey(jwa.SignatureAlgorithm(algStr), pubKey))
+	if err != nil {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP signature"))
+		return
+	}
+
+	// Validate payload claims
+	var pc dpopPayload
+	if err := json.Unmarshal(payload, &pc); err != nil {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP payload"))
+		return
+	}
+
+	now := defaultNow()
+	iat := time.Unix(pc.IAT, 0).UTC()
+	if iat.After(now.Add(2*time.Minute)) || now.Sub(iat) > 15*time.Minute {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("stale DPoP proof"))
+		return
+	}
+	// Method/URL binding
+	if !strings.EqualFold(pc.HTM, r.Method) {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("htm mismatch"))
+		return
+	}
+	expectedHTU := DefaultExternalURL(r).String()
+	if pc.HTU != expectedHTU {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("htu mismatch"))
+		return
+	}
+
+	// Anti-replay on jti
+	if as.redis != nil {
+		key := "dpop:jti:" + pc.JTI
+		ok, err := as.redis.SetNX(context.Background(), key, 1, 15*time.Minute).Result()
+		if err != nil || !ok {
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("replayed DPoP proof"))
+			return
+		}
+	}
+
+	// Compute jkt from DPoP jwk (RFC7638)
+	th, err := jwkKey.Thumbprint(crypto.SHA256)
+	if err != nil {
+		_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid DPoP thumbprint"))
+		return
+	}
+	jkt := base64.RawURLEncoding.EncodeToString(th)
+
+	// Find the enrolled device by jkt
+	var devices []models.Computer
+	if err := as.sb.DB.From("computers").Select("id", "jkt").Eq("jkt", jkt).Execute(&devices); err != nil {
+		_ = utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if len(devices) == 0 {
+		_ = utils.WriteError(w, http.StatusNotFound, errors.New("unknown device jkt"))
+		return
+	}
+	computerID := devices[0].ID
+
+	// Revoke any active refresh tokens for this device (cut off lost tokens)
+	var updated []map[string]any
+	if err := as.sb.DB.From("refresh_tokens").
+		Update(map[string]any{"status": "REVOKED"}).
+		Eq("computer_id", computerID).
+		Eq("status", "ACTIVE").
+		Execute(&updated); err != nil {
+		_ = utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// Issue fresh AT/RT bound to the same jkt
+	sub := "device:" + computerID
+	tokens, err := as.issueTokens(sub, computerID, jkt)
 	if err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return

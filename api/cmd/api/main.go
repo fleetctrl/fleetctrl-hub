@@ -67,6 +67,7 @@ func main() {
 	as := auth.NewAuthService(sb, client, 900*time.Second, 2592000*time.Second, signAlg, signKey, verifyKey)
 	mux.Handle("POST /enroll", withMiddleware(as.Enroll))
 	mux.Handle("POST /token/refresh", withMiddleware(as.RefreshTokens))
+	mux.Handle("POST /token/recover", withMiddleware(as.Recover))
 	mux.Handle("GET /enroll/{fingerprintHash}/is-enrolled", withMiddleware(as.IsEnrolled))
 
 	// coputers
