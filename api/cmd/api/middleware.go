@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"log"
 	"net/http"
@@ -32,7 +33,48 @@ func authMiddleware(next http.Handler) http.Handler {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+
+		lrw := &loggingResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(lrw, r)
+
+		duration := time.Since(start)
+		if lrw.status == 0 {
+			lrw.status = http.StatusOK
+		}
+
+		// Base access log
+		log.Printf("%d %s %s %s", lrw.status, r.Method, r.URL.Path, duration)
+
+		// If an error response was sent, include its body (truncated)
+		if lrw.status >= 400 {
+			body := lrw.body.String()
+			const maxLen = 2048
+			if len(body) > maxLen {
+				body = body[:maxLen] + "..."
+			}
+			if body != "" {
+				log.Printf("error response: %s", body)
+			}
+		}
 	})
+}
+
+// loggingResponseWriter captures status code and body for logging.
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	status int
+	body   bytes.Buffer
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(statusCode int) {
+	lrw.status = statusCode
+	lrw.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
+	if lrw.status == 0 {
+		lrw.status = http.StatusOK
+	}
+	_, _ = lrw.body.Write(b)
+	return lrw.ResponseWriter.Write(b)
 }
