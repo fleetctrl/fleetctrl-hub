@@ -357,7 +357,7 @@ func (as *AuthService) Recover(w http.ResponseWriter, r *http.Request) {
 		key := "dpop:jti:" + pc.JTI
 		ok, err := as.redis.SetNX(context.Background(), key, 1, 15*time.Minute).Result()
 		if err != nil || !ok {
-			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("replayed DPoP proof"))
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("replayed DPoP proof "+err.Error()))
 			return
 		}
 	}
