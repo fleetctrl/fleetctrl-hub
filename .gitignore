@@ -6,6 +6,7 @@
 # api
 /api/api
 /api/bin
+.gocache
 
 # dependencies
 /node_modules

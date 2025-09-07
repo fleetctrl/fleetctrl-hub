@@ -25,6 +25,7 @@ async function getData(): Promise<Computer[]> {
       ).getTime();
 
     return {
+      id: cp.id,
       rustdeskID: cp.rustdesk_id,
       name: cp?.name,
       ip: cp?.ip,

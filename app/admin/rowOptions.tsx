@@ -17,8 +17,9 @@ import { toast } from "sonner";
 
 type RowOptionsProps = {
   rustdeskId?: number;
+  computerId: string;
 };
-export default function RowOptions({ rustdeskId }: RowOptionsProps) {
+export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) {
   const supabase = createClient();
   const router = useRouter();
   async function handleCopy() {
@@ -40,7 +41,7 @@ export default function RowOptions({ rustdeskId }: RowOptionsProps) {
     const { error } = await supabase
       .from("computers")
       .delete()
-      .eq("rustdesk_id", rustdeskId);
+      .eq("id", computerId);
 
     if (error) {
       toast.error("Unable to delete computer: " + error.message);
@@ -65,7 +66,7 @@ export default function RowOptions({ rustdeskId }: RowOptionsProps) {
           Connection string
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <Link href={`/admin/computer/${rustdeskId}`}>
+        <Link href={`/admin/computer/${computerId}`}>
           <DropdownMenuItem>Computer info</DropdownMenuItem>
         </Link>
         <DropdownMenuSeparator />
