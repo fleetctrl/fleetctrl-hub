@@ -41,11 +41,5 @@ async function getData(): Promise<Computer[]> {
 
 export default async function ProtectedPage() {
   const data = await getData();
-  return (
-    <div className="flex-1 w-full flex flex-col gap-5">
-      <div className="flex flex-col gap-2 items-start">
-        <DataTable columns={columns} data={data} />
-      </div>
-    </div>
-  );
+  return <DataTable columns={columns} data={data} />;
 }
