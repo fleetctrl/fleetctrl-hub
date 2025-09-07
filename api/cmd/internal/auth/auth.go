@@ -111,17 +111,6 @@ func (as *AuthService) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check if computer is already enrolled
-	var computer []models.Computer
-	if err := as.sb.DB.From("computers").Select("id").Limit(1).Eq("fingerprint_hash", payload.FingerPrintHash).Execute(&computer); err != nil {
-		_ = utils.WriteError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if len(computer) > 0 {
-		_ = utils.WriteError(w, http.StatusConflict, errors.New("this computer is already enrolled"))
-		return
-	}
-
 	// check that enrolmentKey is valid
 	var dbToken []models.EnrollmentToken
 	if err := as.sb.DB.From("enrollment_tokens").Select("*").Eq("token", enrollToken).Execute(&dbToken); err != nil {
@@ -152,20 +141,38 @@ func (as *AuthService) Enroll(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// register computer
-	newComputer := map[string]any{
-		"name":             payload.Name,
-		"fingerprint_hash": payload.FingerPrintHash,
-		"jkt":              payload.Jkt, // prepare for DPoP: these can be set during first key-bound call/rotate
-	}
-	var inserted []models.Computer
-	if err := as.sb.DB.From("computers").Insert(newComputer).Execute(&inserted); err != nil || len(inserted) != 1 {
+	// check if computer is already enrolled
+	var computerID string
+	var computer []models.Computer
+	if err := as.sb.DB.From("computers").Select("id").Limit(1).Eq("fingerprint_hash", payload.FingerPrintHash).Execute(&computer); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
+	if len(computer) > 0 {
+		var updated []models.Computer
+		if err := as.sb.DB.From("computers").Update(map[string]any{
+			"name": payload.Name,
+			"jkt":  payload.Jkt,
+		}).Eq("fingerprint_hash", payload.FingerPrintHash).Execute(&updated); err != nil || len(updated) != 1 {
+			_ = utils.WriteError(w, http.StatusInternalServerError, err)
+			return
+		}
+		computerID = computer[0].ID
+	} else {
+		// register computer
+		newComputer := map[string]any{
+			"name":             payload.Name,
+			"fingerprint_hash": payload.FingerPrintHash,
+			"jkt":              payload.Jkt, // prepare for DPoP: these can be set during first key-bound call/rotate
+		}
+		var inserted []models.Computer
+		if err := as.sb.DB.From("computers").Insert(newComputer).Execute(&inserted); err != nil || len(inserted) != 1 {
+			_ = utils.WriteError(w, http.StatusInternalServerError, err)
+			return
+		}
+		computerID = inserted[0].ID
+	}
 
-	computerID := inserted[0].ID
-	// generate JWT + RT (+ recovery for now; TODO: replace with JWT assertion recovery)
 	sub := "device:" + computerID
 
 	tokens, err := as.issueTokens(sub, computerID, payload.Jkt)
