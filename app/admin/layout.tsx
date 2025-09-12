@@ -22,11 +22,7 @@ export default async function ProtectedLayout({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
-          <div className="flex-1" />
-        </header>
-        <div className="flex-1 flex flex-col p-4 pt-2">{children}</div>
+        {children}
       </SidebarInset>
     </SidebarProvider>
   );

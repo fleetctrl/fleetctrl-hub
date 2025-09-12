@@ -44,7 +44,7 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
       .eq("id", computerId);
 
     if (error) {
-      toast.error("Unable to delete computer: " + error.message);
+      toast.error("Unable to delete computer");
       return;
     }
 
@@ -66,7 +66,7 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
           Connection string
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <Link href={`/admin/computer/${computerId}`}>
+        <Link href={`/admin/rustdesk/computer/${computerId}`}>
           <DropdownMenuItem>Computer info</DropdownMenuItem>
         </Link>
         <DropdownMenuSeparator />
