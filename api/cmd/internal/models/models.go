@@ -40,7 +40,6 @@ type EnrollmentToken struct {
 	CreatedAt    time.Time  `json:"created_at"`
 	RemainingUse int8       `json:"remaining_uses"`
 	Disabled     bool       `json:"disabled"`
-	CreatedBy    *string    `json:"created_by"`
 	LastUsedAt   *time.Time `json:"last_used_at"`
 	ExpiresAt    time.Time  `json:"expires_at"`
 }

@@ -17,6 +17,7 @@ jobs:
 
     env:
       IMAGE_NAME: fleetctrl-hub
+      API_IMAGE_NAME: fleetctrl-api
       # Gitea
       GITEA_REGISTRY: git.ondomain.org
       GITEA_NAMESPACE: fleetctrl
@@ -61,6 +62,8 @@ jobs:
 
           echo "GHCR_IMAGE=${{ env.GHCR_REGISTRY }}/$OWNER_LC/${{ env.IMAGE_NAME }}" >> "$GITHUB_ENV"
           echo "GITEA_IMAGE=${{ env.GITEA_REGISTRY }}/${{ env.GITEA_NAMESPACE }}/${{ env.IMAGE_NAME }}" >> "$GITHUB_ENV"
+          echo "GHCR_API_IMAGE=${{ env.GHCR_REGISTRY }}/$OWNER_LC/${{ env.API_IMAGE_NAME }}" >> "$GITHUB_ENV"
+          echo "GITEA_API_IMAGE=${{ env.GITEA_REGISTRY }}/${{ env.GITEA_NAMESPACE }}/${{ env.API_IMAGE_NAME }}" >> "$GITHUB_ENV"
 
       - name: Build and push (GHCR + Gitea)
         uses: docker/build-push-action@v6
@@ -75,6 +78,42 @@ jobs:
             ${{ env.GITEA_IMAGE }}:${{ env.FULL_VERSION }}
             ${{ env.GITEA_IMAGE }}:latest
           # volitelné lepší tagy/labels:
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ env.FULL_VERSION }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: true
+
+      - name: Build API binary
+        working-directory: ./api
+        run: |
+          mkdir -p dist
+          go env -w CGO_ENABLED=0
+          go build -ldflags="-s -w -X 'main.runningInDocker=true'" -o dist/fleetctrl-api ./cmd/api/
+
+      - name: Upload API artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleetctrl-api-${{ env.FULL_VERSION }}-linux-amd64
+          path: api/dist/fleetctrl-api
+          if-no-files-found: error
+
+      - name: Build and push API image (GHCR + Gitea)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          file: ./api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GHCR_API_IMAGE }}:${{ env.FULL_VERSION }}
+            ${{ env.GHCR_API_IMAGE }}:latest
+            ${{ env.GITEA_API_IMAGE }}:${{ env.FULL_VERSION }}
+            ${{ env.GITEA_API_IMAGE }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

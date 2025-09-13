@@ -2,7 +2,7 @@ create extension if not exists "pgjwt" with schema "extensions";
 
 create type "public"."refresh_token_status" as enum ('ACTIVE', 'ROTATED', 'REVOKED', 'EXPIRED');
 
-create type "public"."task_status" as enum ('PENDING', 'SUCCESS', 'ERROR');
+create type "public"."task_status" as enum ('PENDING', 'SUCCESS', 'ERROR', 'IN_PROGRESS');
 
 create type "public"."task_types" as enum ('SET_PASSWD', 'SET_NETWORK_STRING');
 
@@ -27,12 +27,13 @@ alter table "public"."computers" enable row level security;
 
   create table "public"."enrollment_tokens" (
     "created_at" timestamp with time zone not null default now(),
-    "token" text not null,
+    "token_hash" text not null,
     "remaining_uses" bigint not null,
     "disabled" boolean not null default false,
-    "created_by" uuid,
     "last_used_at" timestamp with time zone,
-    "expires_at" timestamp with time zone
+    "expires_at" timestamp with time zone,
+    "name" text,
+    "token_fragment" text
       );
 
 
@@ -76,7 +77,9 @@ CREATE INDEX computers_rustdesk_id_idx ON public.computers USING hash (rustdesk_
 
 CREATE UNIQUE INDEX computers_rustdesk_id_key ON public.computers USING btree (rustdesk_id);
 
-CREATE UNIQUE INDEX enrollment_tokens_pkey ON public.enrollment_tokens USING btree (token);
+CREATE UNIQUE INDEX enrollment_tokens_name_key ON public.enrollment_tokens USING btree (name);
+
+CREATE UNIQUE INDEX enrollment_tokens_pkey ON public.enrollment_tokens USING btree (token_hash);
 
 CREATE INDEX refresh_tokens_computer_id_idx ON public.refresh_tokens USING btree (computer_id);
 
@@ -94,9 +97,7 @@ alter table "public"."tasks" add constraint "tasks_pkey" PRIMARY KEY using index
 
 alter table "public"."computers" add constraint "computers_rustdesk_id_key" UNIQUE using index "computers_rustdesk_id_key";
 
-alter table "public"."enrollment_tokens" add constraint "enrollment_tokens_created_by_fkey" FOREIGN KEY (created_by) REFERENCES auth.users(id) ON UPDATE CASCADE ON DELETE CASCADE not valid;
-
-alter table "public"."enrollment_tokens" validate constraint "enrollment_tokens_created_by_fkey";
+alter table "public"."enrollment_tokens" add constraint "enrollment_tokens_name_key" UNIQUE using index "enrollment_tokens_name_key";
 
 alter table "public"."refresh_tokens" add constraint "refresh_tokens_computer_id_fkey" FOREIGN KEY (computer_id) REFERENCES computers(id) ON UPDATE CASCADE ON DELETE CASCADE not valid;
 
@@ -315,6 +316,51 @@ grant trigger on table "public"."tasks" to "service_role";
 grant truncate on table "public"."tasks" to "service_role";
 
 grant update on table "public"."tasks" to "service_role";
+
+
+  create policy "Authenticated can select"
+  on "public"."computers"
+  as permissive
+  for select
+  to authenticated
+using (true);
+
+
+
+  create policy "allow authenticated to delete"
+  on "public"."computers"
+  as permissive
+  for delete
+  to authenticated
+using (true);
+
+
+
+  create policy "Allow select for authenticated"
+  on "public"."enrollment_tokens"
+  as permissive
+  for select
+  to authenticated
+using (true);
+
+
+
+  create policy "allow authenticated to delete"
+  on "public"."enrollment_tokens"
+  as permissive
+  for delete
+  to public
+using (true);
+
+
+
+  create policy "authenticated can insert"
+  on "public"."enrollment_tokens"
+  as permissive
+  for insert
+  to public
+with check (true);
+
 
 
   create policy "Allow authenticated to insert"

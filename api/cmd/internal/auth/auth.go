@@ -100,11 +100,11 @@ func (as *AuthService) IsEnrolled(w http.ResponseWriter, r *http.Request) {
 }
 
 func (as *AuthService) Enroll(w http.ResponseWriter, r *http.Request) {
-	enrollToken := r.Header.Get("enrollment-token")
-	if enrollToken == "" {
+	if r.Header.Get("enrollment-token") == "" {
 		_ = utils.WriteError(w, http.StatusBadRequest, errors.New("missing enrollment-token"))
 		return
 	}
+	enrollTokenHash := b64urlSHA256(r.Header.Get("enrollment-token"))
 	var payload EnrollPayload
 	if err := utils.ParseJSON(r, &payload); err != nil {
 		_ = utils.WriteError(w, http.StatusBadRequest, err)
@@ -113,7 +113,7 @@ func (as *AuthService) Enroll(w http.ResponseWriter, r *http.Request) {
 
 	// check that enrolmentKey is valid
 	var dbToken []models.EnrollmentToken
-	if err := as.sb.DB.From("enrollment_tokens").Select("*").Eq("token", enrollToken).Execute(&dbToken); err != nil {
+	if err := as.sb.DB.From("enrollment_tokens").Select("*").Eq("token_hash", enrollTokenHash).Execute(&dbToken); err != nil {
 		_ = utils.WriteError(w, http.StatusBadRequest, err)
 		return
 	}

@@ -17,6 +17,13 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - API_HTTPS=${API_HTTPS}
+      - CERT_FILE_PATH=${CERT_FILE_PATH}
+      - KEY_FILE_PATH=${KEY_FILE_PATH}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
