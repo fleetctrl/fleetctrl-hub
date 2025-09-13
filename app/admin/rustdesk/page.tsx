@@ -45,6 +45,6 @@ export default async function ProtectedPage() {
 
   return (<>
     <SiteHeader page="RustDesk" />
-    <DataTable columns={columns} data={data} />
+    <div className="flex flex-col items-center"><DataTable columns={columns} data={data} /></div>
   </>);
 }
