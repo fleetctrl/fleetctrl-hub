@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 

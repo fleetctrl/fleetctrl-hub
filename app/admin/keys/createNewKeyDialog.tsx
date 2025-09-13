@@ -15,7 +15,6 @@ import z from "zod";
 import { b64urlSHA256, generateKey } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { on } from "events";
 import { useRouter } from "next/navigation";
 
 const createNewKeySchema = z.object({
@@ -62,7 +61,7 @@ export default function CreateNewKeyDialog() {
 
     useEffect(() => {
         router.refresh();
-    }, [open, setOpen])
+    }, [open, setOpen, router])
 
     async function onSubmit(values: CreateNewKeyFormRaw) {
         // generate token
@@ -311,7 +310,8 @@ export default function CreateNewKeyDialog() {
                                     setCopied(true)
                                     toast.success("Token zkopírován do schránky")
                                     setTimeout(() => setCopied(false), 2000)
-                                } catch (e) {
+                                } catch (error) {
+                                    console.error(error)
                                     toast.error("Kopírování se nezdařilo")
                                 }
                             }}

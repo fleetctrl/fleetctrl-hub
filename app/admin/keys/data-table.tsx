@@ -22,8 +22,6 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import React from "react";
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
