@@ -18,10 +18,6 @@ jobs:
     env:
       IMAGE_NAME: fleetctrl-hub
       API_IMAGE_NAME: fleetctrl-api
-      # Gitea
-      GITEA_REGISTRY: git.ondomain.org
-      GITEA_NAMESPACE: fleetctrl
-      GITEA_OWNER: KiskaLE
       # GHCR
       GHCR_REGISTRY: ghcr.io
 
@@ -39,13 +35,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Gitea registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.GITEA_REGISTRY }}
-          username: ${{ env.GITEA_OWNER }}
-          password: ${{ secrets.REPO_OWNER_PASSWORD }}
-
       - name: Read version from package.json
         id: get_version
         run: |
@@ -53,7 +42,7 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "FULL_VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Compute image coordinates (GHCR + Gitea)
+      - name: Compute image coordinates (GHCR)
         id: coords
         run: |
           OWNER="${{ github.repository_owner }}"
@@ -61,11 +50,9 @@ jobs:
           echo "OWNER_LC=$OWNER_LC" >> "$GITHUB_ENV"
 
           echo "GHCR_IMAGE=${{ env.GHCR_REGISTRY }}/$OWNER_LC/${{ env.IMAGE_NAME }}" >> "$GITHUB_ENV"
-          echo "GITEA_IMAGE=${{ env.GITEA_REGISTRY }}/${{ env.GITEA_NAMESPACE }}/${{ env.IMAGE_NAME }}" >> "$GITHUB_ENV"
           echo "GHCR_API_IMAGE=${{ env.GHCR_REGISTRY }}/$OWNER_LC/${{ env.API_IMAGE_NAME }}" >> "$GITHUB_ENV"
-          echo "GITEA_API_IMAGE=${{ env.GITEA_REGISTRY }}/${{ env.GITEA_NAMESPACE }}/${{ env.API_IMAGE_NAME }}" >> "$GITHUB_ENV"
 
-      - name: Build and push (GHCR + Gitea)
+      - name: Build and push app (GHCR)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -75,8 +62,6 @@ jobs:
           tags: |
             ${{ env.GHCR_IMAGE }}:${{ env.FULL_VERSION }}
             ${{ env.GHCR_IMAGE }}:latest
-            ${{ env.GITEA_IMAGE }}:${{ env.FULL_VERSION }}
-            ${{ env.GITEA_IMAGE }}:latest
           # volitelné lepší tagy/labels:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -103,7 +88,7 @@ jobs:
           path: api/dist/fleetctrl-api
           if-no-files-found: error
 
-      - name: Build and push API image (GHCR + Gitea)
+      - name: Build and push API image (GHCR)
         uses: docker/build-push-action@v6
         with:
           context: ./api
@@ -112,8 +97,6 @@ jobs:
           tags: |
             ${{ env.GHCR_API_IMAGE }}:${{ env.FULL_VERSION }}
             ${{ env.GHCR_API_IMAGE }}:latest
-            ${{ env.GITEA_API_IMAGE }}:${{ env.FULL_VERSION }}
-            ${{ env.GITEA_API_IMAGE }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
