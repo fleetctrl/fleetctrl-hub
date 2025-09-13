@@ -1,11 +1,17 @@
 # fleetctrl-hub
 
+## Install package manager
+
+```
+npm install -g pnpm@latest-10
+```
+
 ## Start
 
 1. Nainstalujte node moduly
 
 ```
-npm install
+pnpm install --frozen-lockfile
 ```
 
 2. Vygeneruj anon a service key
@@ -28,6 +34,17 @@ docker compose up -d
 
 ```
 make push-schema
+```
+
+## Go API
+
+V adresáři `api` je jednoduché Go API nahrazující postgres funkce Supabase. API očekává proměnné prostředí `SUPABASE_URL`, `SUPABASE_KEY` a `API_TOKEN`.
+Token se předává v hlavičce `Authorization: Bearer <token>` a je ověřován middlewarem.
+
+```bash
+go run ./api
+# nebo
+docker compose up api
 ```
 
 ## Vytvoření migrace

@@ -1,4 +1,8 @@
 .next
 node_modules
+package-lock.json
+npm-debug.log
+pnpm-debug.log
 *.env
 supabase
+api
