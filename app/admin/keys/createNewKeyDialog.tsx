@@ -203,6 +203,8 @@ export default function CreateNewKeyDialog() {
                                                                     mode="single"
                                                                     selected={date}
                                                                     captionLayout="dropdown"
+                                                                    fromYear={new Date().getFullYear()}
+                                                                    toYear={2099}
                                                                     disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
                                                                     onSelect={(d) => {
                                                                         setOpenCalendar(false)
