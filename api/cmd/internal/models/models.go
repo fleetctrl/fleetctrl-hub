@@ -36,7 +36,7 @@ type Task struct {
 }
 
 type EnrollmentToken struct {
-	Token        string     `json:"token"`
+	Token        string     `json:"token_hash"`
 	CreatedAt    time.Time  `json:"created_at"`
 	RemainingUse int8       `json:"remaining_uses"`
 	Disabled     bool       `json:"disabled"`
