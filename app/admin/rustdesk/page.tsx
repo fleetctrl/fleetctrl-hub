@@ -13,17 +13,11 @@ async function getData(): Promise<Computer[]> {
   if (!computers) return [];
 
   const data = computers.map((cp) => {
-    // 6 minutes
-    const now = new Date(Date.now() - 360000);
+    // 5 minutes
+    const now = new Date(Date.now() - 330000);
 
     const isActive =
-      new Date(cp?.last_connection).getTime() >=
-      new Date(
-        now
-          .toLocaleString("sv-SE", { timeZone: "Europe/Prague" })
-          .replace(" ", "T")
-          .replace(",", "")
-      ).getTime();
+      new Date(cp?.last_connection).getTime() >= now.getTime();
 
     return {
       id: cp.id,
