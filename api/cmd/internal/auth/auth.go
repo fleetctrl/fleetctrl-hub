@@ -131,7 +131,7 @@ func (as *AuthService) Enroll(w http.ResponseWriter, r *http.Request) {
 		// update db row
 		if err := as.sb.DB.From("enrollment_tokens").Update(map[string]any{
 			"remaining_uses": newRemainig,
-		}).Eq("token", dbToken[0].Token).Execute(&updated); err != nil {
+		}).Eq("token_hash", dbToken[0].Token).Execute(&updated); err != nil {
 			_ = utils.WriteError(w, http.StatusInternalServerError, err)
 			return
 		}
