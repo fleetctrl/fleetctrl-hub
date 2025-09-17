@@ -13,11 +13,12 @@ export const metadata: Metadata = {
   description: "RustDesk server for clients",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
