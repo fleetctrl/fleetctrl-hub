@@ -3,21 +3,12 @@ import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import RowOptions from "./rowOptions";
+import { RustDesk } from "@/server/api/routers/rustdesk";
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Computer = {
-  id: string;
-  rustdeskID?: number;
-  name?: string;
-  ip?: string;
-  os?: string;
-  osVersion?: string;
-  loginUser?: string;
-  lastConnection?: string;
-};
 
-export const columns: ColumnDef<Computer>[] = [
+export const columns: ColumnDef<RustDesk>[] = [
   {
     accessorKey: "lastConnection",
     header: "",

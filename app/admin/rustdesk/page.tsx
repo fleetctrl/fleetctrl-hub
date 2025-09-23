@@ -1,41 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import { columns, Computer } from "./columns";
+import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { SiteHeader } from "@/components/site-header";
-
-async function getData(): Promise<Computer[]> {
-  const supabase = createClient();
-
-  const { data: computers } = await (await supabase)
-    .from("computers")
-    .select("*");
-
-  if (!computers) return [];
-
-  const data = computers.map((cp) => {
-    // 5 minutes
-    const now = new Date(Date.now() - 330000);
-
-    const isActive =
-      new Date(cp?.last_connection).getTime() >= now.getTime();
-
-    return {
-      id: cp.id,
-      rustdeskID: cp.rustdesk_id,
-      name: cp?.name,
-      ip: cp?.ip,
-      os: cp?.os,
-      osVersion: cp?.os_version,
-      loginUser: cp?.login_user,
-      lastConnection: isActive ? "Online" : "Offline",
-    } as Computer;
-  });
-
-  return data;
-}
+import { api } from "@/trpc/server";
 
 export default async function ProtectedPage() {
-  const data = await getData();
+  const data = await api.rustdesk.getAll();
 
   return (<>
     <SiteHeader page="RustDesk" />
