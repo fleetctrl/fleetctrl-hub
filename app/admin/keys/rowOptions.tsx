@@ -8,44 +8,33 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createClient } from "@/lib/supabase/client";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { api } from "@/trpc/react";
 
 type RowOptionsProps = {
   tokenID: string
 };
 export default function RowOptions({ tokenID }: RowOptionsProps) {
-  const supabase = createClient();
   const router = useRouter();
-
-  console.log(tokenID)
+  const deleteKey = api.keys.delete.useMutation({
+    async onSuccess() {
+      toast.success("Key was deleted");
+      router.refresh();
+    },
+    onError(error) {
+      toast.error("Error deleting key: " + error.message);
+    },
+  });
 
   async function handleDelete() {
-    const { error } = await supabase.from("enrollment_tokens").delete().eq("token_hash", tokenID)
-    if (error) {
-      toast.error("Error deleting key")
-      return
+    try {
+      await deleteKey.mutateAsync({ tokenHash: tokenID });
+    } catch {
+      // Error handled in onError callback.
     }
-    toast.success("Key was deleted")
-    router.refresh()
   }
-
-  // async function handleDelete() {
-  //   const { error } = await supabase
-  //     .from("computers")
-  //     .delete()
-  //     .eq("id", computerId);
-
-  //   if (error) {
-  //     toast.error("Unable to delete computer: " + error.message);
-  //     return;
-  //   }
-
-  //   toast.success("Computer deleted");
-  //   router.refresh();
-  // }
 
   return (
     <DropdownMenu>
@@ -58,7 +47,11 @@ export default function RowOptions({ tokenID }: RowOptionsProps) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
 
-        <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={handleDelete}
+          disabled={deleteKey.isPending}
+        >
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>

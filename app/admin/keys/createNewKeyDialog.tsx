@@ -9,13 +9,13 @@ import { Label } from "@/components/ui/label";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
 import { ChevronDownIcon, Copy, Check } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
 import { b64urlSHA256, generateKey } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { api } from "@/trpc/react";
 
 const createNewKeySchema = z.object({
     name: z.string().min(1, { message: "Key name is required" }),
@@ -50,6 +50,8 @@ export default function CreateNewKeyDialog() {
     const [copied, setCopied] = useState(false)
     // no local state for uses; rely on RHF
 
+    const createKey = api.keys.create.useMutation();
+
     const form = useForm<CreateNewKeyFormRaw>({
         resolver: zodResolver(createNewKeySchema),
         defaultValues: {
@@ -59,37 +61,31 @@ export default function CreateNewKeyDialog() {
         }
     });
 
-    useEffect(() => {
-        router.refresh();
-    }, [open, setOpen, router])
-
     async function onSubmit(values: CreateNewKeyFormRaw) {
-        // generate token
         const token = generateKey()
-        const token_fragment = token.slice(0, 8) + " ... " + token.slice(token.length - 4, token.length)
+        const tokenFragment = token.slice(0, 8) + " ... " + token.slice(token.length - 4, token.length)
 
-        const keyData = {
-            name: values.name,
-            token_hash: b64urlSHA256(token),
-            expires_at: values.expires_at,
-            token_fragment: token_fragment,
-            remaining_uses: values.remaining_uses,
-        };
+        try {
+            await createKey.mutateAsync({
+                name: values.name,
+                tokenHash: b64urlSHA256(token),
+                expiresAt: values.expires_at,
+                tokenFragment,
+                remainingUses: values.remaining_uses,
+            })
 
-        const supabase = createClient();
-        const { error } = await supabase.from("enrollment_tokens").insert([keyData]);
-
-        if (error) {
-            toast.error("Error creating key")
-            return
+            toast.success("Key was created")
+            router.refresh()
+            setOpen(false);
+            setGeneratedToken(token)
+            setTokenDialogOpen(true)
+            setCopied(false)
+            form.reset();
+            setUsesText("1")
+        } catch (error) {
+            const message = error instanceof Error ? error.message : undefined
+            toast.error(message ? `Error creating key: ${message}` : "Error creating key")
         }
-        toast.success("Key was created")
-
-        setOpen(false);
-        setGeneratedToken(token)
-        setTokenDialogOpen(true)
-        setCopied(false)
-        form.reset();
     }
 
     return (
@@ -267,8 +263,14 @@ export default function CreateNewKeyDialog() {
                                         )}
                                     />
 
-                                    <Button type="submit" className="w-full">
-                                        Create Enrollment Key
+                                    <Button
+                                        type="submit"
+                                        className="w-full"
+                                        disabled={createKey.isPending}
+                                    >
+                                        {createKey.isPending
+                                            ? "Creating..."
+                                            : "Create Enrollment Key"}
                                     </Button>
                                 </form>
                             </Form>

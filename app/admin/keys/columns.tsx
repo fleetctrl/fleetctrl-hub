@@ -1,21 +1,21 @@
 "use client";
 import { ColumnDef } from "@tanstack/react-table";
 import RowOptions from "./rowOptions";
+import type { RouterOutputs } from "@/trpc/shared";
 
-export type KeyData = {
-  id: string
-  name: string,
-  remainingUses: string,
-  token_fragment: string
-  expiresAt?: string,
-}
+export type KeyData = RouterOutputs["keys"]["list"][number];
 
 export const columns: ColumnDef<KeyData>[] = [
   {
     accessorKey: "name",
     header: "Key",
     cell: ({ row }) => {
-      return <div className="flex flex-col"><span>{row.original.name}</span><span className="text-xs text-gray-500">{row.original.token_fragment}</span></div>;
+      return (
+        <div className="flex flex-col">
+          <span>{row.original.name}</span>
+          <span className="text-xs text-gray-500">{row.original.tokenFragment}</span>
+        </div>
+      );
     },
   },
   {

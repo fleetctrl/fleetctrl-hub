@@ -1,8 +1,7 @@
 "use client";
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { Computer } from "../../columns";
+
+import { Dispatch, SetStateAction, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -25,17 +24,21 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { api } from "@/trpc/react";
+import type { RouterOutputs } from "@/trpc/shared";
 
-const supabase = createClient();
+type ComputerDetail = RouterOutputs["computers"]["byId"];
 
 type Props = {
-  computer: Computer;
+  computer: ComputerDetail;
 };
 
 type TableRowProps = {
   name: string;
   value: string;
 };
+
+type Task = RouterOutputs["tasks"]["listForComputer"][number];
 
 export const passwordSchema = z
   .string()
@@ -57,42 +60,28 @@ export const passwordFormSchema = z
     path: ["confirmPassword"],
   });
 
-type ChangePassworFormValues = z.infer<typeof passwordFormSchema>;
+type ChangePasswordFormValues = z.infer<typeof passwordFormSchema>;
 
-const changeNetworkStringSchema = z.object({ networkString: z.string().min(1, { message: "Network string is required" }) });
+const changeNetworkStringSchema = z.object({
+  networkString: z.string().min(1, { message: "Network string is required" }),
+});
 
-type ChangeNetworkStringSchema = z.infer<typeof changeNetworkStringSchema>;
+type ChangeNetworkStringValues = z.infer<typeof changeNetworkStringSchema>;
 
-type Task = {
-  id: number;
-  task: string;
-  status: string;
-  created_at: Date;
-  error: string;
+type TaskListProps = {
+  tasks: Task[];
 };
 
 export default function Tabs({ computer }: Props) {
-  const [tasks, setTasks] = useState<Task[]>();
   const [openChangePassword, setOpenChangePassword] = useState(false);
   const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, task, status, created_at, error")
-        .eq("computer_id", computer.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error(error);
-      } else {
-        setTasks(data);
-      }
-    };
-
-    fetchData();
-  }, [openChangePassword, openChangeNetwork, computer.id]);
+  const { data: tasks } = api.tasks.listForComputer.useQuery(
+    { computerId: computer.id },
+    {
+      refetchOnWindowFocus: false,
+    }
+  );
 
   return (
     <div className="flex gap-5 w-full">
@@ -103,7 +92,11 @@ export default function Tabs({ computer }: Props) {
             open={openChangePassword}
             setOpen={setOpenChangePassword}
           />
-          <ChangeNetworkStringDialog computer={computer} open={openChangeNetwork} setOpen={setOpenChangeNetwork} />
+          <ChangeNetworkStringDialog
+            computer={computer}
+            open={openChangeNetwork}
+            setOpen={setOpenChangeNetwork}
+          />
         </div>
         <hr />
 
@@ -124,44 +117,43 @@ export default function Tabs({ computer }: Props) {
                 />
               )}
               <TableRow name="Windows type" value={computer.os ?? ""} />
-              <TableRow
-                name="Windows version"
-                value={computer.osVersion ?? ""}
-              />
+              <TableRow name="Windows version" value={computer.osVersion ?? ""} />
             </tbody>
           </table>
           <hr className="w-full" />
-          <div>
-            <h2>Device actions</h2>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="px-5 py-2 text-left">Action</th>
-                  <th className="px-5 py-2 text-left">Status</th>
-                  <th className="px-5 py-2 text-left">Date/Time</th>
-                  <th className="px-5 py-2 text-left">Error</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks?.map((task) => {
-                  return (
-                    <tr key={task.id}>
-                      <td className="px-5 py-2 text-left">{task.task}</td>
-                      <td className="px-5 py-2 text-left">{task.status}</td>
-                      <td className="px-5 py-2 text-left">
-                        {new Date(task.created_at).toLocaleString("cs")}
-                      </td>
-                      <td className="px-5 py-2 text-left">
-                        {task.error ?? ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <TaskList tasks={tasks ?? []} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function TaskList({ tasks }: TaskListProps) {
+  return (
+    <div>
+      <h2>Device actions</h2>
+      <table className="w-full">
+        <thead>
+          <tr className="border-b">
+            <th className="px-5 py-2 text-left">Action</th>
+            <th className="px-5 py-2 text-left">Status</th>
+            <th className="px-5 py-2 text-left">Date/Time</th>
+            <th className="px-5 py-2 text-left">Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((task) => (
+            <tr key={task.id}>
+              <td className="px-5 py-2 text-left">{task.task}</td>
+              <td className="px-5 py-2 text-left">{task.status}</td>
+              <td className="px-5 py-2 text-left">
+                {new Date(task.createdAt).toLocaleString("cs")}
+              </td>
+              <td className="px-5 py-2 text-left">{task.error ?? ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -183,11 +175,12 @@ function ChangePasswordDialog({
   open,
   setOpen,
 }: {
-  computer: Computer;
+  computer: ComputerDetail;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) {
-  const form = useForm<ChangePassworFormValues>({
+  const utils = api.useUtils();
+  const form = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: {
       password: "",
@@ -195,49 +188,43 @@ function ChangePasswordDialog({
     },
   });
 
-  async function onSubmit(values: ChangePassworFormValues) {
-    const taskData = {
-      password: values.password,
-    };
-
-    const { error } = await supabase
-      .from("tasks")
-      .insert([
-        {
-          task: "SET_PASSWD",
-          status: "PENDING",
-          task_data: taskData,
-          computer_id: computer.id,
-        },
-      ])
-      .select();
-
-    if (error) {
-      console.error("Insert error:", error);
+  const changePassword = api.tasks.enqueue.useMutation({
+    async onSuccess() {
+      toast.success("Password was changed");
+      setOpen(false);
+      form.reset();
+      await utils.tasks.listForComputer.invalidate({
+        computerId: computer.id,
+      });
+    },
+    onError(error) {
       toast.error("Failed to change password: " + error.message);
-      return;
-    }
+    },
+  });
 
-    toast.success("Password was changed");
-    setOpen(false);
-    form.reset();
+  async function onSubmit(values: ChangePasswordFormValues) {
+    try {
+      await changePassword.mutateAsync({
+        computerId: computer.id,
+        task: "SET_PASSWD",
+        taskData: { password: values.password },
+      });
+    } catch {
+      // Error is handled via the mutation onError callback.
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={"secondary"}>Change Password</Button>
+        <Button variant="secondary">Change Password</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Set new RustDesk password</DialogTitle>
           <DialogDescription asChild>
             <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
-                {/* Password */}
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
                   control={form.control}
                   name="password"
@@ -256,7 +243,6 @@ function ChangePasswordDialog({
                   )}
                 />
 
-                {/* Confirm Password */}
                 <FormField
                   control={form.control}
                   name="confirmPassword"
@@ -274,8 +260,12 @@ function ChangePasswordDialog({
                   )}
                 />
 
-                <Button type="submit" className="w-full">
-                  Change Password
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={changePassword.isPending}
+                >
+                  {changePassword.isPending ? "Changing..." : "Change Password"}
                 </Button>
               </form>
             </Form>
@@ -291,60 +281,55 @@ function ChangeNetworkStringDialog({
   open,
   setOpen,
 }: {
-  computer: Computer;
+  computer: ComputerDetail;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) {
-  const form = useForm<ChangeNetworkStringSchema>({
+  const utils = api.useUtils();
+  const form = useForm<ChangeNetworkStringValues>({
     resolver: zodResolver(changeNetworkStringSchema),
     defaultValues: {
       networkString: "",
     },
   });
 
-  async function onSubmit(values: ChangeNetworkStringSchema) {
-    const taskData = {
-      networkString: values.networkString,
-    };
-
-    const { error } = await supabase
-      .from("tasks")
-      .insert([
-        {
-          task: "SET_NETWORK_STRING",
-          status: "PENDING",
-          task_data: taskData,
-          computer_id: computer.id,
-        },
-      ])
-      .select();
-
-    if (error) {
-      console.error("Insert error:", error);
+  const changeNetwork = api.tasks.enqueue.useMutation({
+    async onSuccess() {
+      toast.success("Network was changed");
+      setOpen(false);
+      form.reset();
+      await utils.tasks.listForComputer.invalidate({
+        computerId: computer.id,
+      });
+    },
+    onError(error) {
       toast.error("Failed to change network: " + error.message);
-      return;
-    }
+    },
+  });
 
-    toast.success("Network was changed");
-    setOpen(false);
-    form.reset();
+  async function onSubmit(values: ChangeNetworkStringValues) {
+    try {
+      await changeNetwork.mutateAsync({
+        computerId: computer.id,
+        task: "SET_NETWORK_STRING",
+        taskData: { networkString: values.networkString },
+      });
+    } catch {
+      // Error is handled via the mutation onError callback.
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={"secondary"}>Change Network</Button>
+        <Button variant="secondary">Change Network</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Change Network</DialogTitle>
           <DialogDescription asChild>
             <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
-                {/* Network String */}
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
                   control={form.control}
                   name="networkString"
@@ -352,15 +337,19 @@ function ChangeNetworkStringDialog({
                     <FormItem>
                       <FormLabel>Network String</FormLabel>
                       <FormControl>
-                        <Input type="networkString" {...field} />
+                        <Input type="text" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <Button type="submit" className="w-full">
-                  Change Network
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={changeNetwork.isPending}
+                >
+                  {changeNetwork.isPending ? "Changing..." : "Change Network"}
                 </Button>
               </form>
             </Form>

@@ -9,19 +9,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createClient } from "@/lib/supabase/client";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { api } from "@/trpc/react";
 
 type RowOptionsProps = {
   rustdeskId?: number;
   computerId: string;
 };
 export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) {
-  const supabase = createClient();
   const router = useRouter();
+  const deleteComputer = api.computers.delete.useMutation({
+    async onSuccess() {
+      toast.success("Computer deleted");
+      router.refresh();
+    },
+    onError(error) {
+      toast.error("Unable to delete computer: " + error.message);
+    },
+  });
   async function handleCopy() {
     const connectionString = `"C:\\Program Files\\RustDesk\\RustDesk.exe" --connect ${rustdeskId}`;
     try {
@@ -38,18 +46,11 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
   }
 
   async function handleDelete() {
-    const { error } = await supabase
-      .from("computers")
-      .delete()
-      .eq("id", computerId);
-
-    if (error) {
-      toast.error("Unable to delete computer");
-      return;
+    try {
+      await deleteComputer.mutateAsync({ id: computerId });
+    } catch {
+      // Errors are surfaced via the mutation's onError callback.
     }
-
-    toast.success("Computer deleted");
-    router.refresh();
   }
 
   return (
@@ -71,7 +72,11 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
         </Link>
         <DropdownMenuSeparator />
         {rustdeskId && (
-          <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteComputer.isPending}
+          >
             Delete
           </DropdownMenuItem>
         )}

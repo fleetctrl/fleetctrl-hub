@@ -3,19 +3,9 @@ import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import RowOptions from "./rowOptions";
+import type { RouterOutputs } from "@/trpc/shared";
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
-export type Computer = {
-  id: string;
-  rustdeskID?: number;
-  name?: string;
-  ip?: string;
-  os?: string;
-  osVersion?: string;
-  loginUser?: string;
-  lastConnection?: string;
-};
+export type Computer = RouterOutputs["computers"]["list"][number];
 
 export const columns: ColumnDef<Computer>[] = [
   {
