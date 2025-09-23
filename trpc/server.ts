@@ -7,6 +7,7 @@ import { cache } from "react";
 import { createQueryClient } from "./query-client";
 import { createTRPCContext } from "@/server/api/trpc";
 import { AppRouter, createCaller } from "@/server/api/root";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
@@ -16,8 +17,11 @@ const createContext = cache(async () => {
   const heads = new Headers(await headers());
   heads.set("x-trpc-source", "rsc");
 
+  const supabase = await createClient();
+
   return createTRPCContext({
     headers: heads,
+    supabase: supabase,
   });
 });
 

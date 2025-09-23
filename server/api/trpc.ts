@@ -9,6 +9,7 @@
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * 1. CONTEXT
@@ -22,7 +23,7 @@ import { ZodError } from "zod";
  *
  * @see https://trpc.io/docs/server/context
  */
-export const createTRPCContext = async (opts: { headers: Headers }) => {
+export const createTRPCContext = async (opts: { headers: Headers, supabase: SupabaseClient }) => {
   return {
     ...opts,
   };
