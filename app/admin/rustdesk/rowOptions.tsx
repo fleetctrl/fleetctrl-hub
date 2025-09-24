@@ -9,18 +9,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createClient } from "@/lib/supabase/client";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { api } from "@/trpc/react";
 
 type RowOptionsProps = {
   rustdeskId?: number;
   computerId: string;
 };
 export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) {
-  const supabase = createClient();
+  const deleteMutation = api.rustdesk.delete.useMutation({})
   const router = useRouter();
   async function handleCopy() {
     const connectionString = `"C:\\Program Files\\RustDesk\\RustDesk.exe" --connect ${rustdeskId}`;
@@ -38,16 +38,12 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
   }
 
   async function handleDelete() {
-    const { error } = await supabase
-      .from("computers")
-      .delete()
-      .eq("id", computerId);
+    deleteMutation.mutate({id: computerId})
 
-    if (error) {
+    if (deleteMutation.isError) {
       toast.error("Unable to delete computer");
       return;
     }
-
     toast.success("Computer deleted");
     router.refresh();
   }

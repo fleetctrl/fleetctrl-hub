@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
 
 
 
@@ -57,4 +58,18 @@ export const rustdeskRouter = createTRPCRouter({
 
         return data;
     }),
+    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
+        const { error } = await ctx.supabase
+            .from("computers")
+            .delete()
+            .eq("id", input.id);
+
+        if (error) {
+            throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'An unexpected error occurred, please try again later.',
+                cause: error,
+            });
+        }
+    })
 });
