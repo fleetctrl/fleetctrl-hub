@@ -25,20 +25,22 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import React from "react";
+import { api } from "@/trpc/react";
+import { columns } from "./columns";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
 }
 
-export function DataTable<TData, TValue>({
+function DataTable<TData, TValue>({
   columns,
-  data,
+  data
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
+  const getAllQuery = api.rustdesk.getAll.useQuery()
   const table = useReactTable({
-    data,
+    data ,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -159,4 +161,11 @@ export function DataTable<TData, TValue>({
       </div>
     </div>
   );
+}
+
+export function RustDeskTable() {
+
+  const {data} = api.rustdesk.getAll.useQuery()
+
+  return <DataTable columns={columns} data={data ?? []} />
 }
