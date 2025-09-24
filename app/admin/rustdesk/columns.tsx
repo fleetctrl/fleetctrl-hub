@@ -1,7 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import RowOptions from "./rowOptions";
 import { RustDesk } from "@/server/api/routers/rustdesk";
 
@@ -20,13 +20,28 @@ export const columns: ColumnDef<RustDesk>[] = [
   {
     accessorKey: "name",
     header: ({ column }) => {
+      const sortState = column.getIsSorted();
       return (
         <Button
           variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => {
+            if (sortState === "asc") {
+              column.toggleSorting(true);
+            } else if (sortState === "desc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(false);
+            }
+          }}
         >
           Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {sortState === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : sortState === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       );
     },
@@ -38,13 +53,28 @@ export const columns: ColumnDef<RustDesk>[] = [
   {
     accessorKey: "os",
     header: ({ column }) => {
+      const sortState = column.getIsSorted();
       return (
         <Button
           variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => {
+            if (sortState === "asc") {
+              column.toggleSorting(true);
+            } else if (sortState === "desc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(false);
+            }
+          }}
         >
           OS
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {sortState === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : sortState === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       );
     },
@@ -52,13 +82,28 @@ export const columns: ColumnDef<RustDesk>[] = [
   {
     accessorKey: "osVersion",
     header: ({ column }) => {
+      const sortState = column.getIsSorted();
       return (
         <Button
           variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => {
+            if (sortState === "asc") {
+              column.toggleSorting(true);
+            } else if (sortState === "desc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(false);
+            }
+          }}
         >
           OS Version
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {sortState === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : sortState === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       );
     },

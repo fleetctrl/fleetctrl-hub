@@ -37,6 +37,8 @@ interface DataTableProps<TData, TValue> {
   pagination: PaginationState;
   pageCount: number;
   onPaginationChange: (updater: Updater<PaginationState>) => void;
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
   isLoading?: boolean;
   total?: number;
 }
@@ -47,18 +49,12 @@ function DataTable<TData, TValue>({
   pagination,
   pageCount,
   onPaginationChange,
+  sorting,
+  onSortingChange,
   isLoading,
   total,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
-  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
-    setSorting((prev) =>
-      typeof updater === "function" ? updater(prev) : updater,
-    );
-    onPaginationChange((prev) => ({ ...prev, pageIndex: 0 }));
-  };
 
   const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (
     updater,
@@ -76,9 +72,10 @@ function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     manualPagination: true,
+    manualSorting: true,
     pageCount,
     onPaginationChange,
-    onSortingChange: handleSortingChange,
+    onSortingChange,
     onColumnFiltersChange: handleColumnFiltersChange,
     state: {
       sorting,
@@ -206,11 +203,20 @@ export function RustDeskTable() {
   const [displayPagination, setDisplayPagination] = useState<PaginationState>(
     pagination,
   );
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [tableData, setTableData] = useState<RustDesk[]>([]);
   const [tableTotal, setTableTotal] = useState<number | undefined>(undefined);
 
   const skip = pagination.pageIndex * pagination.pageSize;
   const limit = pagination.pageSize;
+
+  const sortInput = useMemo(
+    () =>
+      sorting.length
+        ? sorting.map((item) => ({ id: item.id, desc: Boolean(item.desc) }))
+        : undefined,
+    [sorting],
+  );
 
   const { data, refetch, isFetching } = api.rustdesk.get.useQuery(
     {
@@ -218,7 +224,8 @@ export function RustDeskTable() {
         skip,
         limit,
       },
-    },
+      sort: sortInput,
+    }
   );
 
   useEffect(() => {
@@ -228,13 +235,11 @@ export function RustDeskTable() {
 
     setTableTotal(data.total);
 
-    const maxPageIndex = Math.max(
-      0,
-      Math.ceil(data.total / pagination.pageSize) - 1,
-    );
+    const totalCount = typeof data.total === "number" ? data.total : data.data.length;
+    const maxPageIndex = Math.max(0, Math.ceil(totalCount / pagination.pageSize) - 1);
 
     const shouldHoldData =
-      data.total > 0 &&
+      totalCount > 0 &&
       data.data.length === 0 &&
       pagination.pageIndex > maxPageIndex;
 
@@ -304,6 +309,31 @@ export function RustDeskTable() {
     [],
   );
 
+  const handleSortingChange = useCallback(
+    (updater: Updater<SortingState>) => {
+      setSorting((prev) =>
+        typeof updater === "function" ? updater(prev) : updater,
+      );
+
+      setPagination((prev) => {
+        if (prev.pageIndex === 0) {
+          return prev;
+        }
+
+        return { ...prev, pageIndex: 0 };
+      });
+
+      setDisplayPagination((prev) => {
+        if (prev.pageIndex === 0) {
+          return prev;
+        }
+
+        return { ...prev, pageIndex: 0 };
+      });
+    },
+    [],
+  );
+
   const pageCount = useMemo(() => {
     if (typeof tableTotal === "number") {
       const computed = Math.ceil(tableTotal / pagination.pageSize) || 1;
@@ -329,6 +359,8 @@ export function RustDeskTable() {
       pagination={displayPagination}
       pageCount={pageCount}
       onPaginationChange={handlePaginationChange}
+      sorting={sorting}
+      onSortingChange={handleSortingChange}
       isLoading={isFetching}
       total={tableTotal}
     />

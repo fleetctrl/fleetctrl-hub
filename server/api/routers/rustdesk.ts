@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 
@@ -16,6 +16,16 @@ export type RustDesk = {
     lastConnection?: string;
 };
 
+const SORT_COLUMN_MAP: Record<string, string> = {
+    rustdeskID: "rustdesk_id",
+    name: "name",
+    ip: "ip",
+    os: "os",
+    osVersion: "os_version",
+    loginUser: "login_user",
+    lastConnection: "last_connection",
+};
+
 export const rustdeskRouter = createTRPCRouter({
     get: protectedProcedure.input(
         z.object({
@@ -30,10 +40,14 @@ export const rustdeskRouter = createTRPCRouter({
                     last_connected: z.string(),
                 })
                 .optional(),
-            order: z.object({
-                column: z.string(),
-                order: z.enum(["asc", "desc"]),
-            }).optional(),
+            sort: z
+                .array(
+                    z.object({
+                        id: z.string(),
+                        desc: z.boolean().optional(),
+                    }),
+                )
+                .optional(),
         })
     ).query(async ({ ctx, input }) => {
         let query = ctx.supabase
@@ -51,6 +65,21 @@ export const rustdeskRouter = createTRPCRouter({
 
         if (input?.filter?.last_connected) {
             query = query.ilike("last_connection", `%${input.filter.last_connected}%`);
+        }
+
+        if (input.sort?.length) {
+            for (const sort of input.sort) {
+                const column = SORT_COLUMN_MAP[sort.id];
+
+                if (!column) {
+                    continue;
+                }
+
+                query = query.order(column, {
+                    ascending: sort.desc !== true,
+                    nullsFirst: false,
+                });
+            }
         }
 
         const { data: rustdesk, error, count } = await query;
