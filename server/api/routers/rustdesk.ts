@@ -17,13 +17,55 @@ export type RustDesk = {
 };
 
 export const rustdeskRouter = createTRPCRouter({
-    getAll: protectedProcedure.query(async ({ ctx }) => {
-
-        const { data: rustdesk } = await ctx.supabase
+    get: protectedProcedure.input(
+        z.object({
+            range: z
+                .object({
+                    limit: z.number(),
+                    skip: z.number(),
+                })
+                .optional(),
+            filter: z
+                .object({
+                    last_connected: z.string(),
+                })
+                .optional(),
+            order: z.object({
+                column: z.string(),
+                order: z.enum(["asc", "desc"]),
+            }).optional(),
+        })
+    ).query(async ({ ctx, input }) => {
+        let query = ctx.supabase
             .from("computers")
-            .select("*");
+            .select("*", { count: "exact" });
 
-        if (!rustdesk) return [];
+        if (input.range) {
+            const skip = Math.max(0, input.range.skip);
+            const limit = Math.max(0, input.range.limit);
+
+            if (limit > 0) {
+                query = query.range(skip, skip + limit - 1);
+            }
+        }
+
+        if (input?.filter?.last_connected) {
+            query = query.ilike("last_connection", `%${input.filter.last_connected}%`);
+        }
+
+        const { data: rustdesk, error, count } = await query;
+
+        if (error) {
+            throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'An unexpected error occurred, please try again later.',
+                cause: error,
+            });
+        }
+
+        if (!rustdesk) {
+            return { data: [], total: 0 };
+        }
 
         const data = rustdesk.map((cp) => {
             // 5 minutes
@@ -44,10 +86,9 @@ export const rustdeskRouter = createTRPCRouter({
             } as RustDesk;
         });
 
-        return data;
-
+        return { data, total: count ?? data.length };
     }),
-    get: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+    getSingle: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
         const { data } = await ctx.supabase
             .from("computers")
             .select("*")

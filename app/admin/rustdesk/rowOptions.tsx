@@ -19,7 +19,16 @@ type RowOptionsProps = {
   computerId: string;
 };
 export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) {
-  const deleteMutation = api.rustdesk.delete.useMutation({})
+  const utils = api.useUtils();
+  const deleteMutation = api.rustdesk.delete.useMutation({
+    async onSuccess() {
+      await utils.rustdesk.get.invalidate();
+      toast.success("Computer deleted");
+    },
+    onError() {
+      toast.error("Unable to delete computer");
+    },
+  });
   async function handleCopy() {
     const connectionString = `"C:\\Program Files\\RustDesk\\RustDesk.exe" --connect ${rustdeskId}`;
     try {
@@ -36,13 +45,11 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
   }
 
   async function handleDelete() {
-    deleteMutation.mutate({ id: computerId })
-
-    if (deleteMutation.isError) {
-      toast.error("Unable to delete computer");
-      return;
+    try {
+      await deleteMutation.mutateAsync({ id: computerId });
+    } catch (error) {
+      console.error(error);
     }
-    toast.success("Computer deleted");
   }
 
   return (
@@ -63,7 +70,11 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
           <DropdownMenuItem>Computer info</DropdownMenuItem>
         </Link>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={handleDelete}
+          disabled={deleteMutation.isLoading}
+        >
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>

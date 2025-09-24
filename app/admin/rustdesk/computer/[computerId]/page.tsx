@@ -15,7 +15,7 @@ type Params = Promise<{
 
 export default async function Computer({ params }: { params: Params }) {
   const { computerId } = await params;
-  const rustdesk = await api.rustdesk.get({ id: computerId });
+  const rustdesk = await api.rustdesk.getSingle({ id: computerId });
 
   return (<>
     <SiteHeader page="RustDesk" />
