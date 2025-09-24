@@ -73,7 +73,6 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
         <DropdownMenuItem
           variant="destructive"
           onClick={handleDelete}
-          disabled={deleteMutation.isLoading}
         >
           Delete
         </DropdownMenuItem>
