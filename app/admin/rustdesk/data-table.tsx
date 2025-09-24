@@ -21,12 +21,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import React from "react";
 import { api } from "@/trpc/react";
 import { columns } from "./columns";
+import { createClient } from "@supabase/supabase-js";
+import { env } from "@/lib/env";
+import { createSupabaseClient } from "@/lib/supabase/client";
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -38,9 +42,8 @@ function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const getAllQuery = api.rustdesk.getAll.useQuery()
   const table = useReactTable({
-    data ,
+    data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -79,9 +82,9 @@ function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   );
                 })}
@@ -164,8 +167,26 @@ function DataTable<TData, TValue>({
 }
 
 export function RustDeskTable() {
+  const { data, refetch } = api.rustdesk.getAll.useQuery();
+  useEffect(() => {
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel("computer-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "computers" },
+        () => {
+          refetch();
+        }
+      );
 
-  const {data} = api.rustdesk.getAll.useQuery()
+    channel.subscribe();
 
-  return <DataTable columns={columns} data={data ?? []} />
+    return () => {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
+
+  return <DataTable columns={columns} data={data ?? []} />;
 }

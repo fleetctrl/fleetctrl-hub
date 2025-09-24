@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/trpc/react";
@@ -21,7 +20,6 @@ type RowOptionsProps = {
 };
 export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) {
   const deleteMutation = api.rustdesk.delete.useMutation({})
-  const router = useRouter();
   async function handleCopy() {
     const connectionString = `"C:\\Program Files\\RustDesk\\RustDesk.exe" --connect ${rustdeskId}`;
     try {
@@ -38,14 +36,13 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
   }
 
   async function handleDelete() {
-    deleteMutation.mutate({id: computerId})
+    deleteMutation.mutate({ id: computerId })
 
     if (deleteMutation.isError) {
       toast.error("Unable to delete computer");
       return;
     }
     toast.success("Computer deleted");
-    router.refresh();
   }
 
   return (
@@ -66,11 +63,9 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
           <DropdownMenuItem>Computer info</DropdownMenuItem>
         </Link>
         <DropdownMenuSeparator />
-        {rustdeskId && (
-          <DropdownMenuItem variant="destructive" onClick={handleDelete}>
-            Delete
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+          Delete
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

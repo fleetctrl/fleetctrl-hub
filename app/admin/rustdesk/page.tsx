@@ -1,10 +1,7 @@
-import { columns } from "./columns";
 import { RustDeskTable } from "./data-table";
 import { SiteHeader } from "@/components/site-header";
-import { api } from "@/trpc/server";
 
 export default async function ProtectedPage() {
-  const data = await api.rustdesk.getAll();
 
   return (<>
     <SiteHeader page="RustDesk" />
