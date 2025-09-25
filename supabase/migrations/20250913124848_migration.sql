@@ -378,16 +378,3 @@ with check (true);
   for select
   to authenticated
 using (true);
-
-
-drop trigger if exists "enforce_bucket_name_length_trigger" on "storage"."buckets";
-
-drop trigger if exists "objects_delete_delete_prefix" on "storage"."objects";
-
-drop trigger if exists "objects_insert_create_prefix" on "storage"."objects";
-
-drop trigger if exists "objects_update_create_prefix" on "storage"."objects";
-
-drop trigger if exists "update_objects_updated_at" on "storage"."objects";
-
-

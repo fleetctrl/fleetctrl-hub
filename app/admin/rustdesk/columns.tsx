@@ -1,23 +1,14 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import RowOptions from "./rowOptions";
+import { RustDesk } from "@/server/api/routers/rustdesk";
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Computer = {
-  id: string;
-  rustdeskID?: number;
-  name?: string;
-  ip?: string;
-  os?: string;
-  osVersion?: string;
-  loginUser?: string;
-  lastConnection?: string;
-};
 
-export const columns: ColumnDef<Computer>[] = [
+export const columns: ColumnDef<RustDesk>[] = [
   {
     accessorKey: "lastConnection",
     header: "",
@@ -29,13 +20,28 @@ export const columns: ColumnDef<Computer>[] = [
   {
     accessorKey: "name",
     header: ({ column }) => {
+      const sortState = column.getIsSorted();
       return (
         <Button
           variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => {
+            if (sortState === "asc") {
+              column.toggleSorting(true);
+            } else if (sortState === "desc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(false);
+            }
+          }}
         >
           Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {sortState === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : sortState === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       );
     },
@@ -47,13 +53,28 @@ export const columns: ColumnDef<Computer>[] = [
   {
     accessorKey: "os",
     header: ({ column }) => {
+      const sortState = column.getIsSorted();
       return (
         <Button
           variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => {
+            if (sortState === "asc") {
+              column.toggleSorting(true);
+            } else if (sortState === "desc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(false);
+            }
+          }}
         >
           OS
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {sortState === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : sortState === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       );
     },
@@ -61,13 +82,28 @@ export const columns: ColumnDef<Computer>[] = [
   {
     accessorKey: "osVersion",
     header: ({ column }) => {
+      const sortState = column.getIsSorted();
       return (
         <Button
           variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => {
+            if (sortState === "asc") {
+              column.toggleSorting(true);
+            } else if (sortState === "desc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(false);
+            }
+          }}
         >
           OS Version
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {sortState === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : sortState === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       );
     },
