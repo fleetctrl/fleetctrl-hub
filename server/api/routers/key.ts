@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
 
 
 
@@ -35,4 +36,15 @@ export const keyRouter = createTRPCRouter({
 
         return data;
     }),
+    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
+        const { error } = await ctx.supabase.from("enrollment_tokens").delete().eq("token_hash", input.id)
+
+        if (error) {
+            throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'An unexpected error occurred, please try again later.',
+                cause: error,
+            });
+        }
+    })
 });
