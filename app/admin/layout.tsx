@@ -18,9 +18,10 @@ export default async function ProtectedLayout({
     redirect("/auth/login");
   }
 
+  const { data: { user } } = await supabase.auth.getUser();
   return (
     <SidebarProvider>
-      <AppSidebar user={data.user} />
+      <AppSidebar user={user} />
       <SidebarInset>
         {children}
       </SidebarInset>
