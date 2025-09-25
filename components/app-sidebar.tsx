@@ -30,6 +30,11 @@ import {
 import Link from "next/link"
 
 const data = {
+  user: {
+    name: "shadcn",
+    email: "m@example.com",
+    avatar: "/avatars/shadcn.jpg",
+  },
   navMain: [
     {
       title: "Dashboard",
@@ -122,11 +127,6 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const user = {
-    name: "Admin",
-    email: props.user?.email ?? "noname",
-    avatar: "",
-  }
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader className="h-14 border-b">
@@ -150,7 +150,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>
   )
