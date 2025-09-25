@@ -8,7 +8,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createClient } from "@/lib/supabase/client";
 import { api } from "@/trpc/react";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -20,16 +19,19 @@ type RowOptionsProps = {
 export default function RowOptions({ tokenID }: RowOptionsProps) {
   const router = useRouter();
 
-  const deleteMutation = api.key.delete.useMutation()
+  const deleteMutation = api.key.delete.useMutation(
+    {
+      async onSuccess() {
+        toast.success("Computer deleted");
+      },
+      onError() {
+        toast.error("Unable to delete computer");
+      },
+    }
+  )
 
   async function handleDelete() {
-    deleteMutation.mutate({id: tokenID})
-
-    if (deleteMutation.isError) {
-      toast.error("Error deleting key")
-      return
-    }
-    toast.success("Key was deleted")
+    deleteMutation.mutate({ id: tokenID })
   }
 
   return (
