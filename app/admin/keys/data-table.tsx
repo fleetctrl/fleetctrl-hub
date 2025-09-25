@@ -21,8 +21,16 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import React from "react";
+import { api } from "@/trpc/react";
+import { columns } from "./columns";
+import { Key } from "@/server/api/routers/key";
+import { RefetchOptions, QueryObserverResult } from "@tanstack/react-query";
+import { TRPCClientErrorLike } from "@trpc/client";
+import { TRPC_ERROR_CODE_KEY, TRPC_ERROR_CODE_NUMBER } from "@trpc/server";
+import { ZodFlattenedError } from "zod";
+import { createSupabaseClient } from "@/lib/supabase/client";
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
     data: TData[];
@@ -125,4 +133,31 @@ export function DataTable<TData, TValue>({
             </div>
         </div>
     );
+}
+
+export function KeysTable() {
+    const {data, refetch} = api.key.getAll.useQuery()
+
+    useEffect(() => {
+        const supabase = createSupabaseClient();
+        const channel = supabase
+          .channel("keys-changes")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "enrollment_tokens" },
+            () => {
+              refetch();
+            },
+          );
+    
+        channel.subscribe();
+    
+        return () => {
+          channel.unsubscribe();
+          supabase.removeChannel(channel);
+        };
+      }, [refetch]);
+
+
+    return <DataTable  columns={columns} data={data ?? []}/>
 }
