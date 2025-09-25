@@ -17,9 +17,10 @@ export default async function ProtectedLayout({
   if (error || !data?.user) {
     redirect("/auth/login");
   }
+
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar user={data.user} />
       <SidebarInset>
         {children}
       </SidebarInset>
