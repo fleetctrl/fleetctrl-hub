@@ -378,6 +378,3 @@ with check (true);
   for select
   to authenticated
 using (true);
-
-
-
