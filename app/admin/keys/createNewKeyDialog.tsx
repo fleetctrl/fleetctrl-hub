@@ -68,11 +68,9 @@ export default function CreateNewKeyDialog() {
         const token = generateKey()
         const token_fragment = token.slice(0, 8) + " ... " + token.slice(token.length - 4, token.length)
 
-        const tokenHash = await b64urlSHA256(token)
-
         const keyData = {
             name: values.name,
-            token_hash: tokenHash,
+            token_hash: b64urlSHA256(token),
             expires_at: values.expires_at,
             token_fragment: token_fragment,
             remaining_uses: values.remaining_uses,

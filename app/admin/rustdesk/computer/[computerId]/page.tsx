@@ -1,3 +1,4 @@
+import { createClient } from "@/lib/supabase/server";
 import Tabs from "./tabs";
 import {
   Breadcrumb,
@@ -7,7 +8,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { SiteHeader } from "@/components/site-header";
-import { api } from "@/trpc/server";
 
 type Params = Promise<{
   computerId: string;
@@ -15,7 +15,23 @@ type Params = Promise<{
 
 export default async function Computer({ params }: { params: Params }) {
   const { computerId } = await params;
-  const rustdesk = await api.rustdesk.getSingle({ id: computerId });
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("computers")
+    .select("*")
+    .eq("id", computerId)
+    .single();
+
+  const computer = {
+    id: data.id,
+    rustdeskID: data.rustdesk_id,
+    name: data?.name,
+    ip: data?.ip,
+    os: data?.os,
+    osVersion: data?.os_version,
+    loginUser: data?.login_user,
+    lastConnection: data?.last_connection,
+  };
 
   return (<>
     <SiteHeader page="RustDesk" />
@@ -27,14 +43,14 @@ export default async function Computer({ params }: { params: Params }) {
               <BreadcrumbLink href="/admin/rustdesk">RustDesk</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
-            <BreadcrumbItem>{rustdesk?.name ?? ""}</BreadcrumbItem>
+            <BreadcrumbItem>{computer.name}</BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
         <div className="w-full">
-          <h1 className="text-3xl font-bold">{rustdesk?.name ?? ""}</h1>
+          <h1 className="text-3xl font-bold">{data?.name ?? ""}</h1>
         </div>
         <div className="flex w-full">
-          <Tabs computer={rustdesk} />
+          <Tabs computer={computer} />
         </div>
       </div>
     </div>
