@@ -1,10 +1,16 @@
 "use client";
 import { ColumnDef } from "@tanstack/react-table";
 import RowOptions from "./rowOptions";
-import { Key } from "@/server/api/routers/key";
 
+export type KeyData = {
+  id: string
+  name: string,
+  remainingUses: string,
+  token_fragment: string
+  expiresAt?: string,
+}
 
-export const columns: ColumnDef<Key>[] = [
+export const columns: ColumnDef<KeyData>[] = [
   {
     accessorKey: "name",
     header: "Key",

@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { api } from "@/trpc/react";
+import { createClient } from "@/lib/supabase/client";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -17,22 +17,35 @@ type RowOptionsProps = {
   tokenID: string
 };
 export default function RowOptions({ tokenID }: RowOptionsProps) {
+  const supabase = createClient();
   const router = useRouter();
 
-  const deleteMutation = api.key.delete.useMutation(
-    {
-      async onSuccess() {
-        toast.success("Computer deleted");
-      },
-      onError() {
-        toast.error("Unable to delete computer");
-      },
-    }
-  )
+  console.log(tokenID)
 
   async function handleDelete() {
-    deleteMutation.mutate({ id: tokenID })
+    const { error } = await supabase.from("enrollment_tokens").delete().eq("token_hash", tokenID)
+    if (error) {
+      toast.error("Error deleting key")
+      return
+    }
+    toast.success("Key was deleted")
+    router.refresh()
   }
+
+  // async function handleDelete() {
+  //   const { error } = await supabase
+  //     .from("computers")
+  //     .delete()
+  //     .eq("id", computerId);
+
+  //   if (error) {
+  //     toast.error("Unable to delete computer: " + error.message);
+  //     return;
+  //   }
+
+  //   toast.success("Computer deleted");
+  //   router.refresh();
+  // }
 
   return (
     <DropdownMenu>
