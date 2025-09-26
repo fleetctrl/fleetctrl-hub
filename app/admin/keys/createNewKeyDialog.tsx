@@ -12,10 +12,9 @@ import { ChevronDownIcon, Copy, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
-import { b64urlSHA256, generateKey } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { api } from "@/trpc/react";
 
 const createNewKeySchema = z.object({
     name: z.string().min(1, { message: "Key name is required" }),
@@ -36,6 +35,19 @@ type CreateNewKeyFormRaw = z.input<typeof createNewKeySchema>;
 
 export default function CreateNewKeyDialog() {
     const router = useRouter();
+    const generateTokenMutation = api.key.create.useMutation({
+        onSuccess: (data) => {
+            setGeneratedToken(data.token)
+            toast.success("Generated token")
+            setOpen(false);
+            setTokenDialogOpen(true)
+            setCopied(false)
+            form.reset();
+        },
+        onError: () => {
+            toast.error("Unable to generate token")
+        }
+    });
     const [open, setOpen] = useState(false);
     const [openCalendar, setOpenCalendar] = useState(false)
     const [date, setDate] = useState<Date | undefined>(new Date(Date.now() + 24 * 60 * 60 * 1000))
@@ -65,33 +77,11 @@ export default function CreateNewKeyDialog() {
 
     async function onSubmit(values: CreateNewKeyFormRaw) {
         // generate token
-        const token = generateKey()
-        const token_fragment = token.slice(0, 8) + " ... " + token.slice(token.length - 4, token.length)
-
-        const tokenHash = await b64urlSHA256(token)
-
-        const keyData = {
+        generateTokenMutation.mutate({
             name: values.name,
-            token_hash: tokenHash,
-            expires_at: values.expires_at,
-            token_fragment: token_fragment,
-            remaining_uses: values.remaining_uses,
-        };
-
-        const supabase = createClient();
-        const { error } = await supabase.from("enrollment_tokens").insert([keyData]);
-
-        if (error) {
-            toast.error("Error creating key")
-            return
-        }
-        toast.success("Key was created")
-
-        setOpen(false);
-        setGeneratedToken(token)
-        setTokenDialogOpen(true)
-        setCopied(false)
-        form.reset();
+            expires_at: new Date(values.expires_at),
+            remaining_uses: Number.parseInt(values?.remaining_uses?.toString() || "1"),
+        })
     }
 
     return (

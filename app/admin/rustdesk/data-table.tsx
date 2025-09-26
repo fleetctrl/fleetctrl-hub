@@ -226,9 +226,14 @@ export function RustDeskTable() {
       },
       sort: sortInput,
       filter: {
-        login_user: filter
-      }
-    }
+        login_user: filter,
+      },
+    },
+    {
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnMount: "always",
+    },
   );
 
   useEffect(() => {
