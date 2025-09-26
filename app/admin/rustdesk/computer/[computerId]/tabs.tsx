@@ -1,6 +1,5 @@
 "use client";
 import { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { Computer } from "../../columns";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -25,11 +24,12 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { RustDesk } from "@/server/api/routers/rustdesk";
 
 const supabase = createClient();
 
 type Props = {
-  computer: Computer;
+  computer: RustDesk;
 };
 
 type TableRowProps = {
@@ -183,7 +183,7 @@ function ChangePasswordDialog({
   open,
   setOpen,
 }: {
-  computer: Computer;
+  computer: RustDesk;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) {
@@ -291,7 +291,7 @@ function ChangeNetworkStringDialog({
   open,
   setOpen,
 }: {
-  computer: Computer;
+  computer: RustDesk;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }) {

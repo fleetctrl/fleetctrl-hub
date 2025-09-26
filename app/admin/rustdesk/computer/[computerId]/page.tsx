@@ -33,9 +33,9 @@ export default async function Computer({ params }: { params: Params }) {
         <div className="w-full">
           <h1 className="text-3xl font-bold">{rustdesk?.name ?? ""}</h1>
         </div>
-        <div className="flex w-full">
+        {rustdesk && <div className="flex w-full">
           <Tabs computer={rustdesk} />
-        </div>
+        </div>}
       </div>
     </div>
   </>
