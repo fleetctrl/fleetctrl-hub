@@ -37,7 +37,7 @@ export const rustdeskRouter = createTRPCRouter({
                 .optional(),
             filter: z
                 .object({
-                    last_connected: z.string(),
+                    login_user: z.string(),
                 })
                 .optional(),
             sort: z
@@ -63,8 +63,8 @@ export const rustdeskRouter = createTRPCRouter({
             }
         }
 
-        if (input?.filter?.last_connected) {
-            query = query.ilike("last_connection", `%${input.filter.last_connected}%`);
+        if (input?.filter?.login_user) {
+            query = query.ilike("login_user", `%${input.filter.login_user}%`);
         }
 
         if (input.sort?.length) {
