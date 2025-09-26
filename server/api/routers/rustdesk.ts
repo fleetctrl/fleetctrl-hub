@@ -96,21 +96,21 @@ export const rustdeskRouter = createTRPCRouter({
             return { data: [], total: 0 };
         }
 
-        const data = rustdesk.map((cp) => {
+        const data = rustdesk.map((data) => {
             // 5 minutes
             const now = new Date(Date.now() - 330000);
 
             const isActive =
-                new Date(cp?.last_connection).getTime() >= now.getTime();
+                new Date(data?.last_connection).getTime() >= now.getTime();
 
             return {
-                id: cp.id,
-                rustdeskID: cp.rustdesk_id,
-                name: cp?.name,
-                ip: cp?.ip,
-                os: cp?.os,
-                osVersion: cp?.os_version,
-                loginUser: cp?.login_user,
+                id: data.id,
+                rustdeskID: data.rustdesk_id,
+                name: data?.name,
+                ip: data?.ip,
+                os: data?.os,
+                osVersion: data?.os_version,
+                loginUser: data?.login_user,
                 lastConnection: isActive ? "Online" : "Offline",
             } as RustDesk;
         });
@@ -122,17 +122,65 @@ export const rustdeskRouter = createTRPCRouter({
             .from("computers")
             .select("*")
             .eq("id", input.id)
-            .single() as { data: RustDesk };
+            .single();
 
         if (!data) return null;
 
-        return data;
+        return {
+            id: data.id,
+            rustdeskID: data.rustdesk_id,
+            name: data?.name,
+            ip: data?.ip,
+            os: data?.os,
+            osVersion: data?.os_version,
+            loginUser: data?.login_user,
+            lastConnection: data?.last_connection,
+        } as RustDesk;
+
     }),
     delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
         const { error } = await ctx.supabase
             .from("computers")
             .delete()
             .eq("id", input.id);
+
+        if (error) {
+            throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'An unexpected error occurred, please try again later.',
+                cause: error,
+            });
+        }
+    }),
+    getTasks: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+        const { data, error } = await ctx.supabase
+            .from("tasks")
+            .select("id, task, status, created_at, error")
+            .eq("computer_id", input.id)
+            .order("created_at", { ascending: false });
+
+        if (error) {
+            throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'An unexpected error occurred, please try again later.',
+                cause: error,
+            });
+        }
+
+        return data;
+    }),
+    createTask: protectedProcedure.input(z.object({ computerID: z.string(), task: z.string(), taskData: z.json() })).mutation(async ({ ctx, input }) => {
+        const { error } = await ctx.supabase
+            .from("tasks")
+            .insert([
+                {
+                    task: input.task,
+                    status: "PENDING",
+                    task_data: input.taskData,
+                    computer_id: input.computerID,
+                },
+            ])
+            .select();
 
         if (error) {
             throw new TRPCError({
