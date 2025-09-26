@@ -1,7 +1,6 @@
 "use client";
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -25,8 +24,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { RustDesk } from "@/server/api/routers/rustdesk";
-
-const supabase = createClient();
+import { api } from "@/trpc/react";
 
 type Props = {
   computer: RustDesk;
@@ -63,36 +61,19 @@ const changeNetworkStringSchema = z.object({ networkString: z.string().min(1, { 
 
 type ChangeNetworkStringSchema = z.infer<typeof changeNetworkStringSchema>;
 
-type Task = {
-  id: number;
-  task: string;
-  status: string;
-  created_at: Date;
-  error: string;
-};
-
 export default function Tabs({ computer }: Props) {
-  const [tasks, setTasks] = useState<Task[]>();
   const [openChangePassword, setOpenChangePassword] = useState(false);
   const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, task, status, created_at, error")
-        .eq("computer_id", computer.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error(error);
-      } else {
-        setTasks(data);
-      }
-    };
-
-    fetchData();
-  }, [openChangePassword, openChangeNetwork, computer.id]);
+  const { data: tasks, refetch } = api.rustdesk.getTasks.useQuery({ id: computer.id });
+  const createTaskMutation = api.rustdesk.createTask.useMutation({
+    onSuccess: () => {
+      toast.success("Password was changed");
+    },
+    onError: () => {
+      toast.error("Failed to change password");
+    },
+  });
 
   return (
     <div className="flex gap-5 w-full">
@@ -102,8 +83,15 @@ export default function Tabs({ computer }: Props) {
             computer={computer}
             open={openChangePassword}
             setOpen={setOpenChangePassword}
+            onClose={() => void refetch()}
+            createTaskMutation={createTaskMutation}
           />
-          <ChangeNetworkStringDialog computer={computer} open={openChangeNetwork} setOpen={setOpenChangeNetwork} />
+          <ChangeNetworkStringDialog
+            computer={computer}
+            open={openChangeNetwork}
+            setOpen={setOpenChangeNetwork}
+            onClose={() => void refetch()}
+            createTaskMutation={createTaskMutation} />
         </div>
         <hr />
 
@@ -182,10 +170,14 @@ function ChangePasswordDialog({
   computer,
   open,
   setOpen,
+  onClose,
+  createTaskMutation
 }: {
   computer: RustDesk;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  onClose: () => void;
+  createTaskMutation: any
 }) {
   const form = useForm<ChangePassworFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -200,27 +192,17 @@ function ChangePasswordDialog({
       password: values.password,
     };
 
-    const { error } = await supabase
-      .from("tasks")
-      .insert([
-        {
-          task: "SET_PASSWD",
-          status: "PENDING",
-          task_data: taskData,
-          computer_id: computer.id,
-        },
-      ])
-      .select();
+    createTaskMutation.mutate({
+      task: "SET_PASSWORD",
+      taskData: taskData,
+      computerID: computer.id,
+    });
 
-    if (error) {
-      console.error("Insert error:", error);
-      toast.error("Failed to change password: " + error.message);
-      return;
+    if (!createTaskMutation.error) {
+      setOpen(false);
+      onClose();
+      form.reset();
     }
-
-    toast.success("Password was changed");
-    setOpen(false);
-    form.reset();
   }
 
   return (
@@ -290,10 +272,14 @@ function ChangeNetworkStringDialog({
   computer,
   open,
   setOpen,
+  onClose,
+  createTaskMutation,
 }: {
   computer: RustDesk;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  onClose: () => void;
+  createTaskMutation: any
 }) {
   const form = useForm<ChangeNetworkStringSchema>({
     resolver: zodResolver(changeNetworkStringSchema),
@@ -307,27 +293,17 @@ function ChangeNetworkStringDialog({
       networkString: values.networkString,
     };
 
-    const { error } = await supabase
-      .from("tasks")
-      .insert([
-        {
-          task: "SET_NETWORK_STRING",
-          status: "PENDING",
-          task_data: taskData,
-          computer_id: computer.id,
-        },
-      ])
-      .select();
+    createTaskMutation.mutate({
+      task: "SET_NETWORK_STRING",
+      taskData: taskData,
+      computerID: computer.id,
+    });
 
-    if (error) {
-      console.error("Insert error:", error);
-      toast.error("Failed to change network: " + error.message);
-      return;
+    if (!createTaskMutation.error) {
+      setOpen(false);
+      onClose();
+      form.reset();
     }
-
-    toast.success("Network was changed");
-    setOpen(false);
-    form.reset();
   }
 
   return (

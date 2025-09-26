@@ -39,6 +39,8 @@ interface DataTableProps<TData, TValue> {
   onPaginationChange: (updater: Updater<PaginationState>) => void;
   sorting: SortingState;
   onSortingChange: OnChangeFn<SortingState>;
+  filter: string;
+  onFilterChange: (filter: string) => void;
   isLoading?: boolean;
   total?: number;
 }
@@ -51,6 +53,8 @@ function DataTable<TData, TValue>({
   onPaginationChange,
   sorting,
   onSortingChange,
+  filter,
+  onFilterChange,
   isLoading,
   total,
 }: DataTableProps<TData, TValue>) {
@@ -84,19 +88,14 @@ function DataTable<TData, TValue>({
     },
   });
 
-  const filterValue =
-    (table.getColumn("loginUser")?.getFilterValue() as string) ?? "";
-
   return (
     <div className="w-[1000px]">
       <div className="flex w-full items-center py-4">
         <Input
           placeholder="Filter users..."
-          value={filterValue}
+          value={filter}
           onChange={(event) =>
-            table
-              .getColumn("loginUser")
-              ?.setFilterValue(event.target.value)
+            onFilterChange(event.target.value)
           }
           className="max-w-sm"
         />
@@ -204,6 +203,7 @@ export function RustDeskTable() {
     pagination,
   );
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [filter, setFilter] = useState<string>("");
   const [tableData, setTableData] = useState<RustDesk[]>([]);
   const [tableTotal, setTableTotal] = useState<number | undefined>(undefined);
 
@@ -225,7 +225,15 @@ export function RustDeskTable() {
         limit,
       },
       sort: sortInput,
-    }
+      filter: {
+        login_user: filter,
+      },
+    },
+    {
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnMount: "always",
+    },
   );
 
   useEffect(() => {
@@ -334,6 +342,27 @@ export function RustDeskTable() {
     [],
   );
 
+  const handleFilterChange = (filter: string) => {
+
+    setPagination((prev) => {
+        if (prev.pageIndex === 0) {
+          return prev;
+        }
+
+        return { ...prev, pageIndex: 0 };
+      });
+
+      setDisplayPagination((prev) => {
+        if (prev.pageIndex === 0) {
+          return prev;
+        }
+
+        return { ...prev, pageIndex: 0 };
+      });
+
+    setFilter(filter)
+  }
+
   const pageCount = useMemo(() => {
     if (typeof tableTotal === "number") {
       const computed = Math.ceil(tableTotal / pagination.pageSize) || 1;
@@ -361,6 +390,8 @@ export function RustDeskTable() {
       onPaginationChange={handlePaginationChange}
       sorting={sorting}
       onSortingChange={handleSortingChange}
+      filter={filter}
+      onFilterChange={handleFilterChange}
       isLoading={isFetching}
       total={tableTotal}
     />
