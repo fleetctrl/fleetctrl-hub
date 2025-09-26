@@ -1,5 +1,5 @@
 "use client";
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -179,17 +179,6 @@ function ChangePasswordDialog({
   onClose: () => void;
   createTaskMutation: any
 }) {
-  // const createTaskMutation = api.rustdesk.createTask.useMutation({
-  //   onSuccess: () => {
-  //     toast.success("Password was changed");
-  //     setOpen(false);
-  //     onClose();
-  //     form.reset();
-  //   },
-  //   onError: () => {
-  //     toast.error("Failed to change password");
-  //   },
-  // });
   const form = useForm<ChangePassworFormValues>({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: {
