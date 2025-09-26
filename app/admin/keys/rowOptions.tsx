@@ -10,15 +10,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/trpc/react";
 import { MoreHorizontal } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 type RowOptionsProps = {
   tokenID: string
 };
 export default function RowOptions({ tokenID }: RowOptionsProps) {
-  const router = useRouter();
-
   const deleteMutation = api.key.delete.useMutation(
     {
       async onSuccess() {

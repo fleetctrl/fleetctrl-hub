@@ -25,11 +25,6 @@ import { useEffect, useState } from "react";
 import React from "react";
 import { api } from "@/trpc/react";
 import { columns } from "./columns";
-import { Key } from "@/server/api/routers/key";
-import { RefetchOptions, QueryObserverResult } from "@tanstack/react-query";
-import { TRPCClientErrorLike } from "@trpc/client";
-import { TRPC_ERROR_CODE_KEY, TRPC_ERROR_CODE_NUMBER } from "@trpc/server";
-import { ZodFlattenedError } from "zod";
 import { createSupabaseClient } from "@/lib/supabase/client";
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
