@@ -4,5 +4,7 @@ package-lock.json
 npm-debug.log
 pnpm-debug.log
 *.env
-supabase
 api
+backups
+migration_backups
+supabase
