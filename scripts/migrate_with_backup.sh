@@ -7,7 +7,7 @@ fi
 
 # --- Konfigurace ---
 : "${POSTGRES_URL:?Missing POSTGRES_URL (postgres://user:pass@host:port/db)}"
-BACKUP_DIR="./backups"
+BACKUP_DIR="/backups"
 RETENTION_DAYS="30"
 APP_NAME="supabase"
 

@@ -7,4 +7,5 @@ pnpm-debug.log
 api
 backups
 migration_backups
-supabase
+/supabase/scripts
+/supabase/volumes

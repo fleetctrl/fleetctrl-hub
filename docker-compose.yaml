@@ -9,7 +9,7 @@ services:
     ports:
       - "${DOCKER_PORT:-3000}:3000"
     volumes:
-      - ./migration_backups:/app/backups
+      - ./migration_backups:/backups
     depends_on:
       - api
       - db
