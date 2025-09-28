@@ -27,9 +27,11 @@ echo "$DRYRUN_OUTPUT"
 
 TS="$(date +%Y%m%d-%H%M%S)"
 BACKUP_FILE="${BACKUP_DIR}/${APP_NAME}_${TS}.sql"
+BACKUP_FILE_DATA="${BACKUP_DIR}/${APP_NAME}_${TS}_data.sql"
 
 echo "==> Creating backup: $BACKUP_FILE"
 npx supabase db dump -f "$BACKUP_FILE" --db-url "$POSTGRES_URL"
+npx supabase db dump -f "$BACKUP_FILE_DATA" --db-url "$POSTGRES_URL" --data-only
 
 echo "==> Pruning old backups (> ${RETENTION_DAYS}d)…"
 find "$BACKUP_DIR" -type f -name "${APP_NAME}_*.sql" -mtime "+$RETENTION_DAYS" -delete || true
