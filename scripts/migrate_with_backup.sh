@@ -26,13 +26,13 @@ echo "==> Pending migrations detected:"
 echo "$DRYRUN_OUTPUT"
 
 TS="$(date +%Y%m%d-%H%M%S)"
-BACKUP_FILE="${BACKUP_DIR}/${APP_NAME}_${TS}.dump"
+BACKUP_FILE="${BACKUP_DIR}/${APP_NAME}_${TS}.sql"
 
 echo "==> Creating backup: $BACKUP_FILE"
 npx supabase db dump -f "$BACKUP_FILE" --db-url "$POSTGRES_URL"
 
 echo "==> Pruning old backups (> ${RETENTION_DAYS}d)…"
-find "$BACKUP_DIR" -type f -name "${APP_NAME}_*.dump" -mtime "+$RETENTION_DAYS" -delete || true
+find "$BACKUP_DIR" -type f -name "${APP_NAME}_*.sql" -mtime "+$RETENTION_DAYS" -delete || true
 
 echo "==> Applying migrations…"
 npx supabase db push --db-url "$POSTGRES_URL" --yes
