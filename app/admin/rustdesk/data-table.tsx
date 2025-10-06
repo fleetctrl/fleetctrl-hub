@@ -16,7 +16,6 @@ import {
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -30,6 +29,8 @@ import { createSupabaseClient } from "@/lib/supabase/client";
 import { api } from "@/trpc/react";
 import type { RustDesk } from "@/server/api/routers/rustdesk";
 import { columns } from "./columns";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { SearchIcon } from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -91,14 +92,20 @@ function DataTable<TData, TValue>({
   return (
     <div className="w-[1000px]">
       <div className="flex w-full items-center py-4">
-        <Input
-          placeholder="Filter users..."
-          value={filter}
-          onChange={(event) =>
-            onFilterChange(event.target.value)
-          }
-          className="max-w-sm"
-        />
+        <InputGroup className="max-w-[250px]">
+          <InputGroupAddon>
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            placeholder="Search user"
+            value={filter}
+            onChange={(event) =>
+              onFilterChange(event.target.value)
+            }
+            className="max-w-sm"
+          />
+        </InputGroup>
+
       </div>
       <div className="rounded-md border">
         <Table>
@@ -344,20 +351,20 @@ export function RustDeskTable() {
   const handleFilterChange = (filter: string) => {
 
     setPagination((prev) => {
-        if (prev.pageIndex === 0) {
-          return prev;
-        }
+      if (prev.pageIndex === 0) {
+        return prev;
+      }
 
-        return { ...prev, pageIndex: 0 };
-      });
+      return { ...prev, pageIndex: 0 };
+    });
 
-      setDisplayPagination((prev) => {
-        if (prev.pageIndex === 0) {
-          return prev;
-        }
+    setDisplayPagination((prev) => {
+      if (prev.pageIndex === 0) {
+        return prev;
+      }
 
-        return { ...prev, pageIndex: 0 };
-      });
+      return { ...prev, pageIndex: 0 };
+    });
 
     setFilter(filter)
   }
