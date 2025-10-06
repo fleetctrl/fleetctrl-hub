@@ -150,7 +150,6 @@ function DataTable<TData, TValue>({
                       )}
                     </Fragment>
                   ))}
-                  <TableCell />
                 </TableRow>
               ))
             ) : (
