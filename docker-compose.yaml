@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/fleetctrl/fleetctrl-hub:latest
+    image: ghcr.io/fleetctrl/fleetctrl-hub:v0.4.2
     build:
       context: ./
       target: production
@@ -17,7 +17,7 @@ services:
       - ./.env
 
   api:
-    image: ghcr.io/fleetctrl/fleetctrl-api:latest
+    image: ghcr.io/fleetctrl/fleetctrl-api:v0.4.2
     build:
       context: ./api
       dockerfile: Dockerfile
@@ -85,8 +85,8 @@ services:
       NEXT_PUBLIC_ENABLE_LOGS: true
       # Comment to use Big Query backend for analytics
       NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
-      # Uncomment to use Big Query backend for analytics
-      # NEXT_ANALYTICS_BACKEND_PROVIDER: bigquery
+  # Uncomment to use Big Query backend for analytics
+  # NEXT_ANALYTICS_BACKEND_PROVIDER: bigquery
 
   kong:
     container_name: supabase-kong
@@ -141,8 +141,8 @@ services:
       db:
         # Disable this if you are using an external Postgres database
         condition: service_healthy
-      # analytics:
-      #   condition: service_healthy
+    # analytics:
+    #   condition: service_healthy
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -183,25 +183,25 @@ services:
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
-      # Uncomment to enable custom access token hook. Please see: https://supabase.com/docs/guides/auth/auth-hooks for full list of hooks and additional details about custom_access_token_hook
+  # Uncomment to enable custom access token hook. Please see: https://supabase.com/docs/guides/auth/auth-hooks for full list of hooks and additional details about custom_access_token_hook
 
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: "true"
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI: "pg-functions://postgres/public/custom_access_token_hook"
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_SECRETS: "<standard-base64-secret>"
+  # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: "true"
+  # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI: "pg-functions://postgres/public/custom_access_token_hook"
+  # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_SECRETS: "<standard-base64-secret>"
 
-      # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_ENABLED: "true"
-      # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_URI: "pg-functions://postgres/public/mfa_verification_attempt"
+  # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_ENABLED: "true"
+  # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_URI: "pg-functions://postgres/public/mfa_verification_attempt"
 
-      # GOTRUE_HOOK_PASSWORD_VERIFICATION_ATTEMPT_ENABLED: "true"
-      # GOTRUE_HOOK_PASSWORD_VERIFICATION_ATTEMPT_URI: "pg-functions://postgres/public/password_verification_attempt"
+  # GOTRUE_HOOK_PASSWORD_VERIFICATION_ATTEMPT_ENABLED: "true"
+  # GOTRUE_HOOK_PASSWORD_VERIFICATION_ATTEMPT_URI: "pg-functions://postgres/public/password_verification_attempt"
 
-      # GOTRUE_HOOK_SEND_SMS_ENABLED: "false"
-      # GOTRUE_HOOK_SEND_SMS_URI: "pg-functions://postgres/public/custom_access_token_hook"
-      # GOTRUE_HOOK_SEND_SMS_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
+  # GOTRUE_HOOK_SEND_SMS_ENABLED: "false"
+  # GOTRUE_HOOK_SEND_SMS_URI: "pg-functions://postgres/public/custom_access_token_hook"
+  # GOTRUE_HOOK_SEND_SMS_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
 
-      # GOTRUE_HOOK_SEND_EMAIL_ENABLED: "false"
-      # GOTRUE_HOOK_SEND_EMAIL_URI: "http://host.docker.internal:54321/functions/v1/email_sender"
-      # GOTRUE_HOOK_SEND_EMAIL_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
+  # GOTRUE_HOOK_SEND_EMAIL_ENABLED: "false"
+  # GOTRUE_HOOK_SEND_EMAIL_URI: "http://host.docker.internal:54321/functions/v1/email_sender"
+  # GOTRUE_HOOK_SEND_EMAIL_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
 
   rest:
     container_name: supabase-rest
@@ -211,8 +211,8 @@ services:
       db:
         # Disable this if you are using an external Postgres database
         condition: service_healthy
-      # analytics:
-      #   condition: service_healthy
+    # analytics:
+    #   condition: service_healthy
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
@@ -337,8 +337,8 @@ services:
       db:
         # Disable this if you are using an external Postgres database
         condition: service_healthy
-      # analytics:
-      #   condition: service_healthy
+    # analytics:
+    #   condition: service_healthy
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: ${POSTGRES_HOST}
@@ -405,9 +405,9 @@ services:
       POSTGRES_BACKEND_URL: postgresql://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/_supabase
       POSTGRES_BACKEND_SCHEMA: _analytics
       LOGFLARE_FEATURE_FLAG_OVERRIDE: multibackend=true
-      # Uncomment to use Big Query backend for analytics
-      # GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID}
-      # GOOGLE_PROJECT_NUMBER: ${GOOGLE_PROJECT_NUMBER}
+  # Uncomment to use Big Query backend for analytics
+  # GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID}
+  # GOOGLE_PROJECT_NUMBER: ${GOOGLE_PROJECT_NUMBER}
 
   # Comment out everything below this point if you are using an external Postgres database
   db:
@@ -453,92 +453,92 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXP: ${JWT_EXPIRY}
     command: [
-        "postgres",
-        "-c",
-        "config_file=/etc/postgresql/postgresql.conf",
-        "-c",
-        "log_min_messages=fatal", # prevents Realtime polling queries from appearing in logs
-      ]
+      "postgres",
+      "-c",
+      "config_file=/etc/postgresql/postgresql.conf",
+      "-c",
+      "log_min_messages=fatal", # prevents Realtime polling queries from appearing in logs
+        ]
 
-  # vector:
-  #   container_name: supabase-vector
-  #   image: timberio/vector:0.28.1-alpine
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./volumes/logs:/etc/vector:ro,z
-  #     - ${DOCKER_SOCKET_LOCATION}:/var/run/docker.sock:ro,z
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD",
-  #         "wget",
-  #         "--no-verbose",
-  #         "--tries=1",
-  #         "--spider",
-  #         "http://vector:9001/health",
-  #       ]
-  #     timeout: 5s
-  #     interval: 5s
-  #     retries: 3
-  #   environment:
-  #     LOGFLARE_PUBLIC_ACCESS_TOKEN: ${LOGFLARE_PUBLIC_ACCESS_TOKEN}
-  #   command: ["--config", "/etc/vector/vector.yml"]
-  #   security_opt:
-  #     - "label=disable"
+# vector:
+#   container_name: supabase-vector
+#   image: timberio/vector:0.28.1-alpine
+#   restart: unless-stopped
+#   volumes:
+#     - ./volumes/logs:/etc/vector:ro,z
+#     - ${DOCKER_SOCKET_LOCATION}:/var/run/docker.sock:ro,z
+#   healthcheck:
+#     test:
+#       [
+#         "CMD",
+#         "wget",
+#         "--no-verbose",
+#         "--tries=1",
+#         "--spider",
+#         "http://vector:9001/health",
+#       ]
+#     timeout: 5s
+#     interval: 5s
+#     retries: 3
+#   environment:
+#     LOGFLARE_PUBLIC_ACCESS_TOKEN: ${LOGFLARE_PUBLIC_ACCESS_TOKEN}
+#   command: ["--config", "/etc/vector/vector.yml"]
+#   security_opt:
+#     - "label=disable"
 
-  # # Update the DATABASE_URL if you are using an external Postgres database
-  # supavisor:
-  #   container_name: supabase-pooler
-  #   image: supabase/supavisor:2.5.1
-  #   restart: unless-stopped
-  #   ports:
-  #     - ${POSTGRES_PORT}:5432
-  #     - ${POOLER_PROXY_PORT_TRANSACTION}:6543
-  #   volumes:
-  #     - ./volumes/pooler/pooler.exs:/etc/pooler/pooler.exs:ro,z
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD",
-  #         "curl",
-  #         "-sSfL",
-  #         "--head",
-  #         "-o",
-  #         "/dev/null",
-  #         "http://127.0.0.1:4000/api/health",
-  #       ]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #     analytics:
-  #       condition: service_healthy
-  #   environment:
-  #     PORT: 4000
-  #     POSTGRES_PORT: ${POSTGRES_PORT}
-  #     POSTGRES_DB: ${POSTGRES_DB}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  #     DATABASE_URL: ecto://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/_supabase
-  #     CLUSTER_POSTGRES: true
-  #     SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-  #     VAULT_ENC_KEY: ${VAULT_ENC_KEY}
-  #     API_JWT_SECRET: ${JWT_SECRET}
-  #     METRICS_JWT_SECRET: ${JWT_SECRET}
-  #     REGION: local
-  #     ERL_AFLAGS: -proto_dist inet_tcp
-  #     POOLER_TENANT_ID: ${POOLER_TENANT_ID}
-  #     POOLER_DEFAULT_POOL_SIZE: ${POOLER_DEFAULT_POOL_SIZE}
-  #     POOLER_MAX_CLIENT_CONN: ${POOLER_MAX_CLIENT_CONN}
-  #     POOLER_POOL_MODE: transaction
-  #     DB_POOL_SIZE: ${POOLER_DB_POOL_SIZE}
-  #   command:
-  #     [
-  #       "/bin/sh",
-  #       "-c",
-  #       '/app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server',
-  #     ]
+# # Update the DATABASE_URL if you are using an external Postgres database
+# supavisor:
+#   container_name: supabase-pooler
+#   image: supabase/supavisor:2.5.1
+#   restart: unless-stopped
+#   ports:
+#     - ${POSTGRES_PORT}:5432
+#     - ${POOLER_PROXY_PORT_TRANSACTION}:6543
+#   volumes:
+#     - ./volumes/pooler/pooler.exs:/etc/pooler/pooler.exs:ro,z
+#   healthcheck:
+#     test:
+#       [
+#         "CMD",
+#         "curl",
+#         "-sSfL",
+#         "--head",
+#         "-o",
+#         "/dev/null",
+#         "http://127.0.0.1:4000/api/health",
+#       ]
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
+#   depends_on:
+#     db:
+#       condition: service_healthy
+#     analytics:
+#       condition: service_healthy
+#   environment:
+#     PORT: 4000
+#     POSTGRES_PORT: ${POSTGRES_PORT}
+#     POSTGRES_DB: ${POSTGRES_DB}
+#     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#     DATABASE_URL: ecto://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/_supabase
+#     CLUSTER_POSTGRES: true
+#     SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+#     VAULT_ENC_KEY: ${VAULT_ENC_KEY}
+#     API_JWT_SECRET: ${JWT_SECRET}
+#     METRICS_JWT_SECRET: ${JWT_SECRET}
+#     REGION: local
+#     ERL_AFLAGS: -proto_dist inet_tcp
+#     POOLER_TENANT_ID: ${POOLER_TENANT_ID}
+#     POOLER_DEFAULT_POOL_SIZE: ${POOLER_DEFAULT_POOL_SIZE}
+#     POOLER_MAX_CLIENT_CONN: ${POOLER_MAX_CLIENT_CONN}
+#     POOLER_POOL_MODE: transaction
+#     DB_POOL_SIZE: ${POOLER_DB_POOL_SIZE}
+#   command:
+#     [
+#       "/bin/sh",
+#       "-c",
+#       '/app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server',
+#     ]
 
 volumes:
   db-config:

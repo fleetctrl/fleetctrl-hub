@@ -1,9 +1,12 @@
 # Base image
-FROM node:24-alpine AS base
+FROM node:24-bookworm-slim AS base
 WORKDIR /app
-RUN apk update && \
-    apk add bash
 EXPOSE 3000
+
+# Install Postgres client tools needed by the startup migration script
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends postgresql-client \
+  && rm -rf /var/lib/apt/lists/*
 
 # Make pnpm available in all stages
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -22,11 +25,11 @@ ENV NODE_ENV=production
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/node_modules ./node_modules
-COPY . .
+COPY . /app
 RUN chmod +x /app/scripts/migrate_with_backup.sh
 
-# Generate build at startup and run Next.js
-ENTRYPOINT ["sh", "-c", "POSTGRES_URL=$POSTGRES_URL /app/scripts/migrate_with_backup.sh && pnpm run build && pnpm start"]
+# Generate build at startup and run Next.js once migrations have been applied
+CMD ["/bin/bash", "-c", "/app/scripts/migrate_with_backup.sh && pnpm run build && pnpm start"]
 
 # Development stage
 FROM base AS dev
