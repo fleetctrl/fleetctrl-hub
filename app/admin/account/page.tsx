@@ -15,10 +15,10 @@ export default async function Account() {
       <div className="flex flex-col items-center">
         <div className="w-full max-w-2xl space-y-6 px-4 pb-10">
           <ProfileForm
-            firstName={userMetadata.firstname}
-            lastName={userMetadata.lastname}
+            firstName={userMetadata.firstname ?? ""}
+            lastName={userMetadata.lastname ?? ""}
           />
-          <PasswordForm email={user?.email} />
+          <PasswordForm />
         </div>
       </div>
     </>
