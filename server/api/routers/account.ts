@@ -23,5 +23,31 @@ export const accountRouter = createTRPCRouter({
                 cause: error,
             });
         }
+    }),
+    changePassword: protectedProcedure.input(z.object({ oldPassword: z.string(), newPassword: z.string() })).mutation( async({ ctx, input }) => {
+            const res = await ctx.supabase.auth.signInWithPassword({
+                email: ctx.session.user.email ?? "",
+                password: input.oldPassword,
+            });
+
+            if (res.error) {
+                throw new TRPCError({
+                code: "UNAUTHORIZED",
+                message: 'Password is wrong',
+                cause: res.error?.cause,
+                });
+            }
+
+            const res2 = await ctx.supabase.auth.updateUser({
+                password: input.newPassword,
+            });
+
+            if (res2.error) {
+                throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: 'Password is wrong',
+                cause: res.error,
+                });
+            }
     })
 });
