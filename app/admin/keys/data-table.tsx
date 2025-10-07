@@ -92,7 +92,6 @@ export function DataTable<TData, TValue>({
                                             </TableCell>
                                         </React.Fragment>
                                     ))}
-                                    <TableCell></TableCell>
                                 </TableRow>
                             ))
                         ) : (

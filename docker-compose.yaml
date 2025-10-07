@@ -5,10 +5,14 @@ services:
       context: ./
       target: production
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "${DOCKER_PORT:-3000}:3000"
+    volumes:
+      - ./migration_backups:/backups
     depends_on:
       - api
+      - db
     env_file:
       - ./.env
 

@@ -1,6 +1,8 @@
 # Base image
 FROM node:24-alpine AS base
 WORKDIR /app
+RUN apk update && \
+    apk add bash
 EXPOSE 3000
 
 # Make pnpm available in all stages
@@ -21,9 +23,10 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/node_modules ./node_modules
 COPY . .
+RUN chmod +x /app/scripts/migrate_with_backup.sh
 
 # Generate build at startup and run Next.js
-ENTRYPOINT ["sh", "-c", "pnpm run build && pnpm start"]
+ENTRYPOINT ["sh", "-c", "POSTGRES_URL=$POSTGRES_URL /app/scripts/migrate_with_backup.sh && pnpm run build && pnpm start"]
 
 # Development stage
 FROM base AS dev

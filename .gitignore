@@ -28,6 +28,7 @@
 # production
 /build
 /public
+/backups
 
 # misc
 .DS_Store
