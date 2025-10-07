@@ -2,7 +2,6 @@
 
 import {
     IconDotsVertical,
-    IconKey,
     IconLogout,
     IconUserCircle,
 } from "@tabler/icons-react"

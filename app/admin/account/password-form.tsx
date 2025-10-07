@@ -1,11 +1,7 @@
 "use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,19 +46,9 @@ const passwordSchema = z
 
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
-type FormFeedback =
-  | { type: "success"; message: string }
-  | { type: "error"; message: string }
-  | null;
-
-type PasswordFormProps = {
-  email?: string | null;
-};
-
-export function PasswordForm({ email }: PasswordFormProps) {
+export function PasswordForm() {
   const changePasswordMutation = api.account.changePassword.useMutation({
     onError: (values) => {
-      console.log(values.data?.code)
       if (values.data?.code == "UNAUTHORIZED") {
         form.setError("currentPassword", { message: "Your current password is incorrect." })
       } else {
@@ -70,7 +56,6 @@ export function PasswordForm({ email }: PasswordFormProps) {
       }
     }
   })
-  const [feedback, setFeedback] = useState<FormFeedback>(null);
 
   const form = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
@@ -191,16 +176,6 @@ export function PasswordForm({ email }: PasswordFormProps) {
                   />
                 </div>
               </FieldGroup>
-
-              {feedback ? (
-                <Field>
-                  {feedback.type === "success" ? (
-                    <p className="text-sm text-green-600">{feedback.message}</p>
-                  ) : (
-                    <FieldError>{feedback.message}</FieldError>
-                  )}
-                </Field>
-              ) : null}
 
               <Field orientation="horizontal">
                 <Button type="submit" disabled={isSubmitDisabled}>
