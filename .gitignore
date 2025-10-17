@@ -30,6 +30,7 @@
 /public
 /backups
 /migration_backups
+/volumes
 
 # misc
 .DS_Store
