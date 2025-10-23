@@ -31,6 +31,7 @@ import type { RustDesk } from "@/server/api/routers/rustdesk";
 import { columns } from "./columns";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { SearchIcon } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -107,71 +108,73 @@ function DataTable<TData, TValue>({
         </InputGroup>
 
       </div>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <Fragment key={cell.id}>
-                      {cell.column.columnDef.header?.toString() === "" ? (
-                        <TableCell className="pl-4">
-                          <div
-                            className={cn("w-3 h-3 rounded-[50%]", {
-                              "bg-red-400":
-                                (cell.getContext().getValue() as string) ===
-                                "Offline",
-                              "bg-green-400":
-                                (cell.getContext().getValue() as string) ===
-                                "Online",
-                            })}
-                          />
-                        </TableCell>
-                      ) : (
-                        <TableCell>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      )}
-                    </Fragment>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <Fragment key={cell.id}>
+                        {cell.column.columnDef.header?.toString() === "" ? (
+                          <TableCell className="pl-4">
+                            <div
+                              className={cn("w-3 h-3 rounded-[50%]", {
+                                "bg-red-400":
+                                  (cell.getContext().getValue() as string) ===
+                                  "Offline",
+                                "bg-green-400":
+                                  (cell.getContext().getValue() as string) ===
+                                  "Online",
+                              })}
+                            />
+                          </TableCell>
+                        ) : (
+                          <TableCell>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        )}
+                      </Fragment>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       <div className="flex items-center justify-between py-4">
         <span className="text-sm text-muted-foreground">
           Page {pagination.pageIndex + 1}

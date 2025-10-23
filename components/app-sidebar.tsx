@@ -11,7 +11,7 @@ import {
   IconInnerShadowTop,
   IconKey,
   IconReport,
-  IconSettings,
+  IconWorldSearch,
   IconUsers,
 } from "@tabler/icons-react"
 
@@ -39,6 +39,11 @@ const data = {
     {
       title: "RustDesk",
       url: "/admin/rustdesk",
+      icon: IconWorldSearch,
+    },
+    {
+      title: "Groups",
+      url: "/admin/groups",
       icon: IconUsers,
     },
   ],
@@ -95,11 +100,6 @@ const data = {
       title: "Enroll Keys",
       url: "/admin/keys",
       icon: IconKey,
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
     },
   ],
   documents: [

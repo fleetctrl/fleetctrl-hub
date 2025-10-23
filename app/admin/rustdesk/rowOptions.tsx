@@ -62,10 +62,10 @@ export default function RowOptions({ rustdeskId, computerId }: RowOptionsProps) 
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleCopy}>
           Connection string
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <Link href={`/admin/rustdesk/computer/${computerId}`}>
           <DropdownMenuItem>Computer info</DropdownMenuItem>
         </Link>

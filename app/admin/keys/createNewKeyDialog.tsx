@@ -88,7 +88,16 @@ export default function CreateNewKeyDialog() {
         <>
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                    <Button variant={"secondary"}>Create Enrollment Key</Button>
+                    <div className="flex flex-col items-center gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold">Enrollment keys</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Create enrollment keys.
+                            </p>
+
+                        </div>
+                        <Button variant={"default"}>Create Enrollment Key</Button>
+                    </div>
                 </DialogTrigger>
                 <DialogContent>
                     <DialogHeader>
