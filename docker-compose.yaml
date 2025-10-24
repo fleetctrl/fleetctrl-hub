@@ -226,7 +226,7 @@ services:
   realtime:
     # This container name looks inconsistent but is correct because realtime constructs tenant id by parsing the subdomain
     container_name: realtime-dev.supabase-realtime
-    image: supabase/realtime:v2.34.47
+    image: supabase/realtime:v2.56.2
     restart: unless-stopped
     depends_on:
       db:
@@ -453,12 +453,12 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXP: ${JWT_EXPIRY}
     command: [
-      "postgres",
-      "-c",
-      "config_file=/etc/postgresql/postgresql.conf",
-      "-c",
-      "log_min_messages=fatal", # prevents Realtime polling queries from appearing in logs
-        ]
+        "postgres",
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "log_min_messages=fatal", # prevents Realtime polling queries from appearing in logs
+      ]
 
 # vector:
 #   container_name: supabase-vector
