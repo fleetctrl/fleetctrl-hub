@@ -144,7 +144,7 @@ export function GroupsTable() {
         });
       case "edit":
     }
-
+    refetch();
     closeDialog();
   };
 
@@ -154,6 +154,9 @@ export function GroupsTable() {
     getCoreRowModel: getCoreRowModel(),
     meta: {
       onEdit: openEditDialog,
+      onActionComplete: () => {
+        refetch();
+      },
     } satisfies GroupsTableMeta,
   });
 

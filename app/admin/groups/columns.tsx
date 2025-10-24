@@ -19,6 +19,7 @@ export type GroupRow = {
 
 export type GroupsTableMeta = {
   onEdit: (groupId: string) => void;
+  onActionComplete?: () => Promise<unknown> | void;
 };
 
 export const columns: ColumnDef<GroupRow>[] = [
@@ -70,8 +71,18 @@ export const columns: ColumnDef<GroupRow>[] = [
   {
     id: "actions",
     header: "",
-    cell: ({ row }) => {
-      return <RowOptions groupId={row.original.id} />;
+    cell: ({ row, table }) => {
+      const meta = table.options.meta as GroupsTableMeta | undefined;
+      const onEdit = meta?.onEdit;
+      const onActionComplete = meta?.onActionComplete;
+
+      return (
+        <RowOptions
+          groupId={row.original.id}
+          onEdit={onEdit ? () => onEdit(row.original.id) : undefined}
+          onActionComplete={onActionComplete}
+        />
+      );
     },
   },
 ];

@@ -30,11 +30,13 @@ import CreateNewKeyDialog from "./createNewKeyDialog";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  onActionComplete: () => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  onActionComplete,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -52,11 +54,14 @@ export function DataTable<TData, TValue>({
       sorting,
       columnFilters,
     },
+    meta: {
+      onActionComplete: onActionComplete,
+    },
   });
 
   return (
     <div className="w-full flex flex-col gap-5">
-      <CreateNewKeyDialog />
+      <CreateNewKeyDialog onCreate={onActionComplete} />
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -154,5 +159,7 @@ export function KeysTable() {
     };
   }, [refetch]);
 
-  return <DataTable columns={columns} data={data ?? []} />;
+  return (
+    <DataTable columns={columns} data={data ?? []} onActionComplete={refetch} />
+  );
 }

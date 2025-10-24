@@ -12,22 +12,34 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/trpc/react";
-import { useRouter } from "next/navigation";
 
 type RowOptionsProps = {
   groupId: string;
+  onEdit?: () => void;
+  onActionComplete?: () => Promise<unknown> | void;
 };
-export default function RowOptions({ groupId }: RowOptionsProps) {
+
+export default function RowOptions({
+  groupId,
+  onEdit,
+  onActionComplete,
+}: RowOptionsProps) {
   const deleteMutation = api.group.delete.useMutation({
     onError: () => {
       toast.error("Unable to delete group");
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Group deleted");
+      await onActionComplete?.();
     },
   });
-  async function handleDelete() {
+
+  function handleDelete() {
     deleteMutation.mutate({ id: groupId });
+  }
+
+  function handleEdit() {
+    onEdit?.();
   }
 
   return (
@@ -41,7 +53,7 @@ export default function RowOptions({ groupId }: RowOptionsProps) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>Edit group</DropdownMenuItem>
+        <DropdownMenuItem onClick={handleEdit}>Edit group</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={handleDelete}>
           Delete

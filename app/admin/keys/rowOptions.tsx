@@ -15,11 +15,16 @@ import { toast } from "sonner";
 
 type RowOptionsProps = {
   tokenID: string;
+  onActionComplete?: () => Promise<unknown> | void;
 };
-export default function RowOptions({ tokenID }: RowOptionsProps) {
+export default function RowOptions({
+  tokenID,
+  onActionComplete,
+}: RowOptionsProps) {
   const deleteMutation = api.key.delete.useMutation({
     async onSuccess() {
       toast.success("Computer deleted");
+      await onActionComplete?.();
     },
     onError() {
       toast.error("Unable to delete computer");
