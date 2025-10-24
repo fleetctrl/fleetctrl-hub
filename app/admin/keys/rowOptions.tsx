@@ -10,25 +10,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/trpc/react";
 import { MoreHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 type RowOptionsProps = {
-  tokenID: string
+  tokenID: string;
 };
 export default function RowOptions({ tokenID }: RowOptionsProps) {
-  const deleteMutation = api.key.delete.useMutation(
-    {
-      async onSuccess() {
-        toast.success("Computer deleted");
-      },
-      onError() {
-        toast.error("Unable to delete computer");
-      },
-    }
-  )
+  const deleteMutation = api.key.delete.useMutation({
+    async onSuccess() {
+      toast.success("Computer deleted");
+    },
+    onError() {
+      toast.error("Unable to delete computer");
+    },
+  });
 
   async function handleDelete() {
-    deleteMutation.mutate({ id: tokenID })
+    deleteMutation.mutate({ id: tokenID });
   }
 
   return (
