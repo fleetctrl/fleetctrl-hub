@@ -29,7 +29,11 @@ import { createSupabaseClient } from "@/lib/supabase/client";
 import { api } from "@/trpc/react";
 import type { RustDesk } from "@/server/api/routers/rustdesk";
 import { columns } from "./columns";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { SearchIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -63,10 +67,10 @@ function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (
-    updater,
+    updater
   ) => {
     setColumnFilters((prev) =>
-      typeof updater === "function" ? updater(prev) : updater,
+      typeof updater === "function" ? updater(prev) : updater
     );
     onPaginationChange((prev) => ({ ...prev, pageIndex: 0 }));
   };
@@ -100,13 +104,10 @@ function DataTable<TData, TValue>({
           <InputGroupInput
             placeholder="Search user"
             value={filter}
-            onChange={(event) =>
-              onFilterChange(event.target.value)
-            }
+            onChange={(event) => onFilterChange(event.target.value)}
             className="max-w-sm"
           />
         </InputGroup>
-
       </div>
       <Card>
         <CardContent className="p-0">
@@ -119,9 +120,9 @@ function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -153,7 +154,7 @@ function DataTable<TData, TValue>({
                           <TableCell>
                             {flexRender(
                               cell.column.columnDef.cell,
-                              cell.getContext(),
+                              cell.getContext()
                             )}
                           </TableCell>
                         )}
@@ -208,9 +209,8 @@ export function RustDeskTable() {
     pageIndex: 0,
     pageSize: 10,
   });
-  const [displayPagination, setDisplayPagination] = useState<PaginationState>(
-    pagination,
-  );
+  const [displayPagination, setDisplayPagination] =
+    useState<PaginationState>(pagination);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState<string>("");
   const [tableData, setTableData] = useState<RustDesk[]>([]);
@@ -224,7 +224,7 @@ export function RustDeskTable() {
       sorting.length
         ? sorting.map((item) => ({ id: item.id, desc: Boolean(item.desc) }))
         : undefined,
-    [sorting],
+    [sorting]
   );
 
   const { data, refetch, isFetching } = api.rustdesk.get.useQuery(
@@ -242,7 +242,7 @@ export function RustDeskTable() {
       staleTime: 0,
       gcTime: 0,
       refetchOnMount: "always",
-    },
+    }
   );
 
   useEffect(() => {
@@ -252,8 +252,12 @@ export function RustDeskTable() {
 
     setTableTotal(data.total);
 
-    const totalCount = typeof data.total === "number" ? data.total : data.data.length;
-    const maxPageIndex = Math.max(0, Math.ceil(totalCount / pagination.pageSize) - 1);
+    const totalCount =
+      typeof data.total === "number" ? data.total : data.data.length;
+    const maxPageIndex = Math.max(
+      0,
+      Math.ceil(totalCount / pagination.pageSize) - 1
+    );
 
     const shouldHoldData =
       totalCount > 0 &&
@@ -277,7 +281,7 @@ export function RustDeskTable() {
         { event: "*", schema: "public", table: "computers" },
         () => {
           refetch();
-        },
+        }
       );
 
     channel.subscribe();
@@ -301,7 +305,7 @@ export function RustDeskTable() {
 
     const maxPageIndex = Math.max(
       0,
-      Math.ceil(tableTotal / pagination.pageSize) - 1,
+      Math.ceil(tableTotal / pagination.pageSize) - 1
     );
 
     if (pagination.pageIndex > maxPageIndex) {
@@ -323,35 +327,13 @@ export function RustDeskTable() {
         return next;
       });
     },
-    [],
+    []
   );
 
-  const handleSortingChange = useCallback(
-    (updater: Updater<SortingState>) => {
-      setSorting((prev) =>
-        typeof updater === "function" ? updater(prev) : updater,
-      );
-
-      setPagination((prev) => {
-        if (prev.pageIndex === 0) {
-          return prev;
-        }
-
-        return { ...prev, pageIndex: 0 };
-      });
-
-      setDisplayPagination((prev) => {
-        if (prev.pageIndex === 0) {
-          return prev;
-        }
-
-        return { ...prev, pageIndex: 0 };
-      });
-    },
-    [],
-  );
-
-  const handleFilterChange = (filter: string) => {
+  const handleSortingChange = useCallback((updater: Updater<SortingState>) => {
+    setSorting((prev) =>
+      typeof updater === "function" ? updater(prev) : updater
+    );
 
     setPagination((prev) => {
       if (prev.pageIndex === 0) {
@@ -368,9 +350,27 @@ export function RustDeskTable() {
 
       return { ...prev, pageIndex: 0 };
     });
+  }, []);
 
-    setFilter(filter)
-  }
+  const handleFilterChange = (filter: string) => {
+    setPagination((prev) => {
+      if (prev.pageIndex === 0) {
+        return prev;
+      }
+
+      return { ...prev, pageIndex: 0 };
+    });
+
+    setDisplayPagination((prev) => {
+      if (prev.pageIndex === 0) {
+        return prev;
+      }
+
+      return { ...prev, pageIndex: 0 };
+    });
+
+    setFilter(filter);
+  };
 
   const pageCount = useMemo(() => {
     if (typeof tableTotal === "number") {
