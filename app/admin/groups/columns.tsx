@@ -3,7 +3,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import RowOptions from "./rowOptions";
 
 export type GroupRow = {
@@ -34,16 +33,17 @@ export const columns: ColumnDef<GroupRow>[] = [
     id: "members",
     header: "Members",
     cell: ({ row }) => {
-      const visibleMembers = row.original.members.slice(0, 2);
+      const visibleMembers = row.original?.members?.slice(0, 2) ?? [];
       const remainingCount = row.original.memberCount - visibleMembers.length;
-
       if (row.original.memberCount === 0) {
-        return <span className="text-sm text-muted-foreground">No members</span>;
+        return (
+          <span className="text-sm text-muted-foreground">No members</span>
+        );
       }
 
       return (
         <div className="flex flex-wrap items-center gap-1.5">
-          {visibleMembers.map((member) => (
+          {visibleMembers?.map((member) => (
             <Badge
               key={member.id}
               variant="outline"
@@ -51,7 +51,7 @@ export const columns: ColumnDef<GroupRow>[] = [
             >
               {member.name}
             </Badge>
-          ))}
+          )) ?? []}
           {remainingCount > 0 ? (
             <Badge variant="secondary">+{remainingCount}</Badge>
           ) : null}
@@ -70,10 +70,8 @@ export const columns: ColumnDef<GroupRow>[] = [
   {
     id: "actions",
     header: "",
-    cell: ({ row, table }) => {
-      return (
-        <RowOptions groupId={row.original.id} />
-      );
+    cell: ({ row }) => {
+      return <RowOptions groupId={row.original.id} />;
     },
   },
 ];

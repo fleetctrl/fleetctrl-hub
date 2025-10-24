@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -44,19 +44,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
 import { toast } from "sonner";
-
-type Computer = {
-  id: string;
-  name: string;
-};
-
-type Group = {
-  id: string;
-  displayName: string;
-  memberIds: string[];
-  createdAt: string;
-  updatedAt: string;
-};
+import { createSupabaseClient } from "@/lib/supabase/client";
 
 type DialogState = { mode: "create" } | { mode: "edit"; groupId: string };
 
@@ -78,6 +66,11 @@ type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 export function GroupsTable() {
   const computersQuery = api.comuter.getForGroups.useQuery();
+  const { data: groups, refetch } = api.group.getTableData.useQuery(undefined, {
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+  });
   const createGroupMutation = api.group.create.useMutation({
     onSuccess: () => {
       toast.success("Group created");
@@ -87,7 +80,21 @@ export function GroupsTable() {
       toast.error(error.message);
     },
   });
-  const [groups, setGroups] = useState<Group[]>(() => []);
+
+  const groupRows: GroupRow[] = useMemo(() => {
+    if (!groups) {
+      return [];
+    }
+    return groups.map((group) => ({
+      id: group.id,
+      displayName: group.displayName,
+      members: group.members,
+      memberCount: group.members.length ?? 0,
+      createdAtFormatted: formatDateTime(group.createdAt),
+      updatedAtFormatted: formatDateTime(group.updatedAt),
+    }));
+  }, [groups]);
+
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
@@ -96,38 +103,6 @@ export function GroupsTable() {
       memberIds: [],
     },
   });
-
-  const computersById = useMemo(() => {
-    const map = new Map<string, Computer>();
-    for (const computer of computersQuery.data ?? []) {
-      map.set(computer.id, computer);
-    }
-    return map;
-  }, [computersQuery.data]);
-
-  const groupRows = useMemo<GroupRow[]>(
-    () =>
-      groups
-        .map((group) => {
-          const uniqueMembers = Array.from(new Set(group.memberIds)).map(
-            (id) => ({
-              id,
-              name: computersById.get(id)?.name ?? "Unknown device",
-            })
-          );
-
-          return {
-            id: group.id,
-            displayName: group.displayName,
-            members: uniqueMembers,
-            memberCount: uniqueMembers.length,
-            createdAtFormatted: formatDateTime(group.createdAt),
-            updatedAtFormatted: formatDateTime(group.updatedAt),
-          };
-        })
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, "en")),
-    [computersById, groups]
-  );
 
   const openCreateDialog = () => {
     form.reset({
@@ -138,13 +113,13 @@ export function GroupsTable() {
   };
 
   const openEditDialog = (groupId: string) => {
-    const group = groups.find((item) => item.id === groupId);
+    const group = groups?.find((item) => item.id === groupId);
     if (!group) {
       return;
     }
     form.reset({
       displayName: group.displayName,
-      memberIds: [...group.memberIds],
+      memberIds: [...group.members.map((c) => c.id)],
     });
     setDialogState({ mode: "edit", groupId });
   };
@@ -185,6 +160,26 @@ export function GroupsTable() {
   const hasGroups = groupRows.length > 0;
 
   const isDialogOpen = dialogState !== null;
+
+  useEffect(() => {
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel("group-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "computer_groups" },
+        () => {
+          refetch();
+        }
+      );
+
+    channel.subscribe();
+
+    return () => {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
 
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
@@ -351,9 +346,6 @@ export function GroupsTable() {
             <div className="text-sm text-muted-foreground">
               No groups yet. Create one to start organizing computers.
             </div>
-            <Button size="sm" onClick={openCreateDialog}>
-              Create your first group
-            </Button>
           </CardContent>
         </Card>
       )}
