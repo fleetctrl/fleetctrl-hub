@@ -55,6 +55,7 @@ const formatDateTime = (isoDate: string) =>
   });
 
 const groupFormSchema = z.object({
+  id: z.string().optional(),
   displayName: z
     .string()
     .trim()
@@ -74,6 +75,16 @@ export function GroupsTable() {
   const createGroupMutation = api.group.create.useMutation({
     onSuccess: () => {
       toast.success("Group created");
+    },
+    onError: (error) => {
+      console.error(error.message);
+      toast.error(error.message);
+    },
+  });
+  const editGroupMutation = api.group.edit.useMutation({
+    onSuccess: () => {
+      toast.success("Group updated");
+      refetch();
     },
     onError: (error) => {
       console.error(error.message);
@@ -118,6 +129,7 @@ export function GroupsTable() {
       return;
     }
     form.reset({
+      id: group.id,
       displayName: group.displayName,
       memberIds: [...group.members.map((c) => c.id)],
     });
@@ -134,7 +146,6 @@ export function GroupsTable() {
 
   const onSubmit = async (values: GroupFormValues) => {
     const dedupedMembers = Array.from(new Set(values.memberIds));
-    const now = new Date().toISOString();
 
     switch (dialogState?.mode) {
       case "create":
@@ -143,6 +154,13 @@ export function GroupsTable() {
           members: dedupedMembers,
         });
       case "edit":
+        if (values.id) {
+          await editGroupMutation.mutateAsync({
+            id: values.id,
+            name: values.displayName,
+            members: dedupedMembers,
+          });
+        }
     }
     refetch();
     closeDialog();
@@ -214,6 +232,21 @@ export function GroupsTable() {
                   should belong to it.
                 </DialogDescription>
               </DialogHeader>
+
+              {dialogState?.mode === "edit" && (
+                <FormField
+                  control={form.control}
+                  name="id"
+                  render={({ field }) => (
+                    <FormItem className="hidden">
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}

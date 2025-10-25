@@ -133,4 +133,75 @@ export const groupRouter = createTRPCRouter({
 
     return outData;
   }),
+  edit: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        members: z.string().array(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // check if group name exist
+      const { error, count } = await ctx.supabase
+        .from("computer_groups")
+        .select("id", { count: "exact", head: true })
+        .eq("display_name", input.name)
+        .neq("id", input.id);
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to get groups",
+          cause: error.cause,
+        });
+      }
+      if (count) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Group name already exists",
+        });
+      }
+
+      const { error: updateError } = await ctx.supabase
+        .from("computer_groups")
+        .update({ display_name: input.name, updated_at: new Date() })
+        .eq("id", input.id);
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to update group",
+          cause: updateError?.cause,
+        });
+      }
+
+      // update memebers
+      const { error: deleteError } = await ctx.supabase
+        .from("computer_group_members")
+        .delete()
+        .eq("group_id", input.id);
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to delete group members",
+          cause: deleteError?.cause,
+        });
+      }
+
+      const insert = input.members.map((member) => {
+        return {
+          computer_id: member,
+          group_id: input.id,
+        };
+      });
+      const insertedMembers = await ctx.supabase
+        .from("computer_group_members")
+        .insert(insert);
+      if (insertedMembers.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable insert members to group",
+          cause: insertedMembers.error.cause,
+        });
+      }
+    }),
 });
