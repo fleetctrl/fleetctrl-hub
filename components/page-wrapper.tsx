@@ -1,16 +1,17 @@
 "use server";
 
+import { ReactNode } from "react";
 import { SiteHeader } from "./site-header";
 
 type Props = {
-  children: React.ReactNode;
-  siteHeader?: string;
+  children: ReactNode;
+  siteHeader: ReactNode;
 };
 
 export default async function PageWrapper({ children, siteHeader }: Props) {
   return (
     <div>
-      <SiteHeader page={siteHeader ?? ""} />
+      <SiteHeader>{siteHeader}</SiteHeader>
       <div className="flex flex-col items-center">
         <div className="w-[1000px] md:max-w-[90%] flex flex-col justify-center items-center">
           {children}
