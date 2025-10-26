@@ -12,6 +12,18 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/trpc/react";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type RowOptionsProps = {
   groupId: string;
@@ -24,6 +36,7 @@ export default function RowOptions({
   onEdit,
   onActionComplete,
 }: RowOptionsProps) {
+  const [open, setOpen] = useState(false);
   const deleteMutation = api.group.delete.useMutation({
     onError: () => {
       toast.error("Unable to delete group");
@@ -35,7 +48,8 @@ export default function RowOptions({
   });
 
   function handleDelete() {
-    deleteMutation.mutate({ id: groupId });
+    deleteMutation.mutateAsync({ id: groupId });
+    setOpen(false);
   }
 
   function handleEdit() {
@@ -43,7 +57,7 @@ export default function RowOptions({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-8 w-8 p-0">
           <span className="sr-only">Open menu</span>
@@ -55,9 +69,31 @@ export default function RowOptions({
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleEdit}>Edit group</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={handleDelete}>
-          Delete
-        </DropdownMenuItem>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={(e) => e.preventDefault()}
+            >
+              Delete
+            </DropdownMenuItem>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the
+                group and remove your data from our servers.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>
+                Continue
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DropdownMenuContent>
     </DropdownMenu>
   );
