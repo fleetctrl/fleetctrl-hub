@@ -3,8 +3,8 @@ import { computerRouter } from "./routers/computer";
 import { groupRouter } from "./routers/group";
 import { keyRouter } from "./routers/key";
 import { rustdeskRouter } from "./routers/rustdesk";
+import { appRouter as appRouteRouter } from "./routers/app";
 import { createCallerFactory, createTRPCRouter } from "./trpc";
-
 
 /**
  * This is the primary router for your server.
@@ -16,7 +16,8 @@ export const appRouter = createTRPCRouter({
   rustdesk: rustdeskRouter,
   account: accountRouter,
   group: groupRouter,
-  comuter: computerRouter
+  comuter: computerRouter,
+  app: appRouteRouter,
 });
 
 // export type definition of API
