@@ -27,6 +27,14 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Item, ItemContent } from "@/components/ui/item";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -39,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { Database, FileSearch, Pencil, Trash2 } from "lucide-react";
 import {
   Dropzone,
   DropzoneContent,
@@ -156,6 +165,16 @@ const detectionItemSchema = z
     }
   });
 
+const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
+  type: "file",
+  path: "",
+  fileType: "exists",
+  fileTypeValue: "",
+  registryKey: "",
+  registryType: "exists",
+  registryTypeValue: "",
+};
+
 const FormSchema = createStepSchema({
   appInfo: z.object({
     name: z.string().min(2, { message: "App name is required" }),
@@ -263,7 +282,7 @@ export function CreateForm() {
           {({ currentStepIndex }) => (
             <Stepper
               variant={"numbers"}
-              steps={["appInfo", "release", "requirement", "detection"]}
+              steps={["appInfo", "release", "requirement", "detection", "assignment"]}
               currentStep={currentStepIndex}
             />
           )}
@@ -280,6 +299,9 @@ export function CreateForm() {
       </MultiStepFormStep>
       <MultiStepFormStep name="detection">
         <DetectionStep />
+      </MultiStepFormStep>
+      <MultiStepFormStep name="assignment">
+        <AssignmentStep />
       </MultiStepFormStep>
     </MultiStepForm>
   );
@@ -585,27 +607,20 @@ function DetectionStep() {
 }
 
 function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: "release.detections",
   });
 
   const [open, setOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const detections = form.watch("release.detections") || [];
 
   // Separate mini-form for popup (you can also share schema)
   const popupForm = useForm<z.infer<typeof detectionItemSchema>>({
     resolver: zodResolver(detectionItemSchema),
-    defaultValues: {
-      type: undefined,
-      path: "",
-      fileType: "exists",
-      fileTypeValue: "",
-      registryKey: "",
-      registryType: "exists",
-      registryTypeValue: "",
-    },
+    defaultValues: DEFAULT_DETECTION_VALUES,
   });
 
   const [type, setType] = useState(popupForm.watch("type"));
@@ -625,57 +640,197 @@ function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
     popupForm.watch("registryType"),
   ]);
 
-  const onAdd = popupForm.handleSubmit((values) => {
-    append(values);
-    popupForm.reset();
+  const handleSheetToggle = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      setEditingIndex(null);
+      popupForm.reset(DEFAULT_DETECTION_VALUES);
+    }
+  };
+
+  const handleCreateTrigger = () => {
+    setEditingIndex(null);
+    popupForm.reset(DEFAULT_DETECTION_VALUES);
+  };
+
+  const handleEditDetection = (index: number) => {
+    const detection = detections[index];
+    if (!detection) {
+      return;
+    }
+
+    setEditingIndex(index);
+    popupForm.reset({
+      type: detection.type,
+      path: detection.path ?? "",
+      fileType: detection.fileType ?? "exists",
+      fileTypeValue: detection.fileTypeValue ?? "",
+      registryKey: detection.registryKey ?? "",
+      registryType: detection.registryType ?? "exists",
+      registryTypeValue: detection.registryTypeValue ?? "",
+    });
+    setOpen(true);
+  };
+
+  const onSubmitDetection = popupForm.handleSubmit((values) => {
+    if (editingIndex !== null) {
+      update(editingIndex, values);
+    } else {
+      append(values);
+    }
+
+    setEditingIndex(null);
+    popupForm.reset(DEFAULT_DETECTION_VALUES);
     setOpen(false);
   });
+
+  const formatConditionLabel = (raw?: string | null) => {
+    if (!raw) {
+      return "—";
+    }
+
+    const map: Record<string, string> = {
+      version_equal: "=",
+      version_equal_or_higher: "≥",
+      version_equal_or_lower: "≤",
+      version_higher: ">",
+      version_lower: "<",
+      exists: "Exists",
+      string: "String",
+    };
+
+    return map[raw] ?? raw.replaceAll("_", " ");
+  };
 
   return (
     <div className="space-y-6">
       {/* List */}
-      {fields.map((field, index) => (
-        <div
-          key={field.id}
-          className="flex justify-between border p-3 rounded-lg bg-muted/40"
-        >
-          {detections[index].type === "file" && (
-            <div>
-              <div className="text-sm font-medium">
-                {detections[index].type ?? "detection"}
-              </div>
-            </div>
-          )}
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => remove(index)}
-          >
-            Remove
-          </Button>
-        </div>
-      ))}
+      <div className="space-y-3">
+        {fields.length ? (
+          fields.map((field, index) => {
+            const detection = detections[index];
+            const isFile = detection?.type === "file";
+            const primaryValue = isFile
+              ? detection?.path
+              : detection?.registryKey;
+            const conditionLabel = isFile
+              ? detection?.fileType
+              : detection?.registryType;
+            const conditionValue = isFile
+              ? detection?.fileTypeValue
+              : detection?.registryTypeValue;
+            const formattedCondition = formatConditionLabel(conditionLabel);
+
+            return (
+              <Card
+                key={field.id}
+                className="relative border-border/60 bg-muted/30"
+              >
+                <CardHeader className="space-y-3 px-4 py-3 pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {isFile ? (
+                        <FileSearch className="h-4 w-4" />
+                      ) : (
+                        <Database className="h-4 w-4" />
+                      )}
+                      <Badge variant="secondary" className="capitalize">
+                        {detection?.type ?? "unknown"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleEditDetection(index)}
+                        aria-label="Edit detection"
+                        className="text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit detection</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => remove(index)}
+                        aria-label="Remove detection"
+                        className="text-muted-foreground transition-colors hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Remove detection</span>
+                      </Button>
+                    </div>
+                  </div>
+                  <CardTitle className="text-base font-semibold break-all">
+                    {primaryValue || "Not configured"}
+                  </CardTitle>
+                  <CardDescription className="capitalize">
+                    {isFile ? "File path" : "Registry key"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 border-t border-border/60 bg-background/80 px-4 py-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-muted-foreground">Condition</p>
+                    <p className="font-medium capitalize">
+                      {formattedCondition}
+                    </p>
+                  </div>
+                  {conditionValue && conditionLabel !== "exists" ? (
+                    <div>
+                      <p className="text-muted-foreground">
+                        {isFile ? "Expected value" : "Value"}
+                      </p>
+                      <p className="font-medium break-all">
+                        {conditionValue}
+                      </p>
+                    </div>
+                  ) : null}
+                  {isFile && !conditionValue && conditionLabel === "exists" ? (
+                    <div>
+                      <p className="text-muted-foreground">Mode</p>
+                      <p className="font-medium">Check for presence only</p>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            );
+          })
+        ) : (
+          <div className="flex items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
+            No detections yet. Add one to get started.
+          </div>
+        )}
+      </div>
 
       {/* Flyout Trigger */}
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet open={open} onOpenChange={handleSheetToggle}>
         <SheetTrigger asChild>
-          <Button type="button" variant="secondary">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleCreateTrigger}
+          >
             Add detection
           </Button>
         </SheetTrigger>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>New detection</SheetTitle>
+            <SheetTitle>
+              {editingIndex !== null ? "Edit detection" : "New detection"}
+            </SheetTitle>
             <SheetDescription>
-              Define the detection parameters below.
+              {editingIndex !== null
+                ? "Update the detection parameters below."
+                : "Define the detection parameters below."}
             </SheetDescription>
           </SheetHeader>
 
           <Item>
             <ItemContent className="p-2">
               <Form {...popupForm}>
-                <form onSubmit={onAdd} className="space-y-5 mt-5">
+                <form onSubmit={onSubmitDetection} className="space-y-5 mt-5">
                   <FormField
                     control={popupForm.control}
                     name="type"
@@ -878,5 +1033,28 @@ function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+function AssignmentStep() {
+  const { form, nextStep, prevStep, errors } = useMultiStepFormContext();
+  return (
+    <Item variant="outline">
+      <ItemContent className="p-2">
+        <Form {...form}>
+          <div className="space-y-8 w-full mx-auto py-10">
+
+            <div className="flex gap-3">
+              <Button variant={"ghost"} onClick={prevStep}>
+                Back
+              </Button>
+              <Button onClick={nextStep} disabled={!!errors.release}>
+                Next
+              </Button>
+            </div>
+          </div>
+        </Form>
+      </ItemContent>
+    </Item>
   );
 }
