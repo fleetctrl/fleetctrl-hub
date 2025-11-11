@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
-import { Database, FileSearch, Pencil, Trash2 } from "lucide-react";
+import { Database, FileSearch, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Dropzone,
   DropzoneContent,
@@ -175,6 +175,18 @@ const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
   registryTypeValue: "",
 };
 
+const assignmentTargetSchema = z.object({
+  groupId: z.string().min(1, { message: "Group is required" }),
+  mode: z.enum(["include", "exclude"], {
+    message: "Select include or exclude",
+  }),
+});
+
+const DEFAULT_ASSIGNMENT_VALUE: z.infer<typeof assignmentTargetSchema> = {
+  groupId: "",
+  mode: "include",
+};
+
 const FormSchema = createStepSchema({
   appInfo: z.object({
     name: z.string().min(2, { message: "App name is required" }),
@@ -236,6 +248,10 @@ const FormSchema = createStepSchema({
       .array(detectionItemSchema)
       .min(1, "At least one detection is required"),
   }),
+  assignment: z.object({
+    installGroups: z.array(assignmentTargetSchema),
+    uninstallGroups: z.array(assignmentTargetSchema),
+  }),
 });
 
 export function CreateForm() {
@@ -262,6 +278,10 @@ export function CreateForm() {
       detection: {
         detections: [],
       },
+      assignment: {
+        installGroups: [],
+        uninstallGroups: [],
+      },
     },
     reValidateMode: "onBlur",
     mode: "onBlur",
@@ -269,7 +289,7 @@ export function CreateForm() {
 
   const onSubmit = (data: any) => {
     console.log(data);
-    // Handle form submission
+    // TODO 
   };
 
   return (
@@ -595,7 +615,7 @@ function DetectionStep() {
               <Button variant={"ghost"} onClick={prevStep}>
                 Back
               </Button>
-              <Button onClick={nextStep} disabled={!!errors.release}>
+              <Button onClick={nextStep} disabled={!!errors.detection}>
                 Next
               </Button>
             </div>
@@ -609,13 +629,13 @@ function DetectionStep() {
 function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
   const { fields, append, remove, update } = useFieldArray({
     control: form.control,
-    name: "release.detections",
+    name: "detection.detections",
   });
 
   const [open, setOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const detections = form.watch("release.detections") || [];
+  const detections = form.watch("detection.detections") || [];
 
   // Separate mini-form for popup (you can also share schema)
   const popupForm = useForm<z.infer<typeof detectionItemSchema>>({
@@ -1037,24 +1057,337 @@ function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
 }
 
 function AssignmentStep() {
-  const { form, nextStep, prevStep, errors } = useMultiStepFormContext();
+  const { form, prevStep } = useMultiStepFormContext();
+  const {
+    fields: installFields,
+    append: appendInstall,
+    remove: removeInstall,
+    update: updateInstall,
+  } = useFieldArray({
+    control: form.control,
+    name: "assignment.installGroups",
+  });
+  const {
+    fields: uninstallFields,
+    append: appendUninstall,
+    remove: removeUninstall,
+    update: updateUninstall,
+  } = useFieldArray({
+    control: form.control,
+    name: "assignment.uninstallGroups",
+  });
+  const installValues = form.watch("assignment.installGroups");
+  const uninstallValues = form.watch("assignment.uninstallGroups");
+  const isSubmitting = form.formState.isSubmitting;
+
+  // TODO: Replace with groups fetched from DB / API.
+  const availableGroups = [
+    { id: "finance-windows", label: "Finance – Windows" },
+    { id: "sales-laptops", label: "Sales – Laptops" },
+    { id: "it-all", label: "IT – All devices" },
+  ];
+
+  const [sheetState, setSheetState] = useState<{
+    type: "install" | "uninstall";
+    index: number | null;
+  } | null>(null);
+  const sheetType = sheetState?.type ?? null;
+  const assignmentForm = useForm<z.infer<typeof assignmentTargetSchema>>({
+    resolver: zodResolver(assignmentTargetSchema),
+    defaultValues: DEFAULT_ASSIGNMENT_VALUE,
+  });
+  const isEditingAssignment = sheetState?.index !== null;
+
+  const closeSheet = () => {
+    setSheetState(null);
+    assignmentForm.reset(DEFAULT_ASSIGNMENT_VALUE);
+    assignmentForm.clearErrors();
+  };
+
+  const handleSheetChange = (open: boolean) => {
+    if (!open) {
+      closeSheet();
+    }
+  };
+
+  const getGroupLabel = (id?: string | null) => {
+    if (!id) {
+      return "Unknown group";
+    }
+
+    return availableGroups.find((group) => group.id === id)?.label ?? id;
+  };
+
+  const handleSubmitAssignment = assignmentForm.handleSubmit((values) => {
+    const skipIndex =
+      sheetState?.index ?? null;
+
+    const isDuplicate = (
+      list: typeof installValues,
+      type: "install" | "uninstall"
+    ) =>
+      list?.some((entry: { groupId: string; }, idx: number | null) => {
+        if (sheetState?.type === type && skipIndex === idx) {
+          return false;
+        }
+        return entry?.groupId === values.groupId;
+      });
+
+    const alreadyUsed =
+      isDuplicate(installValues, "install") ||
+      isDuplicate(uninstallValues, "uninstall");
+
+    if (alreadyUsed) {
+      assignmentForm.setError("groupId", {
+        message: "This group is already assigned.",
+      });
+      return;
+    }
+
+    if (sheetType === "install") {
+      if (sheetState && sheetState?.index !== null) {
+        updateInstall(sheetState.index, values);
+      } else {
+        appendInstall(values);
+      }
+    } else if (sheetType === "uninstall") {
+      if (sheetState && sheetState?.index !== null) {
+        updateUninstall(sheetState.index, values);
+      } else {
+        appendUninstall(values);
+      }
+    }
+
+    closeSheet();
+  });
+
+  const openSheet = (type: "install" | "uninstall", index: number | null) => {
+    assignmentForm.clearErrors();
+    if (index !== null) {
+      const source =
+        type === "install" ? installValues?.[index] : uninstallValues?.[index];
+      assignmentForm.reset(
+        source ?? DEFAULT_ASSIGNMENT_VALUE
+      );
+    } else {
+      assignmentForm.reset(DEFAULT_ASSIGNMENT_VALUE);
+    }
+
+    setSheetState({ type, index });
+  };
+
+  const renderGroupCard = (
+    type: "install" | "uninstall",
+    fields: typeof installFields,
+    values: typeof installValues
+  ) => {
+    const title = type === "install" ? "Install" : "Uninstall";
+    const description =
+      type === "install"
+        ? "Pick the device groups that should receive this app."
+        : "Pick the groups where the app should be removed.";
+    const handleRemove = type === "install" ? removeInstall : removeUninstall;
+
+    return (
+      <Card className="border-border/60">
+        <CardHeader className="space-y-3">
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {fields.length ? (
+            fields.map((field, index) => {
+              const currentMode = values?.[index]?.mode ?? "include";
+              const groupId = values?.[index]?.groupId;
+              const label = getGroupLabel(groupId);
+
+              return (
+                <div
+                  key={field.id}
+                  className="rounded-lg border border-border/70 bg-muted/20 p-4 space-y-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs uppercase text-muted-foreground">
+                      <span>Group</span>
+                      <Badge
+                        variant={
+                          currentMode === "exclude" ? "destructive" : "default"
+                        }
+                        className="capitalize"
+                      >
+                        {currentMode}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openSheet(type, index)}
+                        aria-label="Edit assignment"
+                        className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleRemove(index)}
+                        aria-label="Remove assignment"
+                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{groupId}</p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/60 bg-background/60 p-4 text-sm text-muted-foreground">
+              No groups added yet.
+            </div>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => openSheet(type, null)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add group
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
         <Form {...form}>
           <div className="space-y-8 w-full mx-auto py-10">
-
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">Assignments</h3>
+              <p className="text-sm text-muted-foreground">
+                Just like Intune, decide who should get the app and who should
+                have it removed. Each group can be marked as include or exclude.
+              </p>
+            </div>
+            <div className="space-y-6">
+              {renderGroupCard("install", installFields, installValues)}
+              {renderGroupCard("uninstall", uninstallFields, uninstallValues)}
+            </div>
             <div className="flex gap-3">
-              <Button variant={"ghost"} onClick={prevStep}>
+              <Button variant={"ghost"} type="button" onClick={prevStep}>
                 Back
               </Button>
-              <Button onClick={nextStep} disabled={!!errors.release}>
-                Next
+              <Button type={'submit'} disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Create app"}
               </Button>
             </div>
           </div>
         </Form>
       </ItemContent>
+      <Sheet open={sheetType !== null} onOpenChange={handleSheetChange}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>
+              {sheetType === "install"
+                ? isEditingAssignment
+                  ? "Edit install group"
+                  : "Add install group"
+                : isEditingAssignment
+                  ? "Edit uninstall group"
+                  : "Add uninstall group"}
+            </SheetTitle>
+            <SheetDescription>
+              Choose a group from your directory and decide whether to include
+              or exclude it.
+            </SheetDescription>
+          </SheetHeader>
+          <Item>
+            <ItemContent className="p-2">
+              <Form {...assignmentForm}>
+                <form
+                  onSubmit={handleSubmitAssignment}
+                  className="mt-5 space-y-5"
+                >
+                  <FormField
+                    control={assignmentForm.control}
+                    name="groupId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Group</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select group" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableGroups.map((group) => (
+                              <SelectItem key={group.id} value={group.id}>
+                                {group.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={assignmentForm.control}
+                    name="mode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mode</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select mode" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="include">Include</SelectItem>
+                            <SelectItem value="exclude">Exclude</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <SheetFooter>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => closeSheet()}
+                      >
+                        Close
+                      </Button>
+                      <Button type="submit">
+                        {isEditingAssignment ? "Save changes" : "Add"}
+                      </Button>
+                    </div>
+                  </SheetFooter>
+                </form>
+              </Form>
+            </ItemContent>
+          </Item>
+        </SheetContent>
+      </Sheet>
     </Item>
   );
 }
