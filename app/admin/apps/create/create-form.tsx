@@ -62,6 +62,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { toast } from "sonner";
+import { api } from "@/trpc/react";
 
 const detectionItemSchema = z
   .object({
@@ -122,7 +124,6 @@ const detectionItemSchema = z
       });
     }
 
-    console.log(data);
     // Registry
     if (data.type === "registry" && !data.registryKey) {
       ctx.addIssue({
@@ -458,17 +459,18 @@ function ReleaseStep() {
                 <FormItem className={cn("", { hidden: type !== "win32" })}>
                   <FormLabel>Install binary</FormLabel>
                   <Dropzone
-                    {...field}
+                    src={field.value ? [field.value] : undefined}
                     accept={{ "application/zip": [".zip"] }}
                     maxFiles={1}
                     maxSize={1024 * 1024 * 5000}
                     minSize={1024}
+                    onDrop={(files) => field.onChange(files.at(0) ?? undefined)}
                     onError={console.error}
                   >
                     <DropzoneEmptyState />
                     <DropzoneContent />
-                    <FormMessage />
                   </Dropzone>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -565,24 +567,28 @@ function RequirementStep() {
           <div className="space-y-8 w-full mx-auto py-10">
             <FormField
               control={form.control}
-              name="release.requirementScriptBinary"
+              name="requirement.requirementScriptBinary"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Requirement script</FormLabel>
                   <Dropzone
-                    {...field}
+                    src={field.value ? [field.value] : undefined}
                     accept={{
                       "text/plain": [".ps1"],
                     }}
                     maxFiles={1}
                     maxSize={1024 * 1024 * 20}
-                    minSize={1024}
+                    minSize={1}
                     onError={console.error}
+                    onDrop={(files) => {
+                      field.onChange(files.at(0) ?? undefined);
+                      toast.success("File uploaded");
+                    }}
                   >
                     <DropzoneEmptyState />
                     <DropzoneContent />
-                    <FormMessage />
                   </Dropzone>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -591,7 +597,7 @@ function RequirementStep() {
               <Button variant={"ghost"} onClick={prevStep}>
                 Back
               </Button>
-              <Button onClick={nextStep} disabled={!!errors.release}>
+              <Button onClick={nextStep} disabled={!!errors.requirement}>
                 Next
               </Button>
             </div>
@@ -1080,12 +1086,7 @@ function AssignmentStep() {
   const uninstallValues = form.watch("assignment.uninstallGroups");
   const isSubmitting = form.formState.isSubmitting;
 
-  // TODO: Replace with groups fetched from DB / API.
-  const availableGroups = [
-    { id: "finance-windows", label: "Finance – Windows" },
-    { id: "sales-laptops", label: "Sales – Laptops" },
-    { id: "it-all", label: "IT – All devices" },
-  ];
+  const groupsQuery = api.group.getAll.useQuery()
 
   const [sheetState, setSheetState] = useState<{
     type: "install" | "uninstall";
@@ -1115,7 +1116,7 @@ function AssignmentStep() {
       return "Unknown group";
     }
 
-    return availableGroups.find((group) => group.id === id)?.label ?? id;
+    return groupsQuery.data?.find((group) => group.id === id)?.display_name ?? id;
   };
 
   const handleSubmitAssignment = assignmentForm.handleSubmit((values) => {
@@ -1333,9 +1334,9 @@ function AssignmentStep() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {availableGroups.map((group) => (
+                            {groupsQuery.data?.map((group) => (
                               <SelectItem key={group.id} value={group.id}>
-                                {group.label}
+                                {group.display_name}
                               </SelectItem>
                             ))}
                           </SelectContent>

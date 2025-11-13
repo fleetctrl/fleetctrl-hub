@@ -79,6 +79,23 @@ export const groupRouter = createTRPCRouter({
         }
       }
     }),
+  getAll: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase.from("computer_groups").select(`
+      id,
+      display_name,
+      created_at,
+      updated_at
+      `)
+    if (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Unable to get groups",
+        cause: (error as any)?.cause ?? error.message,
+      });
+    }
+
+    return data
+  }),
   getTableData: protectedProcedure.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase.from("computer_groups").select(`
       id,
@@ -102,8 +119,8 @@ export const groupRouter = createTRPCRouter({
       Array.isArray(v)
         ? v
         : v && typeof v === "object"
-        ? Object.values(v as Record<string, unknown>)
-        : [];
+          ? Object.values(v as Record<string, unknown>)
+          : [];
 
     const outData = (data ?? []).map((group: any) => {
       const members = toArray(group?.computer_group_members)
