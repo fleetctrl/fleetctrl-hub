@@ -1,14 +1,8 @@
 "use client";
-import {
-  FieldValues,
-  useFieldArray,
-  useForm,
-  UseFormReturn,
-} from "react-hook-form";
+import { useFieldArray, useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  createStepSchema,
   MultiStepForm,
   MultiStepFormContextProvider,
   MultiStepFormHeader,
@@ -19,7 +13,6 @@ import { Stepper } from "@/components/ui/kit/stepper";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -46,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Database, FileSearch, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Dropzone,
@@ -64,107 +57,17 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { api } from "@/trpc/react";
-
-const detectionItemSchema = z
-  .object({
-    type: z.enum(["file", "registry"], {
-      message: "Type is required",
-    }),
-    path: z.string().min(1, { message: "Path is required" }),
-    fileType: z
-      .enum([
-        "exists",
-        "version_equal",
-        "version_equal_or_higher",
-        "version_equal_or_lower",
-        "version_higher",
-        "version_lower",
-      ])
-      .optional(),
-    fileTypeValue: z.string().optional(),
-    registryKey: z.string().optional(),
-    registryType: z
-      .enum([
-        "exists",
-        "string",
-        "version_equal",
-        "version_equal_or_higher",
-        "version_equal_or_lower",
-        "version_higher",
-        "version_lower",
-      ])
-      .optional(),
-    registryTypeValue: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    // File
-    if (data.type === "file" && !data.path) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Path is required",
-        path: ["path"],
-      });
-    }
-    if (data.type === "file" && !data.fileType) {
-      ctx.addIssue({
-        code: "custom",
-        message: "File type is required",
-        path: ["fileType"],
-      });
-    }
-    if (
-      data.type === "file" &&
-      data.fileType !== "exists" &&
-      !data.fileTypeValue
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "File type value is required",
-        path: ["fileTypeValue"],
-      });
-    }
-
-    // Registry
-    if (data.type === "registry" && !data.registryKey) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Registry key is required",
-        path: ["registryKey"],
-      });
-    }
-    if (data.type === "registry" && !data.registryType) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Registry type is required",
-        path: ["registryType"],
-      });
-    }
-    if (data.type === "registry" && !data.registryKey) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Registry key is required",
-        path: ["registryKey"],
-      });
-    }
-    if (data.type === "registry" && !data.fileType) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Registry type is required",
-        path: ["fileTypeValue"],
-      });
-    }
-    if (
-      data.type === "registry" &&
-      data.registryType !== "exists" &&
-      !data.registryTypeValue
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Registry value is required",
-        path: ["registryTypeValue"],
-      });
-    }
-  });
+import {
+  detectionItemSchema,
+  assignmentTargetSchema,
+  createAppSchema,
+} from "@/lib/schemas/create-app";
+import { createClient, createSupabaseClient } from "@/lib/supabase/client";
+import {
+  deleteStoredFile,
+  StoredFileReference,
+  uploadFileToTempStorage,
+} from "@/lib/storage/temp-storage";
 
 const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
   type: "file",
@@ -176,87 +79,43 @@ const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
   registryTypeValue: "",
 };
 
-const assignmentTargetSchema = z.object({
-  groupId: z.string().min(1, { message: "Group is required" }),
-  mode: z.enum(["include", "exclude"], {
-    message: "Select include or exclude",
-  }),
-});
-
 const DEFAULT_ASSIGNMENT_VALUE: z.infer<typeof assignmentTargetSchema> = {
   groupId: "",
   mode: "include",
 };
 
-const FormSchema = createStepSchema({
-  appInfo: z.object({
-    name: z.string().min(2, { message: "App name is required" }),
-    description: z.string().optional(),
-    publisher: z.string().min(2, { message: "Publisher is required" }),
-  }),
-  release: z
-    .object({
-      type: z.enum(["win32", "winget"]),
-      wingetId: z.string().optional(),
-      installScript: z.string().optional(),
-      uninstallScript: z.string().optional(),
-      installBinary: z.file().optional(),
-      autoUpdate: z.boolean(),
-      version: z.string().optional(),
-    })
-    .superRefine((data, ctx) => {
-      if (!data.autoUpdate && !data.version) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Version is required",
-          path: ["version"],
-        });
-      }
-      if (data.type === "winget" && !data.wingetId) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Winget ID is required",
-          path: ["wingetId"],
-        });
-      }
-      if (data.type === "win32" && !data.installBinary) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Install binary is required when type is win32",
-          path: ["installBinary"],
-        });
-      }
-      if (data.type === "win32" && !data.installScript) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Install script is required",
-          path: ["install_script"],
-        });
-      }
-      if (data.type === "win32" && !data.uninstallScript) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Uninstall script is required",
-          path: ["uninstall_script"],
-        });
-      }
-    }),
-  requirement: z.object({
-    requirementScriptBinary: z.file().optional(),
-  }),
-  detection: z.object({
-    detections: z
-      .array(detectionItemSchema)
-      .min(1, "At least one detection is required"),
-  }),
-  assignment: z.object({
-    installGroups: z.array(assignmentTargetSchema),
-    uninstallGroups: z.array(assignmentTargetSchema),
-  }),
-});
+const FormSchema = createAppSchema;
+type CreateAppFormValues = z.infer<typeof FormSchema>;
+
+const useCreateAppFormContext = () =>
+  useMultiStepFormContext<typeof FormSchema>();
+
+const toDropzonePreview = (
+  file?: StoredFileReference | null
+): File[] | undefined => {
+  if (!file) {
+    return undefined;
+  }
+
+  return [
+    {
+      name: file.name,
+      size: file.size,
+      type: file.type ?? "application/octet-stream",
+      lastModified: Date.now(),
+    } as File,
+  ];
+};
 
 export function CreateForm() {
-  const form = useForm({
+  const createMutation = api.app.create.useMutation({
+    onError: (e) => {
+      console.error(e.message);
+      toast.error("Error when creating app")
+    },
+    onSuccess: () => { toast.success("App created") }
+  })
+  const form = useForm<CreateAppFormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       appInfo: {
@@ -288,9 +147,9 @@ export function CreateForm() {
     mode: "onBlur",
   });
 
-  const onSubmit = (data: any) => {
-    console.log(data);
-    // TODO 
+  const onSubmit = (data: CreateAppFormValues) => {
+    console.log(data)
+    createMutation.mutate(data)
   };
 
   return (
@@ -329,7 +188,7 @@ export function CreateForm() {
 }
 
 function AppInfoStep() {
-  const { form, nextStep, errors } = useMultiStepFormContext();
+  const { form, nextStep, errors } = useCreateAppFormContext();
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -393,16 +252,33 @@ function AppInfoStep() {
 }
 
 function ReleaseStep() {
-  const { form, nextStep, prevStep, errors } = useMultiStepFormContext();
+  const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
   const [type, setType] = useState(form.getValues("release").type);
   const [autoUpdate, setAutoUpdate] = useState(
     form.getValues("release").autoUpdate
   );
+  const watchedReleaseType = form.watch("release.type");
+  const watchedAutoUpdate = form.watch("release.autoUpdate");
+  const [isUploadingBinary, setIsUploadingBinary] = useState(false);
   useEffect(() => {
-    setType(form.getValues("release").type);
-    setAutoUpdate(form.getValues("release").autoUpdate);
+    setType(watchedReleaseType);
+    setAutoUpdate(watchedAutoUpdate);
     form.clearErrors("release");
-  }, [form.watch("release.type", setType), form.watch("release.autoUpdate")]);
+  }, [form, watchedAutoUpdate, watchedReleaseType]);
+  useEffect(() => {
+    if (type === "win32") {
+      return;
+    }
+    const binary = form.getValues("release").installBinary;
+    if (!binary) {
+      return;
+    }
+
+    form.setValue("release.installBinary", undefined);
+    void deleteStoredFile({
+      file: binary,
+    }).catch(() => undefined);
+  }, [form, type]);
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -459,17 +335,59 @@ function ReleaseStep() {
                 <FormItem className={cn("", { hidden: type !== "win32" })}>
                   <FormLabel>Install binary</FormLabel>
                   <Dropzone
-                    src={field.value ? [field.value] : undefined}
+                    src={toDropzonePreview(field.value)}
                     accept={{ "application/zip": [".zip"] }}
                     maxFiles={1}
                     maxSize={1024 * 1024 * 5000}
                     minSize={1024}
-                    onDrop={(files) => field.onChange(files.at(0) ?? undefined)}
-                    onError={console.error}
+                    disabled={isUploadingBinary}
+                    onDrop={(files) => {
+                      const file = files.at(0);
+                      if (!file) {
+                        return;
+                      }
+                      setIsUploadingBinary(true);
+                      void (async () => {
+                        try {
+                          if (field.value) {
+                            await deleteStoredFile({
+                              file: field.value,
+                            });
+                          }
+                          const uploaded = await uploadFileToTempStorage({
+                            file,
+                            category: "installers",
+                          });
+                          field.onChange(uploaded);
+                          toast.success("Installer uploaded");
+                        } catch (uploadError) {
+                          console.error(uploadError);
+                          toast.error(
+                            uploadError instanceof Error
+                              ? uploadError.message
+                              : "Unable to upload installer"
+                          );
+                        } finally {
+                          setIsUploadingBinary(false);
+                        }
+                      })();
+                    }}
+                    onError={(err) =>
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : "File rejected by dropzone"
+                      )
+                    }
                   >
                     <DropzoneEmptyState />
                     <DropzoneContent />
                   </Dropzone>
+                  {isUploadingBinary ? (
+                    <p className="text-xs text-muted-foreground">
+                      Uploading installer…
+                    </p>
+                  ) : null}
                   <FormMessage />
                 </FormItem>
               )}
@@ -547,7 +465,10 @@ function ReleaseStep() {
               <Button variant={"ghost"} onClick={prevStep}>
                 Back
               </Button>
-              <Button onClick={nextStep} disabled={!!errors.release}>
+              <Button
+                onClick={nextStep}
+                disabled={!!errors.release || isUploadingBinary}
+              >
                 Next
               </Button>
             </div>
@@ -559,7 +480,9 @@ function ReleaseStep() {
 }
 
 function RequirementStep() {
-  const { form, nextStep, prevStep, errors } = useMultiStepFormContext();
+  const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
+  const supabase = useMemo(() => createSupabaseClient(), []);
+  const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -572,22 +495,62 @@ function RequirementStep() {
                 <FormItem>
                   <FormLabel>Requirement script</FormLabel>
                   <Dropzone
-                    src={field.value ? [field.value] : undefined}
+                    src={toDropzonePreview(field.value)}
                     accept={{
                       "text/plain": [".ps1"],
                     }}
                     maxFiles={1}
                     maxSize={1024 * 1024 * 20}
                     minSize={1}
-                    onError={console.error}
+                    disabled={isUploadingRequirement}
+                    onError={(err) =>
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : "File rejected by dropzone"
+                      )
+                    }
                     onDrop={(files) => {
-                      field.onChange(files.at(0) ?? undefined);
-                      toast.success("File uploaded");
+                      const file = files.at(0);
+                      if (!file) {
+                        return;
+                      }
+
+                      setIsUploadingRequirement(true);
+                      void (async () => {
+                        try {
+                          if (field.value) {
+                            await deleteStoredFile({
+                              file: field.value,
+                            });
+                          }
+                          const uploaded = await uploadFileToTempStorage({
+                            file,
+                            category: "requirements",
+                          });
+                          field.onChange(uploaded);
+                          toast.success("Requirement script uploaded");
+                        } catch (uploadError) {
+                          console.error(uploadError);
+                          toast.error(
+                            uploadError instanceof Error
+                              ? uploadError.message
+                              : "Unable to upload requirement script"
+                          );
+                        } finally {
+                          setIsUploadingRequirement(false);
+                        }
+                      })();
                     }}
                   >
                     <DropzoneEmptyState />
                     <DropzoneContent />
                   </Dropzone>
+                  {isUploadingRequirement ? (
+                    <p className="text-xs text-muted-foreground">
+                      Uploading requirement script…
+                    </p>
+                  ) : null}
                   <FormMessage />
                 </FormItem>
               )}
@@ -597,7 +560,10 @@ function RequirementStep() {
               <Button variant={"ghost"} onClick={prevStep}>
                 Back
               </Button>
-              <Button onClick={nextStep} disabled={!!errors.requirement}>
+              <Button
+                onClick={nextStep}
+                disabled={!!errors.requirement || isUploadingRequirement}
+              >
                 Next
               </Button>
             </div>
@@ -609,7 +575,7 @@ function RequirementStep() {
 }
 
 function DetectionStep() {
-  const { form, nextStep, prevStep, errors } = useMultiStepFormContext();
+  const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -632,7 +598,11 @@ function DetectionStep() {
   );
 }
 
-function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
+function DetectionListForm({
+  form,
+}: {
+  form: UseFormReturn<z.infer<typeof FormSchema>>;
+}) {
   const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: "detection.detections",
@@ -655,16 +625,16 @@ function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
     popupForm.watch("registryType")
   );
 
+  const popupType = popupForm.watch("type");
+  const popupFileType = popupForm.watch("fileType");
+  const popupRegistryType = popupForm.watch("registryType");
+
   useEffect(() => {
-    setType(popupForm.watch("type"));
-    setFileType(popupForm.watch("fileType"));
-    setRegistryType(popupForm.watch("registryType"));
+    setType(popupType);
+    setFileType(popupFileType);
+    setRegistryType(popupRegistryType);
     popupForm.clearErrors();
-  }, [
-    popupForm.watch("type"),
-    popupForm.watch("fileType"),
-    popupForm.watch("registryType"),
-  ]);
+  }, [popupForm, popupFileType, popupRegistryType, popupType]);
 
   const handleSheetToggle = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -1063,7 +1033,7 @@ function DetectionListForm({ form }: { form: UseFormReturn<FieldValues> }) {
 }
 
 function AssignmentStep() {
-  const { form, prevStep } = useMultiStepFormContext();
+  const { form, prevStep } = useCreateAppFormContext();
   const {
     fields: installFields,
     append: appendInstall,
