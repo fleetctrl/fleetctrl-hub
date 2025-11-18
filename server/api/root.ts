@@ -16,7 +16,7 @@ export const appRouter = createTRPCRouter({
   rustdesk: rustdeskRouter,
   account: accountRouter,
   group: groupRouter,
-  comuter: computerRouter,
+  computer: computerRouter,
   app: appRouteRouter,
 });
 

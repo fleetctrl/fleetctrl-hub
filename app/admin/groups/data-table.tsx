@@ -66,7 +66,7 @@ const groupFormSchema = z.object({
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 export function GroupsTable() {
-  const computersQuery = api.comuter.getForGroups.useQuery();
+  const computersQuery = api.computer.getForGroups.useQuery();
   const { data: groups, refetch } = api.group.getTableData.useQuery(undefined, {
     staleTime: 0,
     gcTime: 0,
