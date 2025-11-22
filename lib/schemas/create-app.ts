@@ -6,6 +6,7 @@ export const storedFileReferenceSchema = z.object({
   name: z.string().min(1),
   size: z.number().int().nonnegative(),
   type: z.string().optional().nullable(),
+  hash: z.string().optional(),
 });
 
 export const assignmentTargetSchema = z.object({
@@ -137,6 +138,17 @@ export const createAppSchema = z.object({
         ctx.addIssue({
           code: "custom",
           message: "Install binary is required when type is win32",
+          path: ["installBinary"],
+        });
+      }
+      if (
+        data.type === "win32" &&
+        data.installBinary &&
+        !data.installBinary.hash
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Install binary hash is missing. Please re-upload the file.",
           path: ["installBinary"],
         });
       }

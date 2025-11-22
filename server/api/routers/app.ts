@@ -128,6 +128,13 @@ export const appRouter = createTRPCRouter({
           });
         }
 
+        if (!installBinary.hash) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Installer binary hash is missing. Please re-upload the file.",
+          });
+        }
+
         const destinationPath = buildReleaseAssetPath({
           appId,
           releaseId,
@@ -156,6 +163,7 @@ export const appRouter = createTRPCRouter({
           install_binary_bucket: movedBinary.bucket,
           install_binary_path: movedBinary.path,
           install_binary_size: movedBinary.size,
+          hash: installBinary.hash,
         };
 
         try {
@@ -164,8 +172,11 @@ export const appRouter = createTRPCRouter({
           `;
         } catch (err) {
           // If the DB insert fails, we must cleanup the moved file
-          await deleteStoredFile({
+          // We move it back to the temp storage so the user can try again
+          await moveStoredFileWithinBucket({
+            supabase: ctx.supabase,
             file: movedBinary,
+            destinationPath: installBinary.path,
           }).catch(() => undefined);
           throw err;
         }
