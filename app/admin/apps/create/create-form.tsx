@@ -556,6 +556,26 @@ function RequirementStep() {
               )}
             />
 
+            {form.watch("requirement.requirementScriptBinary") && (
+              <FormField
+                control={form.control}
+                name="requirement.runAsSystem"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel>Run as system</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
+
             <div className="flex gap-3">
               <Button variant={"ghost"} onClick={prevStep}>
                 Back

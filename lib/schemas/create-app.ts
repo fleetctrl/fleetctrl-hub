@@ -167,9 +167,22 @@ export const createAppSchema = z.object({
         });
       }
     }),
-  requirement: z.object({
-    requirementScriptBinary: storedFileReferenceSchema.optional(),
-  }),
+  requirement: z
+    .object({
+      requirementScriptBinary: storedFileReferenceSchema.optional(),
+      timeout: z.number().optional(),
+      runAsSystem: z.boolean().optional(),
+    })
+    .superRefine((data, ctx) => {
+      if (data.requirementScriptBinary && data.runAsSystem === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Run as system is required",
+          path: ["runAsSystem"],
+        });
+      }
+    })
+    .optional(),
   detection: z.object({
     detections: z
       .array(detectionItemSchema)
