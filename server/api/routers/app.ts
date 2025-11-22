@@ -64,109 +64,117 @@ export const appRouter = createTRPCRouter({
     return outData;
   }),
   create: protectedProcedure.input(createAppSchema).mutation(async ({ ctx, input }) => {
-    // create app
-    const appInfo = input.appInfo;
-    const { data: appInfoData, error: appInfoError } = await ctx.supabase.from("apps").insert({ display_name: appInfo.name, description: appInfo.description, publisher: appInfo.publisher }).select('id');
-    if (appInfoError || !appInfoData[0]) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unable to create app",
-        cause: appInfoError?.cause,
-      });
-    }
-    const appId = appInfoData[0].id
+    return await ctx.db.begin(async (sql) => {
+      // create app
+      const appInfo = input.appInfo;
+      const [app] = await sql`
+        insert into apps ${sql({
+        display_name: appInfo.name,
+        description: appInfo.description,
+        publisher: appInfo.publisher,
+      })}
+        returning id
+      `;
 
-    // Release
-    const release = input.release;
-
-    const insertRelese = {
-      installer_type: release.type,
-      app_id: appId,
-      version: release.version
-    }
-    const { data: releaseData, error: releaseError } = await ctx.supabase.from("releases").insert(insertRelese).select("id")
-    if (releaseError || !releaseData[0]) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unable to create release",
-        cause: releaseError?.cause,
-      });
-    }
-    const releaseId = releaseData[0].id
-
-    if (release.type === "winget") {
-      const wingetReleaseInsert = {
-        release_id: releaseId,
-        winget_id: release.wingetId
+      if (!app) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to create app",
+        });
       }
-      const { error: wingetReleaseError } = await ctx.supabase.from("winget_releases").insert(wingetReleaseInsert)
-      if (releaseError || !releaseData[0]) {
+      const appId = app.id;
+
+      // Release
+      const release = input.release;
+
+      const insertRelese = {
+        installer_type: release.type,
+        app_id: appId,
+        version: release.version,
+      };
+
+      const [releaseData] = await sql`
+        insert into releases ${sql(insertRelese)}
+        returning id
+      `;
+
+      if (!releaseData) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Unable to create release",
-          cause: wingetReleaseError?.cause,
         });
       }
-    } else if (release.type === "win32") {
-      const installBinary = release.installBinary;
+      const releaseId = releaseData.id;
 
-      if (!installBinary || !release.installScript || !release.uninstallScript) {
+      if (release.type === "winget") {
+        const wingetReleaseInsert = {
+          release_id: releaseId,
+          winget_id: release.wingetId,
+        };
+        await sql`
+          insert into winget_releases ${sql(wingetReleaseInsert)}
+        `;
+      } else if (release.type === "win32") {
+        const installBinary = release.installBinary;
+
+        if (
+          !installBinary ||
+          !release.installScript ||
+          !release.uninstallScript
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Missing required win32 release data",
+          });
+        }
+
+        const destinationPath = buildReleaseAssetPath({
+          appId,
+          releaseId,
+          filename: installBinary.name,
+          category: "installers",
+        });
+
+        console.log("destinationPath", destinationPath);
+
+        const movedBinary = await moveStoredFileWithinBucket({
+          supabase: ctx.supabase,
+          file: installBinary,
+          destinationPath,
+        }).catch((moveError) => {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to move installer binary",
+            cause: moveError,
+          });
+        });
+
+        const win32ReleaseInsert = {
+          release_id: releaseId,
+          install_script: release.installScript,
+          uninstall_script: release.uninstallScript,
+          install_binary_bucket: movedBinary.bucket,
+          install_binary_path: movedBinary.path,
+          install_binary_size: movedBinary.size,
+        };
+
+        try {
+          await sql`
+            insert into win32_releases ${sql(win32ReleaseInsert)}
+          `;
+        } catch (err) {
+          // If the DB insert fails, we must cleanup the moved file
+          await deleteStoredFile({
+            file: movedBinary,
+          }).catch(() => undefined);
+          throw err;
+        }
+      } else {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Missing required win32 release data",
+          message: "No correct release provided",
         });
       }
-
-      const destinationPath = buildReleaseAssetPath({
-        appId,
-        releaseId,
-        filename: installBinary.name,
-        category: "installers",
-      });
-
-      const movedBinary = await moveStoredFileWithinBucket({
-        supabase: ctx.supabase,
-        file: installBinary,
-        destinationPath,
-      }).catch((moveError) => {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Unable to move installer binary",
-          cause: moveError,
-        });
-      });
-
-      const win32ReleaseInsert = {
-        release_id: releaseId,
-        install_script: release.installScript,
-        uninstall_script: release.uninstallScript,
-        install_binary_bucket: movedBinary.bucket,
-        install_binary_path: movedBinary.path,
-        install_binary_size: movedBinary.size,
-        install_binary_type: movedBinary.type ?? null,
-      };
-
-      const { error: win32ReleaseError } = await ctx.supabase
-        .from("win32_releases")
-        .insert(win32ReleaseInsert);
-
-      if (win32ReleaseError) {
-        await deleteStoredFile({
-          file: movedBinary,
-        }).catch(() => undefined);
-
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Unable to create win32 release",
-          cause: win32ReleaseError?.cause ?? win32ReleaseError?.message,
-        });
-      }
-    } else {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "No correct release provided"
-      });
-    }
-
-  })
+    });
+  }),
 });

@@ -46,7 +46,9 @@ services:
       interval: 1s
       timeout: 3s
       retries: 5
-    command: ["redis-server"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./volumes/redis:/data
 
   studio:
     container_name: supabase-studio

@@ -297,8 +297,8 @@ export function GroupsTable() {
                                   const next = shouldInclude
                                     ? [...members, computer.id]
                                     : members.filter(
-                                        (id) => id !== computer.id
-                                      );
+                                      (id) => id !== computer.id
+                                    );
                                   field.onChange(Array.from(new Set(next)));
                                 }}
                               />
@@ -351,9 +351,9 @@ export function GroupsTable() {
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                       </TableHead>
                     ))}
                   </TableRow>
