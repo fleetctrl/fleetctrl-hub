@@ -108,6 +108,7 @@ export const createAppSchema = z.object({
     name: z.string().min(2, { message: "App name is required" }),
     description: z.string().optional(),
     publisher: z.string().min(2, { message: "Publisher is required" }),
+    allowMultipleVersions: z.boolean(),
   }),
   release: z
     .object({
@@ -118,6 +119,7 @@ export const createAppSchema = z.object({
       installBinary: storedFileReferenceSchema.optional(),
       autoUpdate: z.boolean(),
       version: z.string().optional(),
+      uninstallPreviousVersion: z.boolean(),
     })
     .superRefine((data, ctx) => {
       if (!data.autoUpdate && !data.version) {

@@ -239,6 +239,25 @@ function AppInfoStep() {
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="appInfo.allowMultipleVersions"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel>Allow multiple versions</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
             <div className="flex gap-3">
               <Button onClick={nextStep} disabled={!!errors.appInfo}>
                 Next
@@ -436,6 +455,24 @@ function ReleaseStep() {
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
                     <FormLabel>Auto updated</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="release.uninstallPreviousVersion"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel>Uninstall previous version</FormLabel>
                   </div>
                   <FormControl>
                     <Switch

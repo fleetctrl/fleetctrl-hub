@@ -72,6 +72,8 @@ export const appRouter = createTRPCRouter({
         display_name: appInfo.name,
         description: appInfo.description,
         publisher: appInfo.publisher,
+        allow_multiple_versions: appInfo.allowMultipleVersions,
+        auto_update: input.release.autoUpdate,
       })}
         returning id
       `;
@@ -91,6 +93,7 @@ export const appRouter = createTRPCRouter({
         installer_type: release.type,
         app_id: appId,
         version: release.version,
+        uninstall_previous: release.uninstallPreviousVersion,
       };
 
       const [releaseData] = await sql`
@@ -142,8 +145,6 @@ export const appRouter = createTRPCRouter({
           category: "installers",
         });
 
-        console.log("destinationPath", destinationPath);
-
         const movedBinary = await moveStoredFileWithinBucket({
           supabase: ctx.supabase,
           file: installBinary,
@@ -186,6 +187,137 @@ export const appRouter = createTRPCRouter({
           message: "No correct release provided",
         });
       }
+
+      // Requirements
+      const requirement = input.requirement;
+      if (requirement) {
+        const requirementScriptBinary = requirement.requirementScriptBinary;
+
+        if (
+          !requirementScriptBinary ||
+          !requirementScriptBinary.name ||
+          !requirementScriptBinary.path ||
+          !requirementScriptBinary.bucket
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Missing required requirement script binary data",
+          });
+        }
+
+        const destinationPath = buildReleaseAssetPath({
+          appId,
+          releaseId,
+          filename: requirementScriptBinary?.name,
+          category: "requirements",
+        });
+
+        const movedBinary = await moveStoredFileWithinBucket({
+          supabase: ctx.supabase,
+          file: requirementScriptBinary,
+          destinationPath,
+        }).catch((moveError) => {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to move installer binary",
+            cause: moveError,
+          });
+        });
+
+        const requirementInsert = {
+          release_id: releaseId,
+          timeout_seconds: requirement.timeout,
+          run_as_system: requirement.runAsSystem,
+          bucket: requirementScriptBinary?.bucket,
+          storage_path: movedBinary.path,
+          hash: requirementScriptBinary?.hash,
+          byte_size: requirementScriptBinary?.size,
+        };
+        try {
+          await sql`
+          insert into release_requirements ${sql(requirementInsert)}
+        `;
+        } catch (error) {
+          // If the DB insert fails, we must cleanup the moved file
+          // We move it back to the temp storage so the user can try again
+          await moveStoredFileWithinBucket({
+            supabase: ctx.supabase,
+            file: movedBinary,
+            destinationPath: requirementScriptBinary.path,
+          }).catch(() => undefined);
+          throw error;
+        }
+      }
+
+      // Detections
+      const detections = input.detection;
+      if (detections) {
+        for (const detection of detections.detections) {
+          switch (detection.type) {
+            case "file":
+              const foperator = detection.fileType;
+              const fpath = detection.path;
+              const fvalue = detection.fileTypeValue;
+
+              const fileDetectionInsert = {
+                release_id: releaseId,
+                type: "file",
+                config: {
+                  "version": "1",
+                  "operator": foperator,
+                  "path": fpath,
+                  "value": fvalue,
+                },
+              };
+
+              try {
+                await sql`
+                insert into detection_rules ${sql(fileDetectionInsert)}
+              `;
+              } catch (error) {
+                throw error;
+              }
+              break;
+            case "registry":
+              const roperator = detection.registryType;
+              const rpath = detection.path;
+              const rvalue = detection.registryTypeValue;
+
+              const registryDetectionInsert = {
+                release_id: releaseId,
+                type: "registry",
+                config: {
+                  "version": "1",
+                  "operator": roperator,
+                  "path": rpath,
+                  "value": rvalue,
+                },
+              };
+
+              try {
+                await sql`
+                insert into detection_rules ${sql(registryDetectionInsert)}
+              `;
+              } catch (error) {
+                throw error;
+              }
+              break;
+            default:
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Unknown detection type",
+              });
+          }
+        }
+      }
+
+      // Assignments
+      const assigments = input.assignment;
+      if (assigments) {
+        // TODO: Implement assignments
+      }
     });
+
+
   }),
 });
