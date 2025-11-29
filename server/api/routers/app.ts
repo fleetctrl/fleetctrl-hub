@@ -314,10 +314,33 @@ export const appRouter = createTRPCRouter({
       // Assignments
       const assigments = input.assignment;
       if (assigments) {
-        // TODO: Implement assignments
+        // Install groups
+        for (const group of assigments.installGroups) {
+          const insertAssignment = {
+            release_id: releaseId,
+            group_id: group.groupId,
+            assign_type: group.mode,
+            action: "install",
+          };
+          await sql`
+            insert into computer_group_releases ${sql(insertAssignment)}
+          `;
+        }
+
+        // Uninstall groups
+        for (const group of assigments.uninstallGroups) {
+          const insertAssignment = {
+            release_id: releaseId,
+            group_id: group.groupId,
+            assign_type: group.mode,
+            action: "uninstall",
+          };
+          await sql`
+            insert into computer_group_releases ${sql(insertAssignment)}
+          `;
+        }
       }
     });
-
 
   }),
 });
