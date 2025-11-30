@@ -67,4 +67,7 @@ find "$BACKUP_DIR" -type f -name "${APP_NAME}_*.sql.gz" -mtime "+$RETENTION_DAYS
 echo "==> Applying migrations…"
 $SUPABASE_CLI db push --db-url "$POSTGRES_URL" --yes
 
+echo "==> Seeding storage..."
+npm run seed:storage
+
 echo "==> Done."
