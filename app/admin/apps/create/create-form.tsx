@@ -122,6 +122,7 @@ export function CreateForm() {
         name: "",
         description: "",
         publisher: "",
+        allowMultipleVersions: false,
       },
       release: {
         type: "winget",
@@ -131,9 +132,11 @@ export function CreateForm() {
         installBinary: undefined,
         autoUpdate: false,
         version: "",
+        uninstallPreviousVersion: false,
       },
       requirement: {
         requirementScriptBinary: undefined,
+        runAsSystem: false,
       },
       detection: {
         detections: [],

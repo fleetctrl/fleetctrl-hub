@@ -188,6 +188,7 @@ export const appRouter = createTRPCRouter({
         });
       }
 
+
       // Requirements
       const requirement = input.requirement;
       if (requirement) {
@@ -226,13 +227,14 @@ export const appRouter = createTRPCRouter({
 
         const requirementInsert = {
           release_id: releaseId,
-          timeout_seconds: requirement.timeout,
+          timeout_seconds: requirement?.timeout ?? 60,
           run_as_system: requirement.runAsSystem,
           bucket: requirementScriptBinary?.bucket,
           storage_path: movedBinary.path,
           hash: requirementScriptBinary?.hash,
           byte_size: requirementScriptBinary?.size,
         };
+        console.log(requirementInsert);
         try {
           await sql`
           insert into release_requirements ${sql(requirementInsert)}
