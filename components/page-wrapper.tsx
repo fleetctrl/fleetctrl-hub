@@ -1,14 +1,12 @@
-"use server";
-
 import { ReactNode } from "react";
 import { SiteHeader } from "./site-header";
 
 type Props = {
   children: ReactNode;
-  siteHeader: ReactNode;
+  siteHeader?: ReactNode;
 };
 
-export default async function PageWrapper({ children, siteHeader }: Props) {
+export default function PageWrapper({ children, siteHeader }: Props) {
   return (
     <div>
       <SiteHeader>{siteHeader}</SiteHeader>

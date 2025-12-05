@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,12 @@ export const columns: ColumnDef<GroupRow>[] = [
     accessorKey: "displayName",
     header: "Name",
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.displayName}</span>
+      <Link
+        href={`/admin/apps/${row.original.id}`}
+        className="font-medium hover:underline"
+      >
+        {row.original.displayName}
+      </Link>
     ),
   },
   {

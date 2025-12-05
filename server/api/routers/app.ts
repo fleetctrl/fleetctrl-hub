@@ -1,6 +1,7 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { createAppSchema } from "@/lib/schemas/create-app";
+import { z } from "zod";
 import {
   buildReleaseAssetPath,
   deleteStoredFile,
@@ -15,8 +16,10 @@ export const appRouter = createTRPCRouter({
       description,
       created_at,
       updated_at,
-      computer_group_apps(
-        computer_groups(id, display_name)
+      releases(
+        computer_group_releases(
+          computer_groups(id, display_name)
+        )
       )
     `);
 
@@ -36,11 +39,12 @@ export const appRouter = createTRPCRouter({
           : [];
 
     const outData = (data ?? []).map((app: any) => {
-      const groups = toArray(app?.computer_group_apps)
-        .map((gm: any) => {
-          const compObj = Array.isArray(gm?.computer_groups)
-            ? gm.computer_groups[0]
-            : gm?.computer_groups;
+      const allGroups = (app.releases ?? []).flatMap((release: any) => {
+        return toArray(release.computer_group_releases).map((cgr: any) => {
+          const compObj = Array.isArray(cgr?.computer_groups)
+            ? cgr.computer_groups[0]
+            : cgr?.computer_groups;
+
           if (!compObj || typeof compObj !== "object") return null;
 
           const id = String((compObj as any)?.id ?? "");
@@ -48,8 +52,15 @@ export const appRouter = createTRPCRouter({
           if (!id) return null;
 
           return { id, name };
-        })
-        .filter(Boolean) as { id: string; name: string }[];
+        });
+      }).filter(Boolean) as { id: string; name: string }[];
+
+      // Deduplicate groups by ID
+      const uniqueGroupsMap = new Map<string, { id: string; name: string }>();
+      for (const g of allGroups) {
+        uniqueGroupsMap.set(g.id, g);
+      }
+      const groups = Array.from(uniqueGroupsMap.values());
 
       return {
         id: String(app.id),
@@ -63,6 +74,90 @@ export const appRouter = createTRPCRouter({
 
     return outData;
   }),
+  getById: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { data: app, error } = await ctx.supabase
+        .from("apps")
+        .select(
+          `
+        id,
+        display_name,
+        description,
+        publisher,
+        allow_multiple_versions,
+        auto_update,
+        created_at,
+        updated_at
+      `,
+        )
+        .eq("id", input.id)
+        .single();
+
+      if (error || !app) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "App not found",
+          cause: error,
+        });
+      }
+
+
+      const { data: releasesData, error: releasesError } = await ctx.supabase
+        .from("releases")
+        .select(
+          `
+          id,
+          version,
+          created_at,
+          installer_type,
+          disabled_at
+        `,
+        )
+        .eq("app_id", input.id)
+        .order("created_at", { ascending: false });
+
+      if (releasesError) {
+        console.error("Error fetching releases:", releasesError);
+      }
+      const releases = (releasesData ?? []).map((r) => ({
+        ...r,
+        version: app.auto_update ? "latest" : r.version,
+      }));
+
+      return {
+        ...app,
+        releases,
+      };
+    }),
+  getReleases: protectedProcedure
+    .input(z.object({ appId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { data: releases, error } = await ctx.supabase
+        .from("releases")
+        .select(
+          `
+          id,
+          version,
+          created_at,
+          installer_type,
+          disabled_at,
+          uninstall_previous
+        `,
+        )
+        .eq("app_id", input.appId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to fetch releases",
+          cause: error,
+        });
+      }
+
+      return releases ?? [];
+    }),
   create: protectedProcedure.input(createAppSchema).mutation(async ({ ctx, input }) => {
     return await ctx.db.begin(async (sql) => {
       // create app
@@ -89,10 +184,13 @@ export const appRouter = createTRPCRouter({
       // Release
       const release = input.release;
 
+      const version =
+        release.autoUpdate && !release.version ? "latest" : release.version!;
+
       const insertRelese = {
         installer_type: release.type,
         app_id: appId,
-        version: release.version,
+        version: version,
         uninstall_previous: release.uninstallPreviousVersion,
       };
 
@@ -191,7 +289,7 @@ export const appRouter = createTRPCRouter({
 
       // Requirements
       const requirement = input.requirement;
-      if (requirement) {
+      if (requirement && requirement.requirementScriptBinary) {
         const requirementScriptBinary = requirement.requirementScriptBinary;
 
         if (
