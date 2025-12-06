@@ -443,4 +443,31 @@ export const appRouter = createTRPCRouter({
     });
 
   }),
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        data: z.object({
+          display_name: z.string().optional(),
+          description: z.string().optional(),
+          publisher: z.string().optional(),
+        }),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from("apps")
+        .update(input.data)
+        .eq("id", input.id);
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to update app",
+          cause: error,
+        });
+      }
+
+      return { success: true };
+    }),
 });

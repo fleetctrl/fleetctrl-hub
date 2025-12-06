@@ -17,6 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
+import { EditAppSheet } from "./edit-app-sheet";
+import { Copy, Pen } from "lucide-react";
+
 export default function AppDetailPage() {
     const params = useParams();
     const appId = params.id as string;
@@ -27,6 +30,7 @@ export default function AppDetailPage() {
         { enabled: !!appId }
     );
     const [activeView, setActiveView] = useState<"overview" | "properties">("overview");
+    const [showEditSheet, setShowEditSheet] = useState(false);
 
     console.log(app);
 
@@ -97,7 +101,7 @@ export default function AppDetailPage() {
             <div className="flex flex-col md:flex-row gap-6 w-full h-full items-start">
                 {/* Sidebar */}
                 <div className="w-full md:w-64 flex-shrink-0 space-y-1">
-                    <div className="font-semibold text-lg px-4 py-2 mb-2">{app.display_name}</div>
+                    <div className="font-semibold text-lg px-4 py-2 mb-2 break-words">{app.display_name}</div>
                     <nav className="flex flex-col space-y-1">
                         <Button
                             variant={activeView === "overview" ? "secondary" : "ghost"}
@@ -128,8 +132,12 @@ export default function AppDetailPage() {
                         <>
                             {/* Essentials Section */}
                             <Card className="border-none shadow-none bg-transparent">
-                                <CardHeader className="px-0 pt-0">
+                                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-xl font-semibold">Essentials</CardTitle>
+                                    <Button variant="outline" size="sm" onClick={() => setShowEditSheet(true)}>
+                                        <Pen className="w-4 h-4 mr-2" />
+                                        Edit
+                                    </Button>
                                 </CardHeader>
                                 <CardContent className="px-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
                                     <div>
@@ -160,8 +168,23 @@ export default function AppDetailPage() {
                                             {app.allow_multiple_versions ? "Yes" : "No"}
                                         </div>
                                     </div>
+                                    <div className="col-span-1 md:col-span-2 lg:col-span-3">
+                                        <div className="text-sm text-muted-foreground">Description</div>
+                                        <div className="font-medium whitespace-pre-wrap">{app.description || "-"}</div>
+                                    </div>
                                 </CardContent>
                             </Card>
+
+                            <EditAppSheet
+                                app={{
+                                    id: app.id,
+                                    display_name: app.display_name,
+                                    description: app.description,
+                                    publisher: app.publisher
+                                }}
+                                open={showEditSheet}
+                                onOpenChange={setShowEditSheet}
+                            />
 
                             {/* Releases Section */}
                             <Card className="border-none shadow-none bg-transparent">
