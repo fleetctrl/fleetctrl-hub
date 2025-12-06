@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 import { EditAppSheet } from "./edit-app-sheet";
-import { Copy, Pen } from "lucide-react";
+import { CreateReleaseSheet } from "./create-release-sheet";
+import { Copy, Pen, Plus } from "lucide-react";
 
 export default function AppDetailPage() {
     const params = useParams();
@@ -31,8 +32,13 @@ export default function AppDetailPage() {
     );
     const [activeView, setActiveView] = useState<"overview" | "properties">("overview");
     const [showEditSheet, setShowEditSheet] = useState(false);
+    const [showCreateReleaseSheet, setShowCreateReleaseSheet] = useState(false);
 
     console.log(app);
+
+    // Determine if we can add a new release
+    // For autoupdate apps, only 1 release is allowed
+    const canAddRelease = !app?.auto_update || (releases?.length ?? 0) === 0;
 
     if (isLoading) {
         return (
@@ -188,8 +194,14 @@ export default function AppDetailPage() {
 
                             {/* Releases Section */}
                             <Card className="border-none shadow-none bg-transparent">
-                                <CardHeader className="px-0 pt-0">
+                                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-xl font-semibold">Releases</CardTitle>
+                                    {canAddRelease && (
+                                        <Button variant="outline" size="sm" onClick={() => setShowCreateReleaseSheet(true)}>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Add Release
+                                        </Button>
+                                    )}
                                 </CardHeader>
                                 <CardContent className="px-0">
                                     {releasesLoading ? (
@@ -199,6 +211,13 @@ export default function AppDetailPage() {
                                     )}
                                 </CardContent>
                             </Card>
+
+                            <CreateReleaseSheet
+                                appId={appId}
+                                isAutoUpdate={app.auto_update}
+                                open={showCreateReleaseSheet}
+                                onOpenChange={setShowCreateReleaseSheet}
+                            />
                         </>
                     )}
 

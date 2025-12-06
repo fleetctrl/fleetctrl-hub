@@ -582,6 +582,196 @@ export const appRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  createRelease: protectedProcedure
+    .input(
+      z.object({
+        appId: z.string(),
+        type: z.enum(["winget", "win32"]),
+        version: z.string().optional(),
+        uninstall_previous: z.boolean().optional(),
+        // Winget specific
+        wingetId: z.string().optional(),
+        // Win32 specific
+        installBinary: z.object({
+          bucket: z.string(),
+          path: z.string(),
+          name: z.string(),
+          size: z.number(),
+          type: z.string().optional().nullable(),
+          hash: z.string().optional(),
+        }).optional(),
+        installScript: z.string().optional(),
+        uninstallScript: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Check if app exists and get auto_update setting
+      const { data: app, error: appError } = await ctx.supabase
+        .from("apps")
+        .select("id, auto_update")
+        .eq("id", input.appId)
+        .single();
+
+      if (appError || !app) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "App not found",
+          cause: appError,
+        });
+      }
+
+      // If auto_update is enabled, check if there's already a release
+      if (app.auto_update) {
+        const { count, error: countError } = await ctx.supabase
+          .from("releases")
+          .select("id", { count: "exact", head: true })
+          .eq("app_id", input.appId);
+
+        if (countError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to check existing releases",
+            cause: countError,
+          });
+        }
+
+        if (count && count > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Auto-update apps can only have one release",
+          });
+        }
+      }
+
+      // Validate inputs based on type
+      if (input.type === "winget" && !input.wingetId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Winget ID is required for winget releases",
+        });
+      }
+
+      if (input.type === "win32") {
+        if (!input.installBinary) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Install binary is required for win32 releases",
+          });
+        }
+        if (!input.installScript) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Install script is required for win32 releases",
+          });
+        }
+        if (!input.uninstallScript) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Uninstall script is required for win32 releases",
+          });
+        }
+      }
+
+      // Determine version - use "latest" for autoupdate apps
+      const finalVersion = app.auto_update ? "latest" : (input.version || "1.0.0");
+
+      // Create the release
+      const { data: release, error } = await ctx.supabase
+        .from("releases")
+        .insert({
+          app_id: input.appId,
+          version: finalVersion,
+          uninstall_previous: input.uninstall_previous ?? false,
+          installer_type: input.type,
+        })
+        .select("id")
+        .single();
+
+      if (error || !release) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to create release",
+          cause: error,
+        });
+      }
+
+      const releaseId = release.id;
+
+      // Create type-specific release data
+      if (input.type === "winget") {
+        console.log("Creating winget release with:", { release_id: releaseId, winget_id: input.wingetId });
+        const { error: wingetError } = await ctx.supabase
+          .from("winget_releases")
+          .insert({
+            release_id: releaseId,
+            winget_id: input.wingetId,
+          });
+
+        if (wingetError) {
+          // Rollback release creation
+          console.error("Winget insert error:", wingetError);
+          await ctx.supabase.from("releases").delete().eq("id", releaseId);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to create winget release data",
+            cause: wingetError,
+          });
+        }
+      } else if (input.type === "win32" && input.installBinary) {
+        // Move binary from temp to permanent storage
+        const destinationPath = buildReleaseAssetPath({
+          appId: input.appId,
+          releaseId,
+          filename: input.installBinary.name,
+          category: "installers",
+        });
+
+        const movedBinary = await moveStoredFileWithinBucket({
+          supabase: ctx.supabase,
+          file: input.installBinary,
+          destinationPath,
+        }).catch((moveError) => {
+          // Rollback release creation
+          ctx.supabase.from("releases").delete().eq("id", releaseId);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to move installer binary",
+            cause: moveError,
+          });
+        });
+
+        const { error: win32Error } = await ctx.supabase
+          .from("win32_releases")
+          .insert({
+            release_id: releaseId,
+            install_script: input.installScript,
+            uninstall_script: input.uninstallScript,
+            install_binary_bucket: movedBinary.bucket,
+            install_binary_path: movedBinary.path,
+            install_binary_size: movedBinary.size,
+            hash: input.installBinary.hash,
+          });
+
+        if (win32Error) {
+          // Rollback: move file back, delete release
+          await moveStoredFileWithinBucket({
+            supabase: ctx.supabase,
+            file: movedBinary,
+            destinationPath: input.installBinary.path,
+          }).catch(() => undefined);
+          await ctx.supabase.from("releases").delete().eq("id", releaseId);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to create win32 release data",
+            cause: win32Error,
+          });
+        }
+      }
+
+      return { success: true, releaseId };
+    }),
+
+
   deleteRelease: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {

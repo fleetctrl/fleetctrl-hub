@@ -44,12 +44,12 @@ interface Release {
     disabled_at: string | null;
     uninstall_previous?: boolean;
     computer_group_releases?: {
-        assign_type: "include" | "exclude";
-        action: "install" | "uninstall";
+        assign_type: string;
+        action: string;
         computer_groups: {
             id: string;
             display_name: string;
-        } | null;
+        } | { id: string; display_name: string; }[] | null;
     }[];
 }
 
@@ -74,6 +74,14 @@ function AssignmentsBadges({ release }: { release: Release }) {
     const visibleGroups = groups.slice(0, 2);
     const remainingCount = groups.length - visibleGroups.length;
 
+    const getGroupName = (cg: { id: string; display_name: string; } | { id: string; display_name: string; }[] | null | undefined) => {
+        if (!cg) return "Unknown";
+        if (Array.isArray(cg)) {
+            return cg[0]?.display_name || "Unknown";
+        }
+        return cg.display_name || "Unknown";
+    };
+
     return (
         <div className="flex flex-wrap items-center gap-1">
             {visibleGroups.map((g, index) => (
@@ -82,7 +90,7 @@ function AssignmentsBadges({ release }: { release: Release }) {
                     variant="outline"
                     className="max-w-[8rem] truncate text-xs"
                 >
-                    {g.computer_groups?.display_name || "Unknown"}
+                    {getGroupName(g.computer_groups)}
                 </Badge>
             ))}
             {remainingCount > 0 && (

@@ -65,12 +65,12 @@ interface EditReleaseSheetProps {
         uninstall_previous?: boolean;
         disabled_at: string | null;
         computer_group_releases?: {
-            assign_type: "include" | "exclude";
-            action: "install" | "uninstall";
+            assign_type: string;
+            action: string;
             computer_groups: {
                 id: string;
                 display_name: string;
-            } | null;
+            } | { id: string; display_name: string; }[] | null;
         }[];
     } | null;
     open: boolean;
@@ -123,19 +123,16 @@ export function EditReleaseSheet({
             const installGroups = release.computer_group_releases
                 ?.filter((r) => r.action === "install")
                 .map((r) => ({
-                    groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "", // safely handle if it somehow is different
-                    mode: r.assign_type,
+                    groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+                    mode: r.assign_type as "include" | "exclude",
                 })) || [];
 
             const uninstallGroups = release.computer_group_releases
                 ?.filter((r) => r.action === "uninstall")
                 .map((r) => ({
                     groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                    mode: r.assign_type,
+                    mode: r.assign_type as "include" | "exclude",
                 })) || [];
-
-            // We must filter out any where groupId failed to resolve (shouldn't happen with correct join)
-            // Assuming r.computer_groups is strictly typed from query but just safe casting
 
             form.reset({
                 version: release.version === "latest" ? "" : release.version,
@@ -179,14 +176,14 @@ export function EditReleaseSheet({
                 ?.filter((r) => r.action === "install")
                 .map((r) => ({
                     groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                    mode: r.assign_type,
+                    mode: r.assign_type as "include" | "exclude",
                 })) || [];
 
             const uninstallGroups = release.computer_group_releases
                 ?.filter((r) => r.action === "uninstall")
                 .map((r) => ({
                     groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                    mode: r.assign_type,
+                    mode: r.assign_type as "include" | "exclude",
                 })) || [];
 
             form.reset({
