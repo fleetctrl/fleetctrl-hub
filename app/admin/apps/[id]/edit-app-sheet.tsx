@@ -90,8 +90,19 @@ export function EditAppSheet({ app, open, onOpenChange }: EditAppSheetProps) {
         });
     }
 
+    function handleOpenChange(isOpen: boolean) {
+        if (!isOpen) {
+            form.reset({
+                display_name: app.display_name,
+                description: app.description || "",
+                publisher: app.publisher || "",
+            });
+        }
+        onOpenChange(isOpen);
+    }
+
     return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
+        <Sheet open={open} onOpenChange={handleOpenChange}>
             <SheetContent>
                 <SheetHeader>
                     <SheetTitle>Edit App Details</SheetTitle>

@@ -142,7 +142,12 @@ export const appRouter = createTRPCRouter({
           created_at,
           installer_type,
           disabled_at,
-          uninstall_previous
+          uninstall_previous,
+          computer_group_releases(
+            assign_type,
+            action,
+            computer_groups(id, display_name)
+          )
         `,
         )
         .eq("app_id", input.appId)
@@ -464,6 +469,146 @@ export const appRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Unable to update app",
+          cause: error,
+        });
+      }
+
+      return { success: true };
+    }),
+  updateRelease: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        data: z.object({
+          version: z.string().optional(),
+          uninstall_previous: z.boolean().optional(),
+          disabled: z.boolean().optional(),
+          assignments: z.object({
+            installGroups: z.array(z.object({
+              groupId: z.string(),
+              mode: z.enum(["include", "exclude"]),
+            })),
+            uninstallGroups: z.array(z.object({
+              groupId: z.string(),
+              mode: z.enum(["include", "exclude"]),
+            })),
+          }).optional(),
+        }),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updateData: any = {};
+
+      if (input.data.version !== undefined) {
+        updateData.version = input.data.version;
+      }
+
+      if (input.data.uninstall_previous !== undefined) {
+        updateData.uninstall_previous = input.data.uninstall_previous;
+      }
+
+      if (input.data.disabled !== undefined) {
+        updateData.disabled_at = input.data.disabled ? new Date().toISOString() : null;
+      }
+
+      // Update basic release info
+      const { error } = await ctx.supabase
+        .from("releases")
+        .update(updateData)
+        .eq("id", input.id);
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to update release",
+          cause: error,
+        });
+      }
+
+      // Update Assignments
+      if (input.data.assignments) {
+        // First delete existing assignments
+        const { error: deleteError } = await ctx.supabase
+          .from("computer_group_releases")
+          .delete()
+          .eq("release_id", input.id);
+
+        if (deleteError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to clear existing assignments",
+            cause: deleteError,
+          });
+        }
+
+        const assignments = input.data.assignments;
+        const insertData = [];
+
+        // Install Groups
+        for (const group of assignments.installGroups) {
+          insertData.push({
+            release_id: input.id,
+            group_id: group.groupId,
+            assign_type: group.mode,
+            action: "install",
+          });
+        }
+
+        // Uninstall Groups
+        for (const group of assignments.uninstallGroups) {
+          insertData.push({
+            release_id: input.id,
+            group_id: group.groupId,
+            assign_type: group.mode,
+            action: "uninstall",
+          });
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await ctx.supabase
+            .from("computer_group_releases")
+            .insert(insertData);
+
+          if (insertError) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Unable to insert new assignments",
+              cause: insertError,
+            });
+          }
+        }
+      }
+
+      return { success: true };
+    }),
+
+  deleteRelease: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // First delete related computer_group_releases
+      const { error: deleteAssignmentsError } = await ctx.supabase
+        .from("computer_group_releases")
+        .delete()
+        .eq("release_id", input.id);
+
+      if (deleteAssignmentsError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to delete release assignments",
+          cause: deleteAssignmentsError,
+        });
+      }
+
+      // Then delete the release itself
+      const { error } = await ctx.supabase
+        .from("releases")
+        .delete()
+        .eq("id", input.id);
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to delete release",
           cause: error,
         });
       }

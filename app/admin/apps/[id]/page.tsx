@@ -195,7 +195,7 @@ export default function AppDetailPage() {
                                     {releasesLoading ? (
                                         <div className="text-muted-foreground">Loading releases...</div>
                                     ) : (
-                                        <ReleasesTable releases={releases ?? []} />
+                                        <ReleasesTable releases={releases ?? []} appId={appId} />
                                     )}
                                 </CardContent>
                             </Card>

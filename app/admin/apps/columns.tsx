@@ -43,7 +43,7 @@ export const columns: ColumnDef<GroupRow>[] = [
       const visibleMembers = row.original?.members?.slice(0, 2) ?? [];
       const remainingCount = row.original.memberCount - visibleMembers.length;
       if (row.original.memberCount === 0) {
-        return <span className="text-sm text-muted-foreground">No apps</span>;
+        return <span className="text-sm text-muted-foreground">No groups</span>;
       }
 
       return (
