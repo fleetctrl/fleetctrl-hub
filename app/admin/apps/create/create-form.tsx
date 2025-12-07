@@ -68,6 +68,7 @@ import {
   StoredFileReference,
   uploadFileToTempStorage,
 } from "@/lib/storage/temp-storage";
+import { useRouter } from "next/navigation";
 
 const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
   type: "file",
@@ -108,12 +109,16 @@ const toDropzonePreview = (
 };
 
 export function CreateForm() {
+  const router = useRouter()
   const createMutation = api.app.create.useMutation({
     onError: (e) => {
       console.error(e.message);
       toast.error("Error when creating app")
     },
-    onSuccess: () => { toast.success("App created") }
+    onSuccess: () => {
+      toast.success("App created")
+      router.push("/admin/apps")
+    }
   })
   const form = useForm<CreateAppFormValues>({
     resolver: zodResolver(FormSchema),
@@ -151,7 +156,6 @@ export function CreateForm() {
   });
 
   const onSubmit = (data: CreateAppFormValues) => {
-    console.log(data)
     createMutation.mutate(data)
   };
 
