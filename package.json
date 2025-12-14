@@ -44,9 +44,9 @@
     "next": "latest",
     "next-themes": "^0.4.6",
     "postgres": "^3.4.7",
-    "react": "^19.0.0",
+    "react": "^19.2.3",
     "react-day-picker": "^9.9.0",
-    "react-dom": "^19.0.0",
+    "react-dom": "^19.2.3",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.62.0",
     "react-i18next": "^16.2.1",
@@ -77,5 +77,5 @@
       "unrs-resolver"
     ]
   },
-  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
+  "packageManager": "pnpm@10.25.0+sha512.5e82639027af37cf832061bcc6d639c219634488e0f2baebe785028a793de7b525ffcd3f7ff574f5e9860654e098fe852ba8ac5dd5cefe1767d23a020a92f501"
 }
