@@ -16,10 +16,6 @@ services:
       - redis
     env_file:
       - ./.env
-    networks:
-      default:
-        aliases:
-          - api
 
 
   redis:

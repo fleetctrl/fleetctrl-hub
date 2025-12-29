@@ -9,6 +9,12 @@ BACKUP_DIR="${BACKUP_DIR:-/backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 SUPABASE_CLI="${SUPABASE_CLI:-npx supabase}"
 PG_DUMP_BIN="${PG_DUMP_BIN:-pg_dump}"
+SKIP_MIGRATIONS="${SKIP_MIGRATIONS:-false}"
+
+if [ "$SKIP_MIGRATIONS" = "true" ]; then
+  echo "==> SKIP_MIGRATIONS is true. Skipping migrations and seed."
+  exit 0
+fi
 
 # volitelné: čekání na DB, když nespouštíš přes depends_on:service_healthy
 pg_isready -d "$POSTGRES_URL" -t 5 >/dev/null 2>&1 || {

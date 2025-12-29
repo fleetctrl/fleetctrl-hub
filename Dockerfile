@@ -44,7 +44,8 @@ RUN chmod +x /app/scripts/migrate_with_backup.sh
 
 # Generate build at startup and run Next.js once migrations have been applied
 # Run API in background
-CMD ["/bin/bash", "-c", "/app/fleetctrl-api & /app/scripts/migrate_with_backup.sh && pnpm run build && pnpm start"]
+# Run migrations, then start API in background and Next.js in foreground
+CMD /app/scripts/migrate_with_backup.sh && /app/fleetctrl-api & pnpm build && pnpm start
 
 # Development stage
 FROM base AS dev

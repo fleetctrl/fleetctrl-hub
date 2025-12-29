@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/auth"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/apps"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/computers"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/tasks"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
@@ -37,7 +38,9 @@ func main() {
 	sb = supabase.CreateClient(url, key)
 
 	port := os.Getenv("API_PORT")
-	if port == "" {
+	if runningInDocker == "true" {
+		port = "8080"
+	} else if port == "" {
 		port = "8080"
 	}
 	log.Printf("listening on :%s", port)
@@ -78,6 +81,10 @@ func main() {
 	ts := tasks.NewTasksService(sb)
 	mux.Handle("GET /tasks", withMiddleware(withDPoP(ts.GetTasks)))
 	mux.Handle("PATCH /task/{id}", withMiddleware(withDPoP(ts.UpdateTaskStatus)))
+
+	// apps
+	appsSvc := apps.NewAppsService(sb)
+	mux.Handle("GET /apps/assigned", withMiddleware(withDPoP(appsSvc.GetAssignedApps)))
 
 	// other
 	mux.Handle("GET /health", withMiddleware(health))
