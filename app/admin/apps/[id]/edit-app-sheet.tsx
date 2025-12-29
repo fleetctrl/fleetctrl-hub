@@ -10,7 +10,6 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -107,7 +106,7 @@ export function EditAppSheet({ app, open, onOpenChange }: EditAppSheetProps) {
                 <SheetHeader>
                     <SheetTitle>Edit App Details</SheetTitle>
                     <SheetDescription>
-                        Make changes to the app profile here. Click save when you're done.
+                        Make changes to the app profile here. Click save when you&apos;re done.
                     </SheetDescription>
                 </SheetHeader>
                 <Form {...form}>

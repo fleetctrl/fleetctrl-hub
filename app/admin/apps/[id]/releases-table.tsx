@@ -30,7 +30,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { api } from "@/trpc/react";
 import { toast } from "sonner";
@@ -225,7 +224,7 @@ export function ReleasesTable({ releases, appId }: ReleasesTableProps) {
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
                             This action cannot be undone. This will permanently delete the
-                            release "{releaseToDelete?.version || "latest"}" and all its assignments.
+                            release &quot;{releaseToDelete?.version || "latest"}&quot; and all its assignments.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Database, FileSearch, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Dropzone,
@@ -62,7 +62,6 @@ import {
   assignmentTargetSchema,
   createAppSchema,
 } from "@/lib/schemas/create-app";
-import { createClient, createSupabaseClient } from "@/lib/supabase/client";
 import {
   deleteStoredFile,
   StoredFileReference,
@@ -525,7 +524,6 @@ function ReleaseStep() {
 
 function RequirementStep() {
   const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
-  const supabase = useMemo(() => createSupabaseClient(), []);
   const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
   return (
     <Item variant="outline">

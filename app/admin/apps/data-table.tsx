@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -9,7 +9,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Form,
   FormControl,
@@ -114,13 +112,6 @@ export function AppsTable() {
     },
   });
 
-  const openCreateDialog = () => {
-    form.reset({
-      displayName: "",
-      memberIds: [],
-    });
-    setDialogState({ mode: "create" });
-  };
 
   const openEditDialog = (groupId: string) => {
     const group = apps?.find((item) => item.id === groupId);

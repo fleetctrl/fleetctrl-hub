@@ -4,10 +4,11 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeSwitcher } from "./theme-switcher";
 
 type Props = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  page?: string;
 };
 
-export function SiteHeader({ children }: Props) {
+export function SiteHeader({ children, page }: Props) {
   return (
     <>
       <header className="sticky inset-0 w-full bg-[#ffffff] dark:bg-[#0a0a0a] top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
@@ -17,7 +18,7 @@ export function SiteHeader({ children }: Props) {
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"
           />
-          {children}
+          {children || (page && <span className="font-medium text-sm">{page}</span>)}
           <div className="ml-auto flex items-center gap-2">
             <ThemeSwitcher />
             <Button

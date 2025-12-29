@@ -1,4 +1,3 @@
-import { SiteHeader } from "@/components/site-header";
 import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "./profile-form";
 import { PasswordForm } from "./password-form";

@@ -13,13 +13,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReleasesTable } from "./releases-table";
 import { useParams } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 import { EditAppSheet } from "./edit-app-sheet";
 import { CreateReleaseSheet } from "./create-release-sheet";
-import { Copy, Pen, Plus } from "lucide-react";
+import { Pen, Plus } from "lucide-react";
 
 export default function AppDetailPage() {
     const params = useParams();

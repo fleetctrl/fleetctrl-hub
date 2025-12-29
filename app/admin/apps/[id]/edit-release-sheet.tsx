@@ -28,7 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/trpc/react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import {
     Select,
     SelectContent,
@@ -36,9 +36,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 
 const assignmentSchema = z.object({
     groupId: z.string(),
@@ -167,8 +165,6 @@ export function EditReleaseSheet({
         });
     }
 
-    const getGroupName = (id: string) =>
-        groups?.find((g) => g.id === id)?.display_name || "Unknown Group";
 
     function handleOpenChange(isOpen: boolean) {
         if (!isOpen && release) {

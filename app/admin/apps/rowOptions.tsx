@@ -68,7 +68,7 @@ export default function RowOptions({
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>Edit</DropdownMenuItem>
+        <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href={`/admin/apps/${groupId}/deployments`}>Deployments</Link>
         </DropdownMenuItem>
