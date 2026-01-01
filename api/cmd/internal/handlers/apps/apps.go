@@ -50,15 +50,16 @@ type ReleaseRequirement struct {
 }
 
 type AssignedRelease struct {
-	ID             string               `json:"id"`
-	Version        string               `json:"version"`
-	AssignType     string               `json:"assign_type"`
-	Action         string               `json:"action"`
-	InstallerType  string               `json:"installer_type"`
-	Win32          *Win32Release        `json:"win32,omitempty"`
-	Winget         *WingetRelease       `json:"winget,omitempty"`
-	DetectionRules []DetectionRule      `json:"detection_rules,omitempty"`
-	Requirements   []ReleaseRequirement `json:"requirements,omitempty"`
+	ID                string               `json:"id"`
+	Version           string               `json:"version"`
+	AssignType        string               `json:"assign_type"`
+	Action            string               `json:"action"`
+	InstallerType     string               `json:"installer_type"`
+	Win32             *Win32Release        `json:"win32,omitempty"`
+	Winget            *WingetRelease       `json:"winget,omitempty"`
+	UninstallPrevious bool                 `json:"uninstall_previous"`
+	DetectionRules    []DetectionRule      `json:"detection_rules,omitempty"`
+	Requirements      []ReleaseRequirement `json:"requirements,omitempty"`
 }
 
 type AssignedApp struct {
@@ -123,13 +124,14 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 
 	// 3. Get release and app details
 	type ReleaseDetail struct {
-		ID            string  `json:"id"`
-		Version       string  `json:"version"`
-		CreatedAt     string  `json:"created_at"`
-		AppID         string  `json:"app_id"`
-		DisabledAt    *string `json:"disabled_at"`
-		InstallerType string  `json:"installer_type"`
-		App           struct {
+		ID                string  `json:"id"`
+		Version           string  `json:"version"`
+		CreatedAt         string  `json:"created_at"`
+		AppID             string  `json:"app_id"`
+		DisabledAt        *string `json:"disabled_at"`
+		InstallerType     string  `json:"installer_type"`
+		UninstallPrevious bool    `json:"uninstall_previous"`
+		App               struct {
 			ID          string `json:"id"`
 			DisplayName string `json:"display_name"`
 			Publisher   string `json:"publisher"`
@@ -142,7 +144,7 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 
 	var releasesDetails []ReleaseDetail
 	err = as.sb.DB.From("releases").
-		Select("id,version,created_at,app_id,disabled_at,installer_type,apps(id,display_name,publisher),win32_releases(*),winget_releases(*),detection_rules(type,config),release_requirements(timeout_seconds,run_as_system,storage_path,hash,bucket,byte_size)").
+		Select("id,version,created_at,app_id,disabled_at,installer_type,uninstall_previous,apps(id,display_name,publisher),win32_releases(*),winget_releases(*),detection_rules(type,config),release_requirements(timeout_seconds,run_as_system,storage_path,hash,bucket,byte_size)").
 		In("id", releaseIDs).
 		Execute(&releasesDetails)
 
@@ -186,11 +188,12 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 		}
 		if !duplicate {
 			ar := AssignedRelease{
-				ID:            rd.ID,
-				Version:       rd.Version,
-				AssignType:    gr.AssignType,
-				Action:        gr.Action,
-				InstallerType: rd.InstallerType,
+				ID:                rd.ID,
+				Version:           rd.Version,
+				AssignType:        gr.AssignType,
+				Action:            gr.Action,
+				InstallerType:     rd.InstallerType,
+				UninstallPrevious: rd.UninstallPrevious,
 			}
 
 			ar.Win32 = rd.Win32
