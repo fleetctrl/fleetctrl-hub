@@ -116,7 +116,7 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 			// 15 min TTL to match freshness window
 			ok, err := rdb.SetNX(context.Background(), key, 1, 15*time.Minute).Result()
 			if err != nil {
-				_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("unable to check replayed DPoP proof"))
+				_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("unable to check replayed DPoP proof:"+err.Error()))
 				return
 			}
 			if !ok {

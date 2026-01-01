@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net/http"
@@ -37,6 +38,13 @@ func main() {
 	}
 	sb = supabase.CreateClient(url, key)
 
+	// Test Supabase connection
+	var testQuery []map[string]any
+	if err := sb.DB.From("computers").Select("id").Limit(1).Execute(&testQuery); err != nil {
+		log.Fatal("Failed to connect to Supabase: ", err)
+	}
+	log.Println("✓ Supabase connection OK")
+
 	port := os.Getenv("API_PORT")
 	if runningInDocker == "true" {
 		port = "8080"
@@ -56,6 +64,14 @@ func main() {
 		Protocol: 2, // RESP2 for compatibility
 	})
 	rdb = client
+
+	// Test Redis connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := client.Ping(ctx).Result(); err != nil {
+		log.Fatal("Failed to connect to Redis: ", err)
+	}
+	log.Println("✓ Redis connection OK")
 
 	// JWT signing config (HS256 with JWT_SECRET)
 	jwtSecret := os.Getenv("JWT_SECRET")

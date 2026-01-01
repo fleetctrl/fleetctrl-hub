@@ -1,10 +1,10 @@
 module github.com/fleetctrl/fleetctrl-hub/api
 
-go 1.23.0
+go 1.24.0
 
-require (
-	github.com/nedpals/supabase-go v0.5.0
-)
+toolchain go1.24.11
+
+require github.com/nedpals/supabase-go v0.5.0
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -19,6 +19,7 @@ require (
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
+	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 )
 
