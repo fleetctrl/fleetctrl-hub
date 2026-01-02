@@ -2,6 +2,7 @@ package apps
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -230,4 +231,108 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusOK, map[string][]AssignedApp{
 		"apps": finalApps,
 	})
+}
+
+func (as AppsService) DownloadApp(w http.ResponseWriter, r *http.Request) {
+	computerID := r.Header.Get("X-Computer-ID")
+	if computerID == "" {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("computer ID not found"))
+		return
+	}
+
+	releaseID := r.PathValue("releaseID")
+	if releaseID == "" {
+		utils.WriteError(w, http.StatusBadRequest, errors.New("release ID is required"))
+		return
+	}
+
+	// 1. Verify assignment
+	// Get computer's groups
+	var groupMembers []struct {
+		GroupID string `json:"group_id"`
+	}
+	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&groupMembers)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get group members: "+err.Error()))
+		return
+	}
+
+	if len(groupMembers) == 0 {
+		utils.WriteError(w, http.StatusForbidden, errors.New("access denied"))
+		return
+	}
+
+	groupIDs := make([]string, len(groupMembers))
+	for i, gm := range groupMembers {
+		groupIDs[i] = gm.GroupID
+	}
+
+	// Check if any of the computer's groups have this release assigned
+	var groupReleases []struct {
+		ReleaseID string `json:"release_id"`
+	}
+	err = as.sb.DB.From("computer_group_releases").
+		Select("release_id").
+		In("group_id", groupIDs).
+		Eq("release_id", releaseID).
+		Execute(&groupReleases)
+
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to check assignment: "+err.Error()))
+		return
+	}
+
+	if len(groupReleases) == 0 {
+		utils.WriteError(w, http.StatusForbidden, errors.New("release not assigned to this computer"))
+		return
+	}
+
+	// 2. Get release details to find storage path
+	var releases []struct {
+		InstallerType string        `json:"installer_type"`
+		Win32         *Win32Release `json:"win32_releases"`
+	}
+	err = as.sb.DB.From("releases").
+		Select("installer_type,win32_releases(*)").
+		Limit(1).
+		Eq("id", releaseID).
+		Execute(&releases)
+
+	if err != nil {
+		utils.WriteError(w, http.StatusNotFound, errors.New("release not found: "+err.Error()))
+		return
+	}
+
+	if len(releases) == 0 {
+		utils.WriteError(w, http.StatusNotFound, errors.New("release not found"))
+		return
+	}
+	release := releases[0]
+
+	if release.InstallerType != "win32" {
+		utils.WriteError(w, http.StatusBadRequest, errors.New("only win32 apps are supported for download"))
+		return
+	}
+
+	if release.Win32 == nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("release info missing"))
+		return
+	}
+
+	// 3. Generate signed URL
+	// CreateSignedUrl returns only the response object, panics on error?
+	defer func() {
+		if r := recover(); r != nil {
+			utils.WriteError(w, http.StatusInternalServerError, errors.New(fmt.Sprintf("failed to generate download URL (panic): %v", r)))
+		}
+	}()
+
+	resp := as.sb.Storage.From(release.Win32.InstallBinaryBucket).CreateSignedUrl(release.Win32.InstallBinaryPath, 3600) // 1 hour expiry
+	// If we got here, we assume it worked?
+	if resp.SignedUrl == "" {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to generate download URL: empty URL"))
+		return
+	}
+
+	http.Redirect(w, r, resp.SignedUrl, http.StatusTemporaryRedirect)
 }
