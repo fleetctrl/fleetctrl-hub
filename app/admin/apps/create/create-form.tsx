@@ -126,7 +126,6 @@ export function CreateForm() {
         name: "",
         description: "",
         publisher: "",
-        allowMultipleVersions: false,
       },
       release: {
         type: "winget",
@@ -137,6 +136,7 @@ export function CreateForm() {
         autoUpdate: false,
         version: "",
         uninstallPreviousVersion: false,
+        allowMultipleVersions: false,
       },
       requirement: {
         requirementScriptBinary: undefined,
@@ -168,7 +168,17 @@ export function CreateForm() {
           {({ currentStepIndex }) => (
             <Stepper
               variant={"numbers"}
-              steps={["appInfo", "release", "requirement", "detection", "assignment"]}
+              steps={
+                form.watch("release.type") === "winget"
+                  ? ["appInfo", "release", "requirement", "assignment"]
+                  : [
+                    "appInfo",
+                    "release",
+                    "requirement",
+                    "detection",
+                    "assignment",
+                  ]
+              }
               currentStep={currentStepIndex}
             />
           )}
@@ -183,9 +193,11 @@ export function CreateForm() {
       <MultiStepFormStep name="requirement">
         <RequirementStep />
       </MultiStepFormStep>
-      <MultiStepFormStep name="detection">
-        <DetectionStep />
-      </MultiStepFormStep>
+      {form.watch("release.type") !== "winget" && (
+        <MultiStepFormStep name="detection">
+          <DetectionStep />
+        </MultiStepFormStep>
+      )}
       <MultiStepFormStep name="assignment">
         <AssignmentStep />
       </MultiStepFormStep>
@@ -246,23 +258,7 @@ function AppInfoStep() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="appInfo.allowMultipleVersions"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel>Allow multiple versions</FormLabel>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+
 
             <div className="flex gap-3">
               <Button onClick={nextStep} disabled={!!errors.appInfo}>
@@ -291,15 +287,23 @@ function ReleaseStep() {
     form.clearErrors("release");
   }, [form, watchedAutoUpdate, watchedReleaseType]);
   useEffect(() => {
+    if (autoUpdate) {
+      form.setValue("release.allowMultipleVersions", false);
+      form.setValue("release.uninstallPreviousVersion", false);
+    }
+  }, [form, autoUpdate]);
+  useEffect(() => {
     if (type === "win32") {
       return;
     }
     const binary = form.getValues("release").installBinary;
+
+    form.setValue("release.installBinary", undefined);
+    form.setValue("release.allowMultipleVersions", false);
+    form.setValue("release.uninstallPreviousVersion", false);
     if (!binary) {
       return;
     }
-
-    form.setValue("release.installBinary", undefined);
     void deleteStoredFile({
       file: binary,
     }).catch(() => undefined);
@@ -476,7 +480,12 @@ function ReleaseStep() {
               control={form.control}
               name="release.uninstallPreviousVersion"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                <FormItem
+                  className={cn(
+                    "flex flex-row items-center justify-between rounded-lg border p-4",
+                    { hidden: type !== "win32" || autoUpdate }
+                  )}
+                >
                   <div className="space-y-0.5">
                     <FormLabel>Uninstall previous version</FormLabel>
                   </div>
@@ -501,6 +510,29 @@ function ReleaseStep() {
                   </FormControl>
 
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="release.allowMultipleVersions"
+              render={({ field }) => (
+                <FormItem
+                  className={cn(
+                    "flex flex-row items-center justify-between rounded-lg border p-4",
+                    { hidden: type !== "win32" || autoUpdate }
+                  )}
+                >
+                  <div className="space-y-0.5">
+                    <FormLabel>Allow multiple versions</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
@@ -730,17 +762,23 @@ function DetectionListForm({
     setOpen(true);
   };
 
-  const onSubmitDetection = popupForm.handleSubmit((values) => {
-    if (editingIndex !== null) {
-      update(editingIndex, values);
-    } else {
-      append(values);
-    }
+  const onSubmitDetection = popupForm.handleSubmit(
+    (values) => {
+      console.log("Adding detection:", values);
+      if (editingIndex !== null) {
+        update(editingIndex, values);
+      } else {
+        append(values);
+      }
 
-    setEditingIndex(null);
-    popupForm.reset(DEFAULT_DETECTION_VALUES);
-    setOpen(false);
-  });
+      setEditingIndex(null);
+      popupForm.reset(DEFAULT_DETECTION_VALUES);
+      setOpen(false);
+    },
+    (errors) => {
+      console.error("Detection form validation failed:", errors);
+    }
+  );
 
   const formatConditionLabel = (raw?: string | null) => {
     if (!raw) {
@@ -888,7 +926,13 @@ function DetectionListForm({
           <Item>
             <ItemContent className="p-2">
               <Form {...popupForm}>
-                <form onSubmit={onSubmitDetection} className="space-y-5 mt-5">
+                <form
+                  onSubmit={(e) => {
+                    e.stopPropagation();
+                    void onSubmitDetection(e);
+                  }}
+                  className="space-y-5 mt-5"
+                >
                   <FormField
                     control={popupForm.control}
                     name="type"
@@ -1081,7 +1125,16 @@ function DetectionListForm({
                       >
                         Cancel
                       </Button>
-                      <Button type="submit">Save detection</Button>
+                      <Button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void onSubmitDetection(e);
+                        }}
+                      >
+                        Save detection
+                      </Button>
                     </div>
                   </SheetFooter>
                 </form>
@@ -1151,48 +1204,53 @@ function AssignmentStep() {
     return groupsQuery.data?.find((group) => group.id === id)?.display_name ?? id;
   };
 
-  const handleSubmitAssignment = assignmentForm.handleSubmit((values) => {
-    const skipIndex =
-      sheetState?.index ?? null;
+  const handleSubmitAssignment = assignmentForm.handleSubmit(
+    (values) => {
+      console.log("Adding assignment:", values, "to", sheetType);
+      const skipIndex = sheetState?.index ?? null;
 
-    const isDuplicate = (
-      list: typeof installValues,
-      type: "install" | "uninstall"
-    ) =>
-      list?.some((entry: { groupId: string; }, idx: number | null) => {
-        if (sheetState?.type === type && skipIndex === idx) {
-          return false;
+      const isDuplicate = (
+        list: typeof installValues,
+        type: "install" | "uninstall"
+      ) =>
+        list?.some((entry: { groupId: string }, idx: number | null) => {
+          if (sheetState?.type === type && skipIndex === idx) {
+            return false;
+          }
+          return entry?.groupId === values.groupId;
+        });
+
+      const alreadyUsed =
+        isDuplicate(installValues, "install") ||
+        isDuplicate(uninstallValues, "uninstall");
+
+      if (alreadyUsed) {
+        assignmentForm.setError("groupId", {
+          message: "This group is already assigned.",
+        });
+        return;
+      }
+
+      if (sheetType === "install") {
+        if (sheetState && sheetState?.index !== null) {
+          updateInstall(sheetState.index, values);
+        } else {
+          appendInstall(values);
         }
-        return entry?.groupId === values.groupId;
-      });
-
-    const alreadyUsed =
-      isDuplicate(installValues, "install") ||
-      isDuplicate(uninstallValues, "uninstall");
-
-    if (alreadyUsed) {
-      assignmentForm.setError("groupId", {
-        message: "This group is already assigned.",
-      });
-      return;
-    }
-
-    if (sheetType === "install") {
-      if (sheetState && sheetState?.index !== null) {
-        updateInstall(sheetState.index, values);
-      } else {
-        appendInstall(values);
+      } else if (sheetType === "uninstall") {
+        if (sheetState && sheetState?.index !== null) {
+          updateUninstall(sheetState.index, values);
+        } else {
+          appendUninstall(values);
+        }
       }
-    } else if (sheetType === "uninstall") {
-      if (sheetState && sheetState?.index !== null) {
-        updateUninstall(sheetState.index, values);
-      } else {
-        appendUninstall(values);
-      }
-    }
 
-    closeSheet();
-  });
+      closeSheet();
+    },
+    (errors) => {
+      console.error("Assignment form validation failed:", errors);
+    }
+  );
 
   const openSheet = (type: "install" | "uninstall", index: number | null) => {
     assignmentForm.clearErrors();
@@ -1347,7 +1405,10 @@ function AssignmentStep() {
             <ItemContent className="p-2">
               <Form {...assignmentForm}>
                 <form
-                  onSubmit={handleSubmitAssignment}
+                  onSubmit={(e) => {
+                    e.stopPropagation();
+                    void handleSubmitAssignment(e);
+                  }}
                   className="mt-5 space-y-5"
                 >
                   <FormField
@@ -1410,7 +1471,14 @@ function AssignmentStep() {
                       >
                         Close
                       </Button>
-                      <Button type="submit">
+                      <Button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleSubmitAssignment(e);
+                        }}
+                      >
                         {isEditingAssignment ? "Save changes" : "Add"}
                       </Button>
                     </div>

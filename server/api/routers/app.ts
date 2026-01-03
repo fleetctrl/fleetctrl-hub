@@ -172,7 +172,7 @@ export const appRouter = createTRPCRouter({
         display_name: appInfo.name,
         description: appInfo.description,
         publisher: appInfo.publisher,
-        allow_multiple_versions: appInfo.allowMultipleVersions,
+        allow_multiple_versions: input.release.allowMultipleVersions,
         auto_update: input.release.autoUpdate,
       })}
         returning id

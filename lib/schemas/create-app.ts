@@ -108,7 +108,6 @@ export const createAppSchema = z.object({
     name: z.string().min(2, { message: "App name is required" }),
     description: z.string().optional(),
     publisher: z.string().min(2, { message: "Publisher is required" }),
-    allowMultipleVersions: z.boolean(),
   }),
   release: z
     .object({
@@ -120,6 +119,7 @@ export const createAppSchema = z.object({
       autoUpdate: z.boolean(),
       version: z.string().optional(),
       uninstallPreviousVersion: z.boolean(),
+      allowMultipleVersions: z.boolean(),
     })
     .superRefine((data, ctx) => {
       if (!data.autoUpdate && !data.version) {
@@ -186,12 +186,18 @@ export const createAppSchema = z.object({
     })
     .optional(),
   detection: z.object({
-    detections: z
-      .array(detectionItemSchema)
-      .min(1, "At least one detection is required"),
+    detections: z.array(detectionItemSchema),
   }),
   assignment: z.object({
     installGroups: z.array(assignmentTargetSchema),
     uninstallGroups: z.array(assignmentTargetSchema),
   }),
+}).superRefine((data, ctx) => {
+  if (data.release.type !== "winget" && data.detection.detections.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      message: "At least one detection is required",
+      path: ["detection", "detections"],
+    });
+  }
 });
