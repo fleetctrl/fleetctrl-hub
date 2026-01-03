@@ -27,29 +27,29 @@ import { useState } from "react";
 import Link from "next/link";
 
 type RowOptionsProps = {
-  groupId: string;
+  appId: string;
   onEdit?: () => void;
   onActionComplete?: () => Promise<unknown> | void;
 };
 
 export default function RowOptions({
-  groupId,
+  appId,
   onEdit,
   onActionComplete,
 }: RowOptionsProps) {
   const [open, setOpen] = useState(false);
-  const deleteMutation = api.group.delete.useMutation({
-    onError: () => {
-      toast.error("Unable to delete group");
+  const deleteMutation = api.app.delete.useMutation({
+    onError: (error) => {
+      toast.error(error.message);
     },
     onSuccess: async () => {
-      toast.success("Group deleted");
+      toast.success("App deleted");
       await onActionComplete?.();
     },
   });
 
   function handleDelete() {
-    deleteMutation.mutate({ id: groupId });
+    deleteMutation.mutate({ id: appId });
     setOpen(false);
   }
 
@@ -70,7 +70,7 @@ export default function RowOptions({
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href={`/admin/apps/${groupId}/deployments`}>Deployments</Link>
+          <Link href={`/admin/apps/${appId}/deployments`}>Deployments</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <AlertDialog>

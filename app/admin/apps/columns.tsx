@@ -6,24 +6,24 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import RowOptions from "./rowOptions";
 
-export type GroupRow = {
+export type AppRow = {
   id: string;
   displayName: string;
-  members: {
+  groups: {
     id: string;
     name: string;
   }[];
-  memberCount: number;
+  groupsCount: number;
   createdAtFormatted: string;
   updatedAtFormatted: string;
 };
 
-export type GroupsTableMeta = {
-  onEdit: (groupId: string) => void;
+export type AppsTableMeta = {
+  onEdit: (appId: string) => void;
   onActionComplete?: () => Promise<unknown> | void;
 };
 
-export const columns: ColumnDef<GroupRow>[] = [
+export const columns: ColumnDef<AppRow>[] = [
   {
     accessorKey: "displayName",
     header: "Name",
@@ -40,21 +40,21 @@ export const columns: ColumnDef<GroupRow>[] = [
     id: "groups",
     header: "Groups",
     cell: ({ row }) => {
-      const visibleMembers = row.original?.members?.slice(0, 2) ?? [];
-      const remainingCount = row.original.memberCount - visibleMembers.length;
-      if (row.original.memberCount === 0) {
+      const visibleGroups = row.original?.groups?.slice(0, 2) ?? [];
+      const remainingCount = row.original.groupsCount - visibleGroups.length;
+      if (row.original.groupsCount === 0) {
         return <span className="text-sm text-muted-foreground">No groups</span>;
       }
 
       return (
         <div className="flex flex-wrap items-center gap-1.5">
-          {visibleMembers?.map((member) => (
+          {visibleGroups?.map((group) => (
             <Badge
-              key={member.id}
+              key={group.id}
               variant="outline"
               className="max-w-[10rem] truncate"
             >
-              {member.name}
+              {group.name}
             </Badge>
           )) ?? []}
           {remainingCount > 0 ? (
@@ -76,13 +76,13 @@ export const columns: ColumnDef<GroupRow>[] = [
     id: "actions",
     header: "",
     cell: ({ row, table }) => {
-      const meta = table.options.meta as GroupsTableMeta | undefined;
+      const meta = table.options.meta as AppsTableMeta | undefined;
       const onEdit = meta?.onEdit;
       const onActionComplete = meta?.onActionComplete;
 
       return (
         <RowOptions
-          groupId={row.original.id}
+          appId={row.original.id}
           onEdit={onEdit ? () => onEdit(row.original.id) : undefined}
           onActionComplete={onActionComplete}
         />

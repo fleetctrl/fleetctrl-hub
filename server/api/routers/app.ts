@@ -805,4 +805,43 @@ export const appRouter = createTRPCRouter({
 
       return { success: true };
     }),
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Check if any release has assignments
+      const { data: releases } = await ctx.supabase
+        .from("releases")
+        .select("id")
+        .eq("app_id", input.id);
+
+      if (releases && releases.length > 0) {
+        const releaseIds = releases.map((r) => r.id);
+        const { count } = await ctx.supabase
+          .from("computer_group_releases")
+          .select("id", { count: "exact", head: true })
+          .in("release_id", releaseIds);
+
+        if (count && count > 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cannot delete app because it has active group assignments. Please remove all assignments from its releases first.",
+          });
+        }
+      }
+
+      const { error } = await ctx.supabase
+        .from("apps")
+        .delete()
+        .eq("id", input.id);
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to delete app",
+          cause: error,
+        });
+      }
+
+      return { success: true };
+    }),
 });
