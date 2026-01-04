@@ -205,7 +205,7 @@ export default function AppDetailPage() {
                                     {releasesLoading ? (
                                         <div className="text-muted-foreground">Loading releases...</div>
                                     ) : (
-                                        <ReleasesTable releases={releases ?? []} appId={appId} />
+                                        <ReleasesTable releases={releases ?? []} appId={appId} isAutoUpdate={app.auto_update} />
                                     )}
                                 </CardContent>
                             </Card>

@@ -67,6 +67,7 @@ type AssignedApp struct {
 	ID          string            `json:"id"`
 	DisplayName string            `json:"display_name"`
 	Publisher   string            `json:"publisher"`
+	AutoUpdate  bool              `json:"auto_update"`
 	Releases    []AssignedRelease `json:"releases"`
 }
 
@@ -136,6 +137,7 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 			ID          string `json:"id"`
 			DisplayName string `json:"display_name"`
 			Publisher   string `json:"publisher"`
+			AutoUpdate  bool   `json:"auto_update"`
 		} `json:"apps"`
 		Win32        *Win32Release        `json:"win32_releases"`
 		Winget       *WingetRelease       `json:"winget_releases"`
@@ -145,7 +147,7 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 
 	var releasesDetails []ReleaseDetail
 	err = as.sb.DB.From("releases").
-		Select("id,version,created_at,app_id,disabled_at,installer_type,uninstall_previous,apps(id,display_name,publisher),win32_releases(*),winget_releases(*),detection_rules(type,config),release_requirements(timeout_seconds,run_as_system,storage_path,hash,bucket,byte_size)").
+		Select("id,version,created_at,app_id,disabled_at,installer_type,uninstall_previous,apps(id,display_name,publisher,auto_update),win32_releases(*),winget_releases(*),detection_rules(type,config),release_requirements(timeout_seconds,run_as_system,storage_path,hash,bucket,byte_size)").
 		In("id", releaseIDs).
 		Execute(&releasesDetails)
 
@@ -175,6 +177,7 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 				ID:          rd.App.ID,
 				DisplayName: rd.App.DisplayName,
 				Publisher:   rd.App.Publisher,
+				AutoUpdate:  rd.App.AutoUpdate,
 				Releases:    []AssignedRelease{},
 			}
 		}
@@ -213,6 +216,10 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 		sort.Slice(app.Releases, func(i, j int) bool {
 			v1 := app.Releases[i].Version
 			v2 := app.Releases[j].Version
+
+			// Replace hyphens with dots for semver comparison
+			v1 = strings.ReplaceAll(v1, "-", ".")
+			v2 = strings.ReplaceAll(v2, "-", ".")
 
 			// Normalize for semver package (ensure 'v' prefix)
 			if !strings.HasPrefix(v1, "v") {

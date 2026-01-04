@@ -43,10 +43,12 @@ const assignmentSchema = z.object({
     mode: z.enum(["include", "exclude"]),
 });
 
-const formSchema = z.object({
-    version: z.string().min(1, {
-        message: "Version is required.",
-    }),
+const createFormSchema = (isAutoUpdate: boolean) => z.object({
+    version: isAutoUpdate
+        ? z.string().optional()
+        : z.string().min(1, {
+            message: "Version is required.",
+        }),
     uninstall_previous: z.boolean(),
     disabled: z.boolean(),
     assignments: z.object({
@@ -55,8 +57,11 @@ const formSchema = z.object({
     }),
 });
 
+type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
+
 interface EditReleaseSheetProps {
     appId: string;
+    isAutoUpdate?: boolean;
     release: {
         id: string;
         version: string;
@@ -77,6 +82,7 @@ interface EditReleaseSheetProps {
 
 export function EditReleaseSheet({
     appId,
+    isAutoUpdate = false,
     release,
     open,
     onOpenChange,
@@ -85,7 +91,8 @@ export function EditReleaseSheet({
     const utils = api.useUtils();
     const { data: groups } = api.group.getAll.useQuery();
 
-    const form = useForm<z.infer<typeof formSchema>>({
+    const formSchema = createFormSchema(isAutoUpdate);
+    const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             version: "",
@@ -156,7 +163,7 @@ export function EditReleaseSheet({
         },
     });
 
-    function onSubmit(values: z.infer<typeof formSchema>) {
+    function onSubmit(values: FormValues) {
         if (!release) return;
 
         updateMutation.mutate({
@@ -218,42 +225,46 @@ export function EditReleaseSheet({
                                 <TabsTrigger value="assignments">Assignments</TabsTrigger>
                             </TabsList>
                             <TabsContent value="details" className="space-y-4 py-4">
-                                <FormField
-                                    control={form.control}
-                                    name="version"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Version</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="1.0.0" {...field} />
-                                            </FormControl>
-                                            <FormDescription>
-                                                Use specific version number.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="uninstall_previous"
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                            <div className="space-y-0.5">
-                                                <FormLabel>Uninstall Previous</FormLabel>
+                                {!isAutoUpdate && (
+                                    <FormField
+                                        control={form.control}
+                                        name="version"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Version</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="1.0.0" {...field} />
+                                                </FormControl>
                                                 <FormDescription>
-                                                    Uninstall previous version first.
+                                                    Use specific version number.
                                                 </FormDescription>
-                                            </div>
-                                            <FormControl>
-                                                <Switch
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                                {!isAutoUpdate && (
+                                    <FormField
+                                        control={form.control}
+                                        name="uninstall_previous"
+                                        render={({ field }) => (
+                                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                <div className="space-y-0.5">
+                                                    <FormLabel>Uninstall Previous</FormLabel>
+                                                    <FormDescription>
+                                                        Uninstall previous version first.
+                                                    </FormDescription>
+                                                </div>
+                                                <FormControl>
+                                                    <Switch
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
                                 <FormField
                                     control={form.control}
                                     name="disabled"

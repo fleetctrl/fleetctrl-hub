@@ -55,6 +55,7 @@ interface Release {
 interface ReleasesTableProps {
     releases: Release[];
     appId: string;
+    isAutoUpdate?: boolean;
 }
 
 const formatDateTime = (isoDate: string) =>
@@ -99,7 +100,7 @@ function AssignmentsBadges({ release }: { release: Release }) {
     );
 }
 
-export function ReleasesTable({ releases, appId }: ReleasesTableProps) {
+export function ReleasesTable({ releases, appId, isAutoUpdate = false }: ReleasesTableProps) {
     const router = useRouter();
     const utils = api.useUtils();
     const [selectedRelease, setSelectedRelease] = useState<Release | null>(null);
@@ -213,6 +214,7 @@ export function ReleasesTable({ releases, appId }: ReleasesTableProps) {
 
             <EditReleaseSheet
                 appId={appId}
+                isAutoUpdate={isAutoUpdate}
                 release={selectedRelease}
                 open={isEditSheetOpen}
                 onOpenChange={setIsEditSheetOpen}
