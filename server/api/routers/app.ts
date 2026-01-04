@@ -149,7 +149,9 @@ export const appRouter = createTRPCRouter({
             computer_groups(id, display_name)
           ),
           detection_rules(*),
-          release_requirements(*)
+          release_requirements(*),
+          win32_releases(*),
+          winget_releases(*)
         `,
         )
         .eq("app_id", input.appId)
@@ -485,6 +487,11 @@ export const appRouter = createTRPCRouter({
           version: z.string().optional(),
           uninstall_previous: z.boolean().optional(),
           disabled: z.boolean().optional(),
+          installer_type: z.enum(["winget", "win32"]).optional(),
+          wingetId: z.string().optional(),
+          installBinary: storedFileReferenceSchema.optional(),
+          installScript: z.string().optional(),
+          uninstallScript: z.string().optional(),
           assignments: z.object({
             installGroups: z.array(z.object({
               groupId: z.string(),
@@ -519,7 +526,24 @@ export const appRouter = createTRPCRouter({
         updateData.disabled_at = input.data.disabled ? new Date().toISOString() : null;
       }
 
+      if (input.data.installer_type !== undefined) {
+        updateData.installer_type = input.data.installer_type;
+      }
+
       // Update basic release info
+      const { data: releasePreUpdate } = await ctx.supabase
+        .from("releases")
+        .select("app_id, installer_type, win32_releases(*), winget_releases(*)")
+        .eq("id", input.id)
+        .single();
+
+      if (!releasePreUpdate) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Release not found",
+        });
+      }
+
       const { error } = await ctx.supabase
         .from("releases")
         .update(updateData)
@@ -531,6 +555,97 @@ export const appRouter = createTRPCRouter({
           message: "Unable to update release",
           cause: error,
         });
+      }
+
+      // Handle Winget Release Update
+      if (input.data.installer_type === "winget" || (releasePreUpdate.installer_type === "winget" && !input.data.installer_type)) {
+        const currentWinget = (Array.isArray(releasePreUpdate.winget_releases) ? releasePreUpdate.winget_releases[0] : (releasePreUpdate.winget_releases as any));
+        const hasWingetRecord = !!currentWinget;
+        const isTypeSwitched = input.data.installer_type === "winget" && releasePreUpdate.installer_type !== "winget";
+
+        if (input.data.wingetId && (isTypeSwitched || !hasWingetRecord || input.data.wingetId !== currentWinget.winget_id)) {
+          const { error: wingetError } = await ctx.supabase
+            .from("winget_releases")
+            .upsert({
+              release_id: input.id,
+              winget_id: input.data.wingetId,
+            });
+
+          if (wingetError) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Unable to update winget release details",
+              cause: wingetError,
+            });
+          }
+        }
+        // If type changed TO winget, delete from win32
+        if (input.data.installer_type === "winget" && releasePreUpdate.installer_type === "win32") {
+          await ctx.supabase.from("win32_releases").delete().eq("release_id", input.id);
+        }
+      }
+
+      // Handle Win32 Release Update
+      if (input.data.installer_type === "win32" || (releasePreUpdate.installer_type === "win32" && !input.data.installer_type)) {
+        const currentWin32 = (Array.isArray(releasePreUpdate.win32_releases) ? releasePreUpdate.win32_releases[0] : (releasePreUpdate.win32_releases as any));
+        const hasWin32Record = !!currentWin32;
+        const isTypeSwitched = input.data.installer_type === "win32" && releasePreUpdate.installer_type !== "win32";
+
+        const win32Update: any = {};
+        if (input.data.installScript && (!hasWin32Record || input.data.installScript !== currentWin32.install_script)) win32Update.install_script = input.data.installScript;
+        if (input.data.uninstallScript && (!hasWin32Record || input.data.uninstallScript !== currentWin32.uninstall_script)) win32Update.uninstall_script = input.data.uninstallScript;
+
+        if (input.data.installBinary) {
+          const isNewBinary = input.data.installBinary.path.startsWith("temp/");
+          const isBinaryPathDifferent = !hasWin32Record || input.data.installBinary.path !== currentWin32.install_binary_path;
+
+          if (isNewBinary) {
+            const destinationPath = buildReleaseAssetPath({
+              appId: releasePreUpdate.app_id,
+              releaseId: input.id,
+              filename: input.data.installBinary.name,
+              category: "installers",
+            });
+
+            const movedBinary = await moveStoredFileWithinBucket({
+              supabase: ctx.supabase,
+              file: input.data.installBinary,
+              destinationPath,
+            });
+
+            win32Update.install_binary_bucket = movedBinary.bucket;
+            win32Update.install_binary_path = movedBinary.path;
+            win32Update.install_binary_size = movedBinary.size;
+            win32Update.hash = input.data.installBinary.hash;
+          } else if (isBinaryPathDifferent || isTypeSwitched) {
+            win32Update.install_binary_bucket = input.data.installBinary.bucket;
+            win32Update.install_binary_path = input.data.installBinary.path;
+            win32Update.install_binary_size = input.data.installBinary.size;
+            win32Update.hash = input.data.installBinary.hash;
+          }
+        }
+
+        if (Object.keys(win32Update).length > 0 || (isTypeSwitched && !hasWin32Record)) {
+          const { error: win32Error } = await ctx.supabase
+            .from("win32_releases")
+            .upsert({
+              release_id: input.id,
+              ...win32Update,
+            });
+
+          if (win32Error) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Unable to update win32 release details",
+              cause: win32Error,
+            });
+          }
+        }
+
+        // If type changed TO win32, delete from winget
+        if (input.data.installer_type === "win32" && releasePreUpdate.installer_type === "winget") {
+          await ctx.supabase.from("winget_releases").delete().eq("release_id", input.id);
+        }
       }
 
       // Update Assignments
@@ -651,39 +766,48 @@ export const appRouter = createTRPCRouter({
         // If a new binary is provided, we need to handle it
         let storageData: any = {};
         if (req.requirementScriptBinary) {
-          // Get appId for the path
-          const { data: releaseData } = await ctx.supabase
-            .from("releases")
-            .select("app_id")
-            .eq("id", input.id)
-            .single();
+          if (req.requirementScriptBinary.path.startsWith("temp/")) {
+            // Get appId for the path
+            const { data: releaseData } = await ctx.supabase
+              .from("releases")
+              .select("app_id")
+              .eq("id", input.id)
+              .single();
 
-          if (!releaseData) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Release not found for requirement update",
+            if (!releaseData) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Release not found for requirement update",
+              });
+            }
+
+            const destinationPath = buildReleaseAssetPath({
+              appId: releaseData.app_id,
+              releaseId: input.id,
+              filename: req.requirementScriptBinary.name,
+              category: "requirements",
             });
+
+            const movedBinary = await moveStoredFileWithinBucket({
+              supabase: ctx.supabase,
+              file: req.requirementScriptBinary,
+              destinationPath,
+            });
+
+            storageData = {
+              bucket: movedBinary.bucket,
+              storage_path: movedBinary.path,
+              hash: req.requirementScriptBinary.hash,
+              byte_size: movedBinary.size,
+            };
+          } else {
+            storageData = {
+              bucket: req.requirementScriptBinary.bucket,
+              storage_path: req.requirementScriptBinary.path,
+              hash: req.requirementScriptBinary.hash,
+              byte_size: req.requirementScriptBinary.size,
+            };
           }
-
-          const destinationPath = buildReleaseAssetPath({
-            appId: releaseData.app_id,
-            releaseId: input.id,
-            filename: req.requirementScriptBinary.name,
-            category: "requirements",
-          });
-
-          const movedBinary = await moveStoredFileWithinBucket({
-            supabase: ctx.supabase,
-            file: req.requirementScriptBinary,
-            destinationPath,
-          });
-
-          storageData = {
-            bucket: movedBinary.bucket,
-            storage_path: movedBinary.path,
-            hash: req.requirementScriptBinary.hash,
-            byte_size: movedBinary.size,
-          };
         }
 
         const requirementUpdate = {
@@ -762,6 +886,22 @@ export const appRouter = createTRPCRouter({
         }).optional(),
         installScript: z.string().optional(),
         uninstallScript: z.string().optional(),
+        detections: z.array(detectionItemSchema).optional(),
+        requirements: z.object({
+          timeout: z.number(),
+          runAsSystem: z.boolean(),
+          requirementScriptBinary: storedFileReferenceSchema.optional(),
+        }).optional(),
+        assignments: z.object({
+          installGroups: z.array(z.object({
+            groupId: z.string(),
+            mode: z.enum(["include", "exclude"]),
+          })),
+          uninstallGroups: z.array(z.object({
+            groupId: z.string(),
+            mode: z.enum(["include", "exclude"]),
+          })),
+        }).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -925,6 +1065,100 @@ export const appRouter = createTRPCRouter({
             message: "Unable to create win32 release data",
             cause: win32Error,
           });
+        }
+      }
+
+      // Handle Requirements
+      if (input.requirements) {
+        const req = input.requirements;
+        let storageData: any = {};
+        if (req.requirementScriptBinary) {
+          const destinationPath = buildReleaseAssetPath({
+            appId: input.appId,
+            releaseId,
+            filename: req.requirementScriptBinary.name,
+            category: "requirements",
+          });
+
+          const movedBinary = await moveStoredFileWithinBucket({
+            supabase: ctx.supabase,
+            file: req.requirementScriptBinary,
+            destinationPath,
+          });
+
+          storageData = {
+            bucket: movedBinary.bucket,
+            storage_path: movedBinary.path,
+            hash: req.requirementScriptBinary.hash,
+            byte_size: movedBinary.size,
+          };
+        }
+
+        const { error: reqError } = await ctx.supabase
+          .from("release_requirements")
+          .insert({
+            release_id: releaseId,
+            timeout_seconds: req.timeout,
+            run_as_system: req.runAsSystem,
+            ...storageData,
+          });
+
+        if (reqError) {
+          console.error("Requirement insert error:", reqError);
+          // Non-blocking for now, or should we rollback? 
+        }
+      }
+
+      // Handle Detections
+      if (input.detections && input.detections.length > 0) {
+        const detectionsData = input.detections.map((d) => {
+          const config: any = { version: "1", operator: d.type === "file" ? d.fileType : d.registryType, path: d.path };
+          if (d.type === "file") {
+            config.value = d.fileTypeValue;
+          } else {
+            config.value = d.registryTypeValue;
+          }
+          return {
+            release_id: releaseId,
+            type: d.type,
+            config,
+          };
+        });
+
+        const { error: detError } = await ctx.supabase
+          .from("detection_rules")
+          .insert(detectionsData);
+
+        if (detError) {
+          console.error("Detections insert error:", detError);
+        }
+      }
+
+      // Handle Assignments
+      if (input.assignments) {
+        const assignmentsData = [
+          ...input.assignments.installGroups.map(g => ({
+            release_id: releaseId,
+            group_id: g.groupId,
+            assign_type: g.mode,
+            action: "install"
+          })),
+          ...input.assignments.uninstallGroups.map(g => ({
+            release_id: releaseId,
+            group_id: g.groupId,
+            assign_type: g.mode,
+            action: "uninstall"
+          }))
+        ];
+
+        if (assignmentsData.length > 0) {
+          const { error: assError } = await ctx.supabase
+            .from("computer_group_releases")
+            .insert(assignmentsData);
+
+          if (assError) {
+            console.error("Assignments insert error:", assError);
+          }
         }
       }
 

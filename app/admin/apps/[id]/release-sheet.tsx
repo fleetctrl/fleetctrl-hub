@@ -39,10 +39,11 @@ import {
 import { X, Plus, Trash2, Pencil, Upload } from "lucide-react";
 import { detectionItemSchema, storedFileReferenceSchema } from "@/lib/schemas/create-app";
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/shadcn-io/dropzone";
-import { uploadFileToTempStorage, StoredFileReference } from "@/lib/storage/temp-storage";
+import { uploadFileToTempStorage, StoredFileReference, deleteStoredFile } from "@/lib/storage/temp-storage";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const assignmentSchema = z.object({
     groupId: z.string(),
@@ -50,6 +51,7 @@ const assignmentSchema = z.object({
 });
 
 const createFormSchema = (isAutoUpdate: boolean) => z.object({
+    type: z.enum(["winget", "win32"]),
     version: isAutoUpdate
         ? z.string().optional()
         : z.string().min(1, {
@@ -57,6 +59,10 @@ const createFormSchema = (isAutoUpdate: boolean) => z.object({
         }),
     uninstall_previous: z.boolean(),
     disabled: z.boolean(),
+    wingetId: z.string().optional(),
+    installBinary: storedFileReferenceSchema.optional(),
+    installScript: z.string().optional(),
+    uninstallScript: z.string().optional(),
     assignments: z.object({
         installGroups: z.array(assignmentSchema),
         uninstallGroups: z.array(assignmentSchema),
@@ -74,7 +80,7 @@ type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
 interface EditReleaseSheetProps {
     appId: string;
     isAutoUpdate?: boolean;
-    release: {
+    release?: {
         id: string;
         version: string;
         installer_type: string;
@@ -100,10 +106,23 @@ interface EditReleaseSheetProps {
             byte_size: number;
             hash: string;
         }[];
+        win32_releases?: {
+            install_script: string;
+            uninstall_script: string;
+            install_binary_bucket: string;
+            install_binary_path: string;
+            install_binary_size: number;
+            hash: string;
+        }[];
+        winget_releases?: {
+            winget_id: string;
+        }[];
     } | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }
+
+export type ReleaseSheetProps = EditReleaseSheetProps;
 
 const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
     type: "file",
@@ -132,13 +151,14 @@ const toDropzonePreview = (
     ];
 };
 
-export function EditReleaseSheet({
+
+export function ReleaseSheet({
     appId,
     isAutoUpdate = false,
     release,
     open,
     onOpenChange,
-}: EditReleaseSheetProps) {
+}: ReleaseSheetProps) {
     const router = useRouter();
     const utils = api.useUtils();
     const { data: groups } = api.group.getAll.useQuery();
@@ -147,9 +167,14 @@ export function EditReleaseSheet({
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
+            type: "win32",
             version: "",
             uninstall_previous: false,
             disabled: false,
+            wingetId: "",
+            installBinary: undefined,
+            installScript: "",
+            uninstallScript: "",
             assignments: {
                 installGroups: [],
                 uninstallGroups: [],
@@ -191,8 +216,11 @@ export function EditReleaseSheet({
     });
 
     const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
+    const [isUploadingBinary, setIsUploadingBinary] = useState(false);
     const [isDetectionSheetOpen, setIsDetectionSheetOpen] = useState(false);
     const [editingDetectionIndex, setEditingDetectionIndex] = useState<number | null>(null);
+
+    const watchedType = form.watch("type");
 
     useEffect(() => {
         if (release) {
@@ -232,10 +260,26 @@ export function EditReleaseSheet({
 
             const requirement = release.release_requirements?.[0];
 
+            // Supabase joins can sometimes be returned as an array or a single object depending on the library and schema.
+            // Also checking for potential naming variations.
+            const win32Rel = (Array.isArray(release.win32_releases) ? release.win32_releases[0] : (release.win32_releases as any)) || (release as any).win32_release;
+            const wingetRel = (Array.isArray(release.winget_releases) ? release.winget_releases[0] : (release.winget_releases as any)) || (release as any).winget_release;
+
             form.reset({
+                type: release.installer_type as "win32" | "winget",
                 version: release.version === "latest" ? "" : release.version,
                 uninstall_previous: release.uninstall_previous || false,
                 disabled: !!release.disabled_at,
+                wingetId: wingetRel?.winget_id || wingetRel?.wingetId || "",
+                installScript: win32Rel?.install_script || win32Rel?.installScript || "",
+                uninstallScript: win32Rel?.uninstall_script || win32Rel?.uninstallScript || "",
+                installBinary: win32Rel ? {
+                    bucket: win32Rel.install_binary_bucket || win32Rel.installBinaryBucket,
+                    path: win32Rel.install_binary_path || win32Rel.installBinaryPath,
+                    name: (win32Rel.install_binary_path || win32Rel.installBinaryPath || "installer.zip").split("/").pop() || "installer.zip",
+                    size: win32Rel.install_binary_size || win32Rel.installBinarySize,
+                    hash: win32Rel.hash,
+                } : undefined,
                 assignments: {
                     installGroups: installGroups.filter(g => g.groupId),
                     uninstallGroups: uninstallGroups.filter(g => g.groupId),
@@ -246,6 +290,26 @@ export function EditReleaseSheet({
                     runAsSystem: requirement.run_as_system,
                     requirementScriptBinary: undefined, // Don't reset binary unless uploaded
                 } : {
+                    timeout: 60,
+                    runAsSystem: false,
+                }
+            });
+        } else {
+            form.reset({
+                type: "win32",
+                version: "",
+                uninstall_previous: false,
+                disabled: false,
+                wingetId: "",
+                installBinary: undefined,
+                installScript: "",
+                uninstallScript: "",
+                assignments: {
+                    installGroups: [],
+                    uninstallGroups: [],
+                },
+                detections: [],
+                requirements: {
                     timeout: 60,
                     runAsSystem: false,
                 },
@@ -265,72 +329,130 @@ export function EditReleaseSheet({
         },
     });
 
-    function onSubmit(values: FormValues) {
-        if (!release) return;
+    const createMutation = api.app.createRelease.useMutation({
+        onSuccess: () => {
+            toast.success("Release created successfully");
+            onOpenChange(false);
+            router.refresh();
+            utils.app.getReleases.invalidate({ appId });
+        },
+        onError: (error) => {
+            toast.error(`Error creating release: ${error.message}`);
+        },
+    });
 
-        updateMutation.mutate({
-            id: release.id,
-            data: values,
-        });
+    function onSubmit(values: FormValues) {
+        if (release) {
+            updateMutation.mutate({
+                id: release.id,
+                data: values,
+            });
+        } else {
+            createMutation.mutate({
+                appId,
+                type: values.type,
+                version: values.version,
+                uninstall_previous: values.uninstall_previous,
+                wingetId: values.wingetId,
+                installBinary: values.installBinary,
+                installScript: values.installScript,
+                uninstallScript: values.uninstallScript,
+                detections: values.detections,
+                requirements: values.requirements,
+                assignments: values.assignments,
+            });
+        }
     }
 
 
     function handleOpenChange(isOpen: boolean) {
-        if (!isOpen && release) {
-            const installGroups = release.computer_group_releases
-                ?.filter((r) => r.action === "install")
-                .map((r) => ({
-                    groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                    mode: r.assign_type as "include" | "exclude",
-                })) || [];
+        if (!isOpen) {
+            if (release) {
+                // Return to original values if editing
+                const installGroups = release.computer_group_releases
+                    ?.filter((r) => r.action === "install")
+                    .map((r) => ({
+                        groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+                        mode: r.assign_type as "include" | "exclude",
+                    })) || [];
 
-            const uninstallGroups = release.computer_group_releases
-                ?.filter((r) => r.action === "uninstall")
-                .map((r) => ({
-                    groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                    mode: r.assign_type as "include" | "exclude",
-                })) || [];
+                const uninstallGroups = release.computer_group_releases
+                    ?.filter((r) => r.action === "uninstall")
+                    .map((r) => ({
+                        groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+                        mode: r.assign_type as "include" | "exclude",
+                    })) || [];
 
-            const detections = release.detection_rules?.map((d) => {
-                const config = d.config;
-                if (d.type === "file") {
-                    return {
-                        type: "file" as const,
-                        path: config.path || "",
-                        fileType: (config.operator || "exists") as any,
-                        fileTypeValue: config.value || "",
-                    };
-                } else {
-                    return {
-                        type: "registry" as const,
-                        path: config.path || "",
-                        registryKey: config.path || "",
-                        registryType: (config.operator || "exists") as any,
-                        registryTypeValue: config.value || "",
-                    };
+                const detections = release.detection_rules?.map((d) => {
+                    const config = d.config;
+                    if (d.type === "file") {
+                        return {
+                            type: "file" as const,
+                            path: config.path || "",
+                            fileType: (config.operator || "exists") as any,
+                            fileTypeValue: config.value || "",
+                        };
+                    } else {
+                        return {
+                            type: "registry" as const,
+                            path: config.path || "",
+                            registryKey: config.path || "",
+                            registryType: (config.operator || "exists") as any,
+                            registryTypeValue: config.value || "",
+                        };
+                    }
+                }) || [];
+
+                const requirement = release.release_requirements?.[0];
+
+                form.reset({
+                    version: release.version === "latest" ? "" : release.version,
+                    uninstall_previous: release.uninstall_previous || false,
+                    disabled: !!release.disabled_at,
+                    assignments: {
+                        installGroups: installGroups.filter(g => g.groupId),
+                        uninstallGroups: uninstallGroups.filter(g => g.groupId),
+                    },
+                    detections,
+                    requirements: requirement ? {
+                        timeout: requirement.timeout_seconds,
+                        runAsSystem: requirement.run_as_system,
+                        requirementScriptBinary: undefined,
+                    } : {
+                        timeout: 60,
+                        runAsSystem: false,
+                    },
+                });
+            } else {
+                // Cleanup temp files if creating
+                const values = form.getValues();
+                if (values.installBinary?.path.startsWith("temp/")) {
+                    void deleteStoredFile({ file: values.installBinary }).catch(() => undefined);
                 }
-            }) || [];
+                if (values.requirements?.requirementScriptBinary?.path.startsWith("temp/")) {
+                    void deleteStoredFile({ file: values.requirements.requirementScriptBinary }).catch(() => undefined);
+                }
 
-            const requirement = release.release_requirements?.[0];
-
-            form.reset({
-                version: release.version === "latest" ? "" : release.version,
-                uninstall_previous: release.uninstall_previous || false,
-                disabled: !!release.disabled_at,
-                assignments: {
-                    installGroups: installGroups.filter(g => g.groupId),
-                    uninstallGroups: uninstallGroups.filter(g => g.groupId),
-                },
-                detections,
-                requirements: requirement ? {
-                    timeout: requirement.timeout_seconds,
-                    runAsSystem: requirement.run_as_system,
-                    requirementScriptBinary: undefined,
-                } : {
-                    timeout: 60,
-                    runAsSystem: false,
-                },
-            });
+                form.reset({
+                    type: "win32",
+                    version: "",
+                    uninstall_previous: false,
+                    disabled: false,
+                    wingetId: "",
+                    installBinary: undefined,
+                    installScript: "",
+                    uninstallScript: "",
+                    assignments: {
+                        installGroups: [],
+                        uninstallGroups: [],
+                    },
+                    detections: [],
+                    requirements: {
+                        timeout: 60,
+                        runAsSystem: false,
+                    },
+                });
+            }
         }
         onOpenChange(isOpen);
     }
@@ -372,31 +494,146 @@ export function EditReleaseSheet({
         setIsDetectionSheetOpen(true);
     };
 
-    if (!release) return null;
+    const isEdit = !!release;
 
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
             <SheetContent className="overflow-y-auto max-h-screen sm:max-w-[500px]">
                 <SheetHeader>
-                    <SheetTitle>Edit Release</SheetTitle>
+                    <SheetTitle>{isEdit ? "Edit Release" : "Create Release"}</SheetTitle>
                     <SheetDescription>
-                        Modify release details and assignments.
+                        {isEdit ? "Modify release details and assignments." : "Add a new release to this application."}
                     </SheetDescription>
                 </SheetHeader>
                 <Form {...form}>
                     <form
-                        id="edit-release-form"
+                        id="release-form"
                         onSubmit={form.handleSubmit(onSubmit)}
-                        className="space-y-6 px-4 pt-4"
+                        className="space-y-4 px-4 pt-4"
                     >
                         <Tabs defaultValue="details" className="w-full">
-                            <TabsList className="grid w-full grid-cols-4">
+                            <TabsList className={cn("grid w-full", watchedType === "winget" ? "grid-cols-3" : "grid-cols-4")}>
                                 <TabsTrigger value="details">Details</TabsTrigger>
                                 <TabsTrigger value="requirements">Requirements</TabsTrigger>
-                                <TabsTrigger value="detections">Detections</TabsTrigger>
+                                {watchedType !== "winget" && <TabsTrigger value="detections">Detections</TabsTrigger>}
                                 <TabsTrigger value="assignments">Assignments</TabsTrigger>
                             </TabsList>
                             <TabsContent value="details" className="space-y-4 py-4">
+                                <FormField
+                                    control={form.control}
+                                    name="type"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Release Type</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select type" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="winget">Winget</SelectItem>
+                                                    <SelectItem value="win32">Win32</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="wingetId"
+                                    render={({ field }) => (
+                                        <FormItem className={cn({ hidden: watchedType !== "winget" })}>
+                                            <FormLabel>Winget ID</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="e.g. Mozilla.Firefox" {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                The package identifier from winget repository.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="installBinary"
+                                    render={({ field }) => (
+                                        <FormItem className={cn({ hidden: watchedType !== "win32" })}>
+                                            <FormLabel>Install Binary</FormLabel>
+                                            <Dropzone
+                                                src={toDropzonePreview(field.value)}
+                                                accept={{ "application/zip": [".zip"] }}
+                                                maxFiles={1}
+                                                maxSize={1024 * 1024 * 5000}
+                                                minSize={1024}
+                                                disabled={isUploadingBinary}
+                                                onDrop={(files) => {
+                                                    const file = files.at(0);
+                                                    if (!file) return;
+                                                    setIsUploadingBinary(true);
+                                                    void (async () => {
+                                                        try {
+                                                            const uploaded = await uploadFileToTempStorage({
+                                                                file,
+                                                                category: "installers",
+                                                            });
+                                                            field.onChange(uploaded);
+                                                            toast.success("Installer uploaded");
+                                                        } catch (err) {
+                                                            toast.error("Failed to upload installer");
+                                                            console.error(err);
+                                                        } finally {
+                                                            setIsUploadingBinary(false);
+                                                        }
+                                                    })();
+                                                }}
+                                            >
+                                                <DropzoneEmptyState />
+                                                <DropzoneContent />
+                                            </Dropzone>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="installScript"
+                                    render={({ field }) => (
+                                        <FormItem className={cn({ hidden: watchedType !== "win32" })}>
+                                            <FormLabel>Install Script</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="msiexec /i app.msi /qn" {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Command to install the application.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="uninstallScript"
+                                    render={({ field }) => (
+                                        <FormItem className={cn({ hidden: watchedType !== "win32" })}>
+                                            <FormLabel>Uninstall Script</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="msiexec /x {GUID} /qn" {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Command to uninstall the application.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
                                 {!isAutoUpdate && (
                                     <FormField
                                         control={form.control}
@@ -415,7 +652,7 @@ export function EditReleaseSheet({
                                         )}
                                     />
                                 )}
-                                {!isAutoUpdate && (
+                                {!isAutoUpdate && watchedType !== "winget" && (
                                     <FormField
                                         control={form.control}
                                         name="uninstall_previous"
@@ -733,10 +970,13 @@ export function EditReleaseSheet({
                 <SheetFooter>
                     <Button
                         type="submit"
-                        form="edit-release-form"
-                        disabled={updateMutation.isPending}
+                        form="release-form"
+                        disabled={updateMutation.isPending || createMutation.isPending}
                     >
-                        {updateMutation.isPending ? "Saving..." : "Save changes"}
+                        {isEdit
+                            ? (updateMutation.isPending ? "Saving..." : "Save changes")
+                            : (createMutation.isPending ? "Creating..." : "Create Release")
+                        }
                     </Button>
                 </SheetFooter>
             </SheetContent>

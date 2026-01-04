@@ -16,7 +16,7 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 import { EditAppSheet } from "./edit-app-sheet";
-import { CreateReleaseSheet } from "./create-release-sheet";
+import { ReleaseSheet } from "./release-sheet";
 import { Pen, Plus } from "lucide-react";
 
 export default function AppDetailPage() {
@@ -210,7 +210,7 @@ export default function AppDetailPage() {
                                 </CardContent>
                             </Card>
 
-                            <CreateReleaseSheet
+                            <ReleaseSheet
                                 appId={appId}
                                 isAutoUpdate={app.auto_update}
                                 open={showCreateReleaseSheet}

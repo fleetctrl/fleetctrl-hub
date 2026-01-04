@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
-import { EditReleaseSheet } from "./edit-release-sheet";
+import { ReleaseSheet } from "./release-sheet";
 import { MoreHorizontal, Pen, Trash2 } from "lucide-react";
 import {
     DropdownMenu,
@@ -61,6 +61,17 @@ interface Release {
         bucket: string;
         byte_size: number;
         hash: string;
+    }[];
+    win32_releases?: {
+        install_script: string;
+        uninstall_script: string;
+        install_binary_bucket: string;
+        install_binary_path: string;
+        install_binary_size: number;
+        hash: string;
+    }[];
+    winget_releases?: {
+        winget_id: string;
     }[];
 }
 
@@ -224,7 +235,7 @@ export function ReleasesTable({ releases, appId, isAutoUpdate = false }: Release
                 </TableBody>
             </Table>
 
-            <EditReleaseSheet
+            <ReleaseSheet
                 appId={appId}
                 isAutoUpdate={isAutoUpdate}
                 release={selectedRelease}
