@@ -1,6 +1,6 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { createAppSchema } from "@/lib/schemas/create-app";
+import { createAppSchema, detectionItemSchema, storedFileReferenceSchema } from "@/lib/schemas/create-app";
 import { z } from "zod";
 import {
   buildReleaseAssetPath,
@@ -147,7 +147,9 @@ export const appRouter = createTRPCRouter({
             assign_type,
             action,
             computer_groups(id, display_name)
-          )
+          ),
+          detection_rules(*),
+          release_requirements(*)
         `,
         )
         .eq("app_id", input.appId)
@@ -493,6 +495,12 @@ export const appRouter = createTRPCRouter({
               mode: z.enum(["include", "exclude"]),
             })),
           }).optional(),
+          detections: z.array(detectionItemSchema).optional(),
+          requirements: z.object({
+            timeout: z.number().optional(),
+            runAsSystem: z.boolean().optional(),
+            requirementScriptBinary: storedFileReferenceSchema.optional(),
+          }).optional(),
         }),
       })
     )
@@ -574,6 +582,158 @@ export const appRouter = createTRPCRouter({
               code: "INTERNAL_SERVER_ERROR",
               message: "Unable to insert new assignments",
               cause: insertError,
+            });
+          }
+        }
+      }
+
+      // Update Detections
+      if (input.data.detections) {
+        // First delete existing detections
+        const { error: deleteDetectionsError } = await ctx.supabase
+          .from("detection_rules")
+          .delete()
+          .eq("release_id", input.id);
+
+        if (deleteDetectionsError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to clear existing detections",
+            cause: deleteDetectionsError,
+          });
+        }
+
+        const detectionsData = input.data.detections.map((detection) => {
+          if (detection.type === "file") {
+            return {
+              release_id: input.id,
+              type: "file",
+              config: {
+                version: "1",
+                operator: detection.fileType,
+                path: detection.path,
+                value: detection.fileTypeValue,
+              },
+            };
+          } else {
+            return {
+              release_id: input.id,
+              type: "registry",
+              config: {
+                version: "1",
+                operator: detection.registryType,
+                path: detection.registryKey || detection.path,
+                value: detection.registryTypeValue,
+              },
+            };
+          }
+        });
+
+        if (detectionsData.length > 0) {
+          const { error: insertDetectionsError } = await ctx.supabase
+            .from("detection_rules")
+            .insert(detectionsData);
+
+          if (insertDetectionsError) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Unable to insert new detections",
+              cause: insertDetectionsError,
+            });
+          }
+        }
+      }
+
+      // Update Requirements
+      if (input.data.requirements) {
+        const req = input.data.requirements;
+
+        // If a new binary is provided, we need to handle it
+        let storageData: any = {};
+        if (req.requirementScriptBinary) {
+          // Get appId for the path
+          const { data: releaseData } = await ctx.supabase
+            .from("releases")
+            .select("app_id")
+            .eq("id", input.id)
+            .single();
+
+          if (!releaseData) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Release not found for requirement update",
+            });
+          }
+
+          const destinationPath = buildReleaseAssetPath({
+            appId: releaseData.app_id,
+            releaseId: input.id,
+            filename: req.requirementScriptBinary.name,
+            category: "requirements",
+          });
+
+          const movedBinary = await moveStoredFileWithinBucket({
+            supabase: ctx.supabase,
+            file: req.requirementScriptBinary,
+            destinationPath,
+          });
+
+          storageData = {
+            bucket: movedBinary.bucket,
+            storage_path: movedBinary.path,
+            hash: req.requirementScriptBinary.hash,
+            byte_size: movedBinary.size,
+          };
+        }
+
+        const requirementUpdate = {
+          timeout_seconds: req.timeout ?? 60,
+          run_as_system: req.runAsSystem ?? false,
+          ...storageData,
+        };
+
+        // Check if requirement already exists
+        const { data: existingReq, error: checkError } = await ctx.supabase
+          .from("release_requirements")
+          .select("id")
+          .eq("release_id", input.id)
+          .maybeSingle();
+
+        if (checkError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Error checking for existing requirements",
+            cause: checkError,
+          });
+        }
+
+        if (existingReq) {
+          const { error: updateReqError } = await ctx.supabase
+            .from("release_requirements")
+            .update(requirementUpdate)
+            .eq("release_id", input.id);
+
+          if (updateReqError) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Unable to update requirements",
+              cause: updateReqError,
+            });
+          }
+        } else if (req.requirementScriptBinary) {
+          // Create new requirement ONLY if we have a binary
+          const { error: insertReqError } = await ctx.supabase
+            .from("release_requirements")
+            .insert({
+              release_id: input.id,
+              ...requirementUpdate,
+            });
+
+          if (insertReqError) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Unable to create requirements",
+              cause: insertReqError,
             });
           }
         }

@@ -50,6 +50,18 @@ interface Release {
             display_name: string;
         } | { id: string; display_name: string; }[] | null;
     }[];
+    detection_rules?: {
+        type: string;
+        config: any;
+    }[];
+    release_requirements?: {
+        timeout_seconds: number;
+        run_as_system: boolean;
+        storage_path: string;
+        bucket: string;
+        byte_size: number;
+        hash: string;
+    }[];
 }
 
 interface ReleasesTableProps {
