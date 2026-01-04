@@ -564,14 +564,25 @@ export const appRouter = createTRPCRouter({
         const isTypeSwitched = input.data.installer_type === "winget" && releasePreUpdate.installer_type !== "winget";
 
         if (input.data.wingetId && (isTypeSwitched || !hasWingetRecord || input.data.wingetId !== currentWinget.winget_id)) {
-          const { error: wingetError } = await ctx.supabase
-            .from("winget_releases")
-            .upsert({
-              release_id: input.id,
-              winget_id: input.data.wingetId,
-            });
+          let wingetError;
+          if (hasWingetRecord && !isTypeSwitched) {
+            const { error } = await ctx.supabase
+              .from("winget_releases")
+              .update({ winget_id: input.data.wingetId })
+              .eq("release_id", input.id);
+            wingetError = error;
+          } else {
+            const { error } = await ctx.supabase
+              .from("winget_releases")
+              .insert({
+                release_id: input.id,
+                winget_id: input.data.wingetId,
+              });
+            wingetError = error;
+          }
 
           if (wingetError) {
+            console.error("WINGET UPDATE ERROR:", wingetError);
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
               message: "Unable to update winget release details",
@@ -592,8 +603,11 @@ export const appRouter = createTRPCRouter({
         const isTypeSwitched = input.data.installer_type === "win32" && releasePreUpdate.installer_type !== "win32";
 
         const win32Update: any = {};
-        if (input.data.installScript && (!hasWin32Record || input.data.installScript !== currentWin32.install_script)) win32Update.install_script = input.data.installScript;
-        if (input.data.uninstallScript && (!hasWin32Record || input.data.uninstallScript !== currentWin32.uninstall_script)) win32Update.uninstall_script = input.data.uninstallScript;
+        if (input.data.installScript !== undefined) win32Update.install_script = input.data.installScript;
+        else if (currentWin32?.install_script) win32Update.install_script = currentWin32.install_script;
+
+        if (input.data.uninstallScript !== undefined) win32Update.uninstall_script = input.data.uninstallScript;
+        else if (currentWin32?.uninstall_script) win32Update.uninstall_script = currentWin32.uninstall_script;
 
         if (input.data.installBinary) {
           const isNewBinary = input.data.installBinary.path.startsWith("temp/");
@@ -606,6 +620,15 @@ export const appRouter = createTRPCRouter({
               filename: input.data.installBinary.name,
               category: "installers",
             });
+
+            // Delete existing file at destination if it exists to prevent "resource already exists" error
+            const { error: removeError } = await ctx.supabase.storage
+              .from(input.data.installBinary.bucket)
+              .remove([destinationPath]);
+
+            if (removeError) {
+              console.warn("Non-fatal: Could not remove existing file before move:", removeError);
+            }
 
             const movedBinary = await moveStoredFileWithinBucket({
               supabase: ctx.supabase,
@@ -626,17 +649,36 @@ export const appRouter = createTRPCRouter({
         }
 
         if (Object.keys(win32Update).length > 0 || (isTypeSwitched && !hasWin32Record)) {
-          const { error: win32Error } = await ctx.supabase
-            .from("win32_releases")
-            .upsert({
-              release_id: input.id,
-              ...win32Update,
-            });
+          let win32Error;
+
+          if (hasWin32Record && !isTypeSwitched) {
+            const { error } = await ctx.supabase
+              .from("win32_releases")
+              .update(win32Update)
+              .eq("release_id", input.id);
+            win32Error = error;
+          } else {
+            const { error } = await ctx.supabase
+              .from("win32_releases")
+              .insert({
+                release_id: input.id,
+                install_script: win32Update.install_script || "",
+                uninstall_script: win32Update.uninstall_script || "",
+                ...win32Update,
+              });
+            win32Error = error;
+          }
 
           if (win32Error) {
+            console.error("WIN32 UPDATE ERROR:", {
+              error: win32Error,
+              updateData: win32Update,
+              releaseId: input.id,
+              hasRecord: hasWin32Record
+            });
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
-              message: "Unable to update win32 release details",
+              message: `Unable to update win32 release details: ${win32Error.message}`,
               cause: win32Error,
             });
           }
@@ -787,6 +829,11 @@ export const appRouter = createTRPCRouter({
               filename: req.requirementScriptBinary.name,
               category: "requirements",
             });
+
+            // Delete existing file at destination if it exists to prevent "resource already exists" error
+            await ctx.supabase.storage
+              .from(req.requirementScriptBinary.bucket)
+              .remove([destinationPath]);
 
             const movedBinary = await moveStoredFileWithinBucket({
               supabase: ctx.supabase,

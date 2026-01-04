@@ -152,6 +152,84 @@ const toDropzonePreview = (
 };
 
 
+const mapReleaseToFormValues = (release: any) => {
+    if (!release) return null;
+
+    const installGroups = release.computer_group_releases
+        ?.filter((r: any) => r.action === "install")
+        .map((r: any) => ({
+            groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+            mode: r.assign_type as "include" | "exclude",
+        })) || [];
+
+    const uninstallGroups = release.computer_group_releases
+        ?.filter((r: any) => r.action === "uninstall")
+        .map((r: any) => ({
+            groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+            mode: r.assign_type as "include" | "exclude",
+        })) || [];
+
+    const detections = release.detection_rules?.map((d: any) => {
+        const config = d.config;
+        if (d.type === "file") {
+            return {
+                type: "file" as const,
+                path: config.path || "",
+                fileType: (config.operator || "exists") as any,
+                fileTypeValue: config.value || "",
+            };
+        } else {
+            return {
+                type: "registry" as const,
+                path: config.path || "",
+                registryKey: config.path || "",
+                registryType: (config.operator || "exists") as any,
+                registryTypeValue: config.value || "",
+            };
+        }
+    }) || [];
+
+    const requirement = release.release_requirements?.[0];
+    const win32Rel = (Array.isArray(release.win32_releases) ? release.win32_releases[0] : (release.win32_releases as any));
+    const wingetRel = (Array.isArray(release.winget_releases) ? release.winget_releases[0] : (release.winget_releases as any));
+
+    return {
+        type: release.installer_type as "win32" | "winget",
+        version: release.version === "latest" ? "" : release.version,
+        uninstall_previous: release.uninstall_previous || false,
+        disabled: !!release.disabled_at,
+        wingetId: wingetRel?.winget_id || wingetRel?.wingetId || "",
+        installScript: win32Rel?.install_script || win32Rel?.installScript || "",
+        uninstallScript: win32Rel?.uninstall_script || win32Rel?.uninstallScript || "",
+        installBinary: win32Rel?.install_binary_path ? {
+            bucket: win32Rel.install_binary_bucket || win32Rel.installBinaryBucket,
+            path: win32Rel.install_binary_path || win32Rel.installBinaryPath,
+            name: (win32Rel.install_binary_path || win32Rel.installBinaryPath || "installer.zip").split("/").pop() || "installer.zip",
+            size: win32Rel.install_binary_size || win32Rel.installBinarySize,
+            hash: win32Rel.hash,
+        } : undefined,
+        assignments: {
+            installGroups: installGroups.filter((g: any) => g.groupId),
+            uninstallGroups: uninstallGroups.filter((g: any) => g.groupId),
+        },
+        detections,
+        requirements: requirement ? {
+            timeout: requirement.timeout_seconds,
+            runAsSystem: requirement.run_as_system,
+            requirementScriptBinary: requirement.storage_path ? {
+                bucket: requirement.bucket,
+                path: requirement.storage_path,
+                name: (requirement.storage_path || "script.ps1").split("/").pop() || "script.ps1",
+                size: requirement.byte_size,
+                hash: requirement.hash,
+            } : undefined,
+        } : {
+            timeout: 60,
+            runAsSystem: false,
+        }
+    };
+};
+
 export function ReleaseSheet({
     appId,
     isAutoUpdate = false,
@@ -224,76 +302,8 @@ export function ReleaseSheet({
 
     useEffect(() => {
         if (release) {
-            const installGroups = release.computer_group_releases
-                ?.filter((r) => r.action === "install")
-                .map((r) => ({
-                    groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                    mode: r.assign_type as "include" | "exclude",
-                })) || [];
-
-            const uninstallGroups = release.computer_group_releases
-                ?.filter((r) => r.action === "uninstall")
-                .map((r) => ({
-                    groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                    mode: r.assign_type as "include" | "exclude",
-                })) || [];
-
-            const detections = release.detection_rules?.map((d) => {
-                const config = d.config;
-                if (d.type === "file") {
-                    return {
-                        type: "file" as const,
-                        path: config.path || "",
-                        fileType: (config.operator || "exists") as any,
-                        fileTypeValue: config.value || "",
-                    };
-                } else {
-                    return {
-                        type: "registry" as const,
-                        path: config.path || "", // Keep path as it might be required
-                        registryKey: config.path || "",
-                        registryType: (config.operator || "exists") as any,
-                        registryTypeValue: config.value || "",
-                    };
-                }
-            }) || [];
-
-            const requirement = release.release_requirements?.[0];
-
-            // Supabase joins can sometimes be returned as an array or a single object depending on the library and schema.
-            // Also checking for potential naming variations.
-            const win32Rel = (Array.isArray(release.win32_releases) ? release.win32_releases[0] : (release.win32_releases as any)) || (release as any).win32_release;
-            const wingetRel = (Array.isArray(release.winget_releases) ? release.winget_releases[0] : (release.winget_releases as any)) || (release as any).winget_release;
-
-            form.reset({
-                type: release.installer_type as "win32" | "winget",
-                version: release.version === "latest" ? "" : release.version,
-                uninstall_previous: release.uninstall_previous || false,
-                disabled: !!release.disabled_at,
-                wingetId: wingetRel?.winget_id || wingetRel?.wingetId || "",
-                installScript: win32Rel?.install_script || win32Rel?.installScript || "",
-                uninstallScript: win32Rel?.uninstall_script || win32Rel?.uninstallScript || "",
-                installBinary: win32Rel ? {
-                    bucket: win32Rel.install_binary_bucket || win32Rel.installBinaryBucket,
-                    path: win32Rel.install_binary_path || win32Rel.installBinaryPath,
-                    name: (win32Rel.install_binary_path || win32Rel.installBinaryPath || "installer.zip").split("/").pop() || "installer.zip",
-                    size: win32Rel.install_binary_size || win32Rel.installBinarySize,
-                    hash: win32Rel.hash,
-                } : undefined,
-                assignments: {
-                    installGroups: installGroups.filter(g => g.groupId),
-                    uninstallGroups: uninstallGroups.filter(g => g.groupId),
-                },
-                detections,
-                requirements: requirement ? {
-                    timeout: requirement.timeout_seconds,
-                    runAsSystem: requirement.run_as_system,
-                    requirementScriptBinary: undefined, // Don't reset binary unless uploaded
-                } : {
-                    timeout: 60,
-                    runAsSystem: false,
-                }
-            });
+            const values = mapReleaseToFormValues(release);
+            if (values) form.reset(values);
         } else {
             form.reset({
                 type: "win32",
@@ -369,62 +379,10 @@ export function ReleaseSheet({
         if (!isOpen) {
             if (release) {
                 // Return to original values if editing
-                const installGroups = release.computer_group_releases
-                    ?.filter((r) => r.action === "install")
-                    .map((r) => ({
-                        groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                        mode: r.assign_type as "include" | "exclude",
-                    })) || [];
-
-                const uninstallGroups = release.computer_group_releases
-                    ?.filter((r) => r.action === "uninstall")
-                    .map((r) => ({
-                        groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
-                        mode: r.assign_type as "include" | "exclude",
-                    })) || [];
-
-                const detections = release.detection_rules?.map((d) => {
-                    const config = d.config;
-                    if (d.type === "file") {
-                        return {
-                            type: "file" as const,
-                            path: config.path || "",
-                            fileType: (config.operator || "exists") as any,
-                            fileTypeValue: config.value || "",
-                        };
-                    } else {
-                        return {
-                            type: "registry" as const,
-                            path: config.path || "",
-                            registryKey: config.path || "",
-                            registryType: (config.operator || "exists") as any,
-                            registryTypeValue: config.value || "",
-                        };
-                    }
-                }) || [];
-
-                const requirement = release.release_requirements?.[0];
-
-                form.reset({
-                    version: release.version === "latest" ? "" : release.version,
-                    uninstall_previous: release.uninstall_previous || false,
-                    disabled: !!release.disabled_at,
-                    assignments: {
-                        installGroups: installGroups.filter(g => g.groupId),
-                        uninstallGroups: uninstallGroups.filter(g => g.groupId),
-                    },
-                    detections,
-                    requirements: requirement ? {
-                        timeout: requirement.timeout_seconds,
-                        runAsSystem: requirement.run_as_system,
-                        requirementScriptBinary: undefined,
-                    } : {
-                        timeout: 60,
-                        runAsSystem: false,
-                    },
-                });
+                const values = mapReleaseToFormValues(release);
+                if (values) form.reset(values);
             } else {
-                // Cleanup temp files if creating
+                // Clean up any temp files if we're creating and haven't saved
                 const values = form.getValues();
                 if (values.installBinary?.path.startsWith("temp/")) {
                     void deleteStoredFile({ file: values.installBinary }).catch(() => undefined);
