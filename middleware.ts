@@ -1,6 +1,9 @@
 import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest } from "next/server";
 
+// Use Node.js runtime instead of Edge to allow self-signed certificates
+export const runtime = "nodejs";
+
 export async function middleware(request: NextRequest) {
   return await updateSession(request);
 }
