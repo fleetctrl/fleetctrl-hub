@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import RowOptions from "./rowOptions";
 import { RustDesk } from "@/server/api/routers/rustdesk";
+import Link from "next/link";
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
@@ -45,6 +46,14 @@ export const columns: ColumnDef<RustDesk>[] = [
         </Button>
       );
     },
+    cell: ({ row }) => (
+      <Link
+        href={`/admin/rustdesk/computer/${row.original.id}`}
+        className="font-medium hover:underline"
+      >
+        {row.original.name}
+      </Link>
+    ),
   },
   {
     accessorKey: "ip",
