@@ -11,6 +11,10 @@ import Link from "next/link";
 
 export const columns: ColumnDef<RustDesk>[] = [
   {
+    accessorKey: "lastConnection",
+    header: "",
+  },
+  {
     accessorKey: "name",
     header: ({ column }) => {
       const sortState = column.getIsSorted();
@@ -46,10 +50,6 @@ export const columns: ColumnDef<RustDesk>[] = [
         {row.original.name}
       </Link>
     ),
-  },
-  {
-    accessorKey: "lastConnection",
-    header: "",
   },
   {
     accessorKey: "rustdeskID",
