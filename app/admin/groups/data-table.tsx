@@ -107,6 +107,7 @@ export function GroupsTable() {
   }, [groups]);
 
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
+  const [memberSearch, setMemberSearch] = useState("");
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
     defaultValues: {
@@ -120,6 +121,7 @@ export function GroupsTable() {
       displayName: "",
       memberIds: [],
     });
+    setMemberSearch("");
     setDialogState({ mode: "create" });
   };
 
@@ -133,11 +135,13 @@ export function GroupsTable() {
       displayName: group.displayName,
       memberIds: [...group.members.map((c) => c.id)],
     });
+    setMemberSearch("");
     setDialogState({ mode: "edit", groupId });
   };
 
   const closeDialog = () => {
     setDialogState(null);
+    setMemberSearch("");
     form.reset({
       displayName: "",
       memberIds: [],
@@ -271,6 +275,11 @@ export function GroupsTable() {
                 name="memberIds"
                 render={({ field }) => {
                   const members = field.value ?? [];
+                  const filteredComputers =
+                    computersQuery.data?.filter((c) =>
+                      c.name.toLowerCase().includes(memberSearch.toLowerCase())
+                    ) ?? [];
+
                   return (
                     <FormItem className="space-y-3">
                       <div>
@@ -280,8 +289,13 @@ export function GroupsTable() {
                           group.
                         </p>
                       </div>
-                      <div className="grid gap-2">
-                        {computersQuery.data?.map((computer) => {
+                      <Input
+                        placeholder="Search members..."
+                        value={memberSearch}
+                        onChange={(e) => setMemberSearch(e.target.value)}
+                      />
+                      <div className="grid max-h-[400px] gap-2 overflow-y-auto">
+                        {filteredComputers.map((computer) => {
                           const checkboxId = `member-${computer.id}`;
                           const isChecked = members.includes(computer.id);
                           return (
@@ -297,8 +311,8 @@ export function GroupsTable() {
                                   const next = shouldInclude
                                     ? [...members, computer.id]
                                     : members.filter(
-                                      (id) => id !== computer.id
-                                    );
+                                        (id) => id !== computer.id
+                                      );
                                   field.onChange(Array.from(new Set(next)));
                                 }}
                               />
