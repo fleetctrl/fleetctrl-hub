@@ -102,6 +102,7 @@ func main() {
 	appsSvc := apps.NewAppsService(sb)
 	mux.Handle("GET /apps/assigned", withMiddleware(withDPoP(appsSvc.GetAssignedApps)))
 	mux.Handle("GET /apps/download/{releaseID}", withMiddleware(withDPoP(appsSvc.DownloadApp)))
+	mux.Handle("GET /apps/download/{releaseID}/requirement/{requirementID}", withMiddleware(withDPoP(appsSvc.DownloadRequirement)))
 
 	// other
 	mux.Handle("GET /health", withMiddleware(health))
