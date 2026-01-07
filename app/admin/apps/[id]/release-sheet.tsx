@@ -137,7 +137,7 @@ const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
 const toDropzonePreview = (
     file?: StoredFileReference | null
 ): File[] | undefined => {
-    if (!file) {
+    if (!file || !file.path) {
         return undefined;
     }
 
@@ -146,8 +146,8 @@ const toDropzonePreview = (
             name: file.name,
             size: file.size,
             type: file.type ?? "application/octet-stream",
-            lastModified: Date.now(),
-        } as File,
+            lastModified: 0,
+        } as any as File,
     ];
 };
 
@@ -352,10 +352,18 @@ export function ReleaseSheet({
     });
 
     function onSubmit(values: FormValues) {
+        // If there's no requirement script, we treat it as no requirement
+        const submitData = {
+            ...values,
+            requirements: values.requirements?.requirementScriptBinary
+                ? values.requirements
+                : null,
+        };
+
         if (release) {
             updateMutation.mutate({
                 id: release.id,
-                data: values,
+                data: submitData,
             });
         } else {
             createMutation.mutate({
@@ -368,7 +376,7 @@ export function ReleaseSheet({
                 installScript: values.installScript,
                 uninstallScript: values.uninstallScript,
                 detections: values.detections,
-                requirements: values.requirements,
+                requirements: submitData.requirements as any,
                 assignments: values.assignments,
             });
         }
@@ -660,7 +668,24 @@ export function ReleaseSheet({
                                     name="requirements.requirementScriptBinary"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Requirement Script</FormLabel>
+                                            <div className="flex items-center justify-between">
+                                                <FormLabel>Requirement Script</FormLabel>
+                                                {field.value && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={() => {
+                                                            field.onChange(undefined);
+                                                            toast.success("Requirement script removed from form. Save changes to persist.");
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-4 w-4 mr-1" />
+                                                        Remove Script
+                                                    </Button>
+                                                )}
+                                            </div>
                                             <Dropzone
                                                 src={toDropzonePreview(field.value)}
                                                 accept={{ "text/plain": [".ps1"] }}

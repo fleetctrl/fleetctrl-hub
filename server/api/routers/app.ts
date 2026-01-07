@@ -507,7 +507,7 @@ export const appRouter = createTRPCRouter({
             timeout: z.number().optional(),
             runAsSystem: z.boolean().optional(),
             requirementScriptBinary: storedFileReferenceSchema.optional(),
-          }).optional(),
+          }).optional().nullable(),
         }),
       })
     )
@@ -802,7 +802,20 @@ export const appRouter = createTRPCRouter({
       }
 
       // Update Requirements
-      if (input.data.requirements) {
+      if (input.data.requirements === null) {
+        const { error: deleteReqError } = await ctx.supabase
+          .from("release_requirements")
+          .delete()
+          .eq("release_id", input.id);
+
+        if (deleteReqError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to delete requirements",
+            cause: deleteReqError,
+          });
+        }
+      } else if (input.data.requirements) {
         const req = input.data.requirements;
 
         // If a new binary is provided, we need to handle it
@@ -938,7 +951,7 @@ export const appRouter = createTRPCRouter({
           timeout: z.number(),
           runAsSystem: z.boolean(),
           requirementScriptBinary: storedFileReferenceSchema.optional(),
-        }).optional(),
+        }).optional().nullable(),
         assignments: z.object({
           installGroups: z.array(z.object({
             groupId: z.string(),

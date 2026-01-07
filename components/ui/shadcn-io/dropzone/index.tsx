@@ -78,7 +78,7 @@ export const Dropzone = ({
 
   return (
     <DropzoneContext.Provider
-      key={JSON.stringify(src)}
+      key={src ? src.map((f) => `${f.name}-${f.size}`).join(',') : 'empty'}
       value={{ src, accept, maxSize, minSize, maxFiles }}
     >
       <Button
@@ -138,8 +138,8 @@ export const DropzoneContent = ({
       <p className="my-2 w-full truncate font-medium text-sm">
         {src.length > maxLabelItems
           ? `${new Intl.ListFormat('en').format(
-              src.slice(0, maxLabelItems).map((file) => file.name)
-            )} and ${src.length - maxLabelItems} more`
+            src.slice(0, maxLabelItems).map((file) => file.name)
+          )} and ${src.length - maxLabelItems} more`
           : new Intl.ListFormat('en').format(src.map((file) => file.name))}
       </p>
       <p className="w-full text-wrap text-muted-foreground text-xs">
