@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   IconCamera,
   IconDashboard,
@@ -11,13 +11,14 @@ import {
   IconInnerShadowTop,
   IconKey,
   IconReport,
-  IconSettings,
+  IconWorldSearch,
   IconUsers,
-} from "@tabler/icons-react"
+  IconApps,
+} from "@tabler/icons-react";
 
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
+import { NavMain } from "@/components/nav-main";
+import { NavSecondary } from "@/components/nav-secondary";
+import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
@@ -26,8 +27,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import Link from "next/link"
+} from "@/components/ui/sidebar";
+import Link from "next/link";
 
 const data = {
   navMain: [
@@ -39,7 +40,17 @@ const data = {
     {
       title: "RustDesk",
       url: "/admin/rustdesk",
+      icon: IconWorldSearch,
+    },
+    {
+      title: "Groups",
+      url: "/admin/groups",
       icon: IconUsers,
+    },
+    {
+      title: "Apps",
+      url: "/admin/apps",
+      icon: IconApps,
     },
   ],
   navClouds: [
@@ -96,11 +107,6 @@ const data = {
       url: "/admin/keys",
       icon: IconKey,
     },
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
   ],
   documents: [
     {
@@ -119,16 +125,16 @@ const data = {
       icon: IconFileWord,
     },
   ],
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const metadata = props.user?.user_metadata
+  const metadata = props.user?.user_metadata;
   const user = {
     firstname: metadata?.firstname ?? "",
     lastname: metadata?.lastname ?? "",
     email: props.user?.email ?? "noname",
     avatar: "",
-  }
+  };
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader className="h-14 border-b">
@@ -155,5 +161,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

@@ -4,8 +4,10 @@ package-lock.json
 npm-debug.log
 pnpm-debug.log
 *.env
-api
 backups
 migration_backups
 /supabase/scripts
 /supabase/volumes
+volumes
+api/api
+api/.gocache

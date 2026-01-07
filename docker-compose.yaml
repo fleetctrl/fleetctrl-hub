@@ -8,33 +8,15 @@ services:
     restart: unless-stopped
     ports:
       - "${DOCKER_PORT:-3000}:3000"
+      - "${API_PORT:-8080}:8080"
     volumes:
       - ./migration_backups:/backups
     depends_on:
-      - api
       - db
+      - redis
     env_file:
       - ./.env
 
-  api:
-    image: ghcr.io/fleetctrl/fleetctrl-api:v0.4.2
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - API_HTTPS=${API_HTTPS}
-      - CERT_FILE_PATH=${CERT_FILE_PATH}
-      - KEY_FILE_PATH=${KEY_FILE_PATH}
-    ports:
-      - "${API_PORT:-8080}:8080"
-    depends_on:
-      - redis
 
   redis:
     image: redis:latest
@@ -46,7 +28,9 @@ services:
       interval: 1s
       timeout: 3s
       retries: 5
-    command: ["redis-server"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./volumes/redis:/data
 
   studio:
     container_name: supabase-studio
@@ -226,7 +210,7 @@ services:
   realtime:
     # This container name looks inconsistent but is correct because realtime constructs tenant id by parsing the subdomain
     container_name: realtime-dev.supabase-realtime
-    image: supabase/realtime:v2.34.47
+    image: supabase/realtime:v2.56.2
     restart: unless-stopped
     depends_on:
       db:
@@ -269,65 +253,65 @@ services:
       RUN_JANITOR: true
 
   # To use S3 backed storage: docker compose -f docker-compose.yml -f docker-compose.s3.yml up
-  # storage:
-  #   container_name: supabase-storage
-  #   image: supabase/storage-api:v1.23.0
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./volumes/storage:/var/lib/storage:z
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD",
-  #         "wget",
-  #         "--no-verbose",
-  #         "--tries=1",
-  #         "--spider",
-  #         "http://storage:5000/status",
-  #       ]
-  #     timeout: 5s
-  #     interval: 5s
-  #     retries: 3
-  #   depends_on:
-  #     db:
-  #       # Disable this if you are using an external Postgres database
-  #       condition: service_healthy
-  #     rest:
-  #       condition: service_started
-  #     imgproxy:
-  #       condition: service_started
-  #   environment:
-  #     ANON_KEY: ${ANON_KEY}
-  #     SERVICE_KEY: ${SERVICE_ROLE_KEY}
-  #     POSTGREST_URL: http://rest:3000
-  #     PGRST_JWT_SECRET: ${JWT_SECRET}
-  #     DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-  #     FILE_SIZE_LIMIT: 52428800
-  #     STORAGE_BACKEND: file
-  #     FILE_STORAGE_BACKEND_PATH: /var/lib/storage
-  #     TENANT_ID: stub
-  #     # TODO: https://github.com/supabase/storage-api/issues/55
-  #     REGION: stub
-  #     GLOBAL_S3_BUCKET: stub
-  #     ENABLE_IMAGE_TRANSFORMATION: "true"
-  #     IMGPROXY_URL: http://imgproxy:5001
+  storage:
+    container_name: supabase-storage
+    image: supabase/storage-api:v1.23.0
+    restart: unless-stopped
+    volumes:
+      - ./volumes/storage:/var/lib/storage:z
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://storage:5000/status",
+        ]
+      timeout: 5s
+      interval: 5s
+      retries: 3
+    depends_on:
+      db:
+        # Disable this if you are using an external Postgres database
+        condition: service_healthy
+      rest:
+        condition: service_started
+      imgproxy:
+        condition: service_started
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      FILE_SIZE_LIMIT: 52428800000
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      # TODO: https://github.com/supabase/storage-api/issues/55
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "true"
+      IMGPROXY_URL: http://imgproxy:5001
 
-  # imgproxy:
-  #   container_name: supabase-imgproxy
-  #   image: darthsim/imgproxy:v3.8.0
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./volumes/storage:/var/lib/storage:z
-  #   healthcheck:
-  #     test: ["CMD", "imgproxy", "health"]
-  #     timeout: 5s
-  #     interval: 5s
-  #     retries: 3
-  #   environment:
-  #     IMGPROXY_BIND: ":5001"
-  #     IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
-  #     IMGPROXY_USE_ETAG: "true"
-  #     IMGPROXY_ENABLE_WEBP_DETECTION: ${IMGPROXY_ENABLE_WEBP_DETECTION}
+  imgproxy:
+    container_name: supabase-imgproxy
+    image: darthsim/imgproxy:v3.8.0
+    restart: unless-stopped
+    volumes:
+      - ./volumes/storage:/var/lib/storage:z
+    healthcheck:
+      test: ["CMD", "imgproxy", "health"]
+      timeout: 5s
+      interval: 5s
+      retries: 3
+    environment:
+      IMGPROXY_BIND: ":5001"
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
+      IMGPROXY_USE_ETAG: "true"
+      IMGPROXY_ENABLE_WEBP_DETECTION: ${IMGPROXY_ENABLE_WEBP_DETECTION}
 
   meta:
     container_name: supabase-meta
@@ -453,12 +437,12 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXP: ${JWT_EXPIRY}
     command: [
-      "postgres",
-      "-c",
-      "config_file=/etc/postgresql/postgresql.conf",
-      "-c",
-      "log_min_messages=fatal", # prevents Realtime polling queries from appearing in logs
-        ]
+        "postgres",
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "log_min_messages=fatal", # prevents Realtime polling queries from appearing in logs
+      ]
 
 # vector:
 #   container_name: supabase-vector

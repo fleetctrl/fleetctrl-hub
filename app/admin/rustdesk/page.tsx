@@ -1,10 +1,26 @@
+import PageWrapper from "@/components/page-wrapper";
 import { RustDeskTable } from "./data-table";
-import { SiteHeader } from "@/components/site-header";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@/components/ui/breadcrumb";
 
 export default async function ProtectedPage() {
-
-  return (<>
-    <SiteHeader page="RustDesk" />
-    <div className="flex flex-col items-center"><RustDeskTable /></div>
-  </>);
+  return (
+    <PageWrapper
+      siteHeader={
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbPage>RustDesk</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      }
+    >
+      <RustDeskTable />
+    </PageWrapper>
+  );
 }

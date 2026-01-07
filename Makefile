@@ -1,4 +1,3 @@
-include .env
 # Vygeneruje migraci z aktuální databáze
 .PHONY: pull-schema
 diff-schema:
@@ -23,3 +22,10 @@ push-schema:
 	@echo "Pushuj migrace do databáze"
 	npx supabase db push --db-url ${POSTGRES_URL}
 	@echo "Migrace vygenerována úspěšně!"
+
+.PHONY: build
+build:
+	@echo "Building API server..."
+	mkdir -p api/bin
+	go build -o api/bin/server ./api/cmd/api/*.go
+	@echo "Build complete: api/bin/server"
