@@ -42,12 +42,10 @@ type DetectionRule struct {
 }
 
 type ReleaseRequirement struct {
+	ID             string `json:"id"`
 	TimeoutSeconds int64  `json:"timeout_seconds"`
 	RunAsSystem    bool   `json:"run_as_system"`
-	StoragePath    string `json:"storage_path"`
 	Hash           string `json:"hash"`
-	Bucket         string `json:"bucket"`
-	ByteSize       int64  `json:"byte_size"`
 }
 
 type AssignedRelease struct {
@@ -147,7 +145,7 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 
 	var releasesDetails []ReleaseDetail
 	err = as.sb.DB.From("releases").
-		Select("id,version,created_at,app_id,disabled_at,installer_type,uninstall_previous,apps(id,display_name,publisher,auto_update),win32_releases(*),winget_releases(*),detection_rules(type,config),release_requirements(timeout_seconds,run_as_system,storage_path,hash,bucket,byte_size)").
+		Select("id,version,created_at,app_id,disabled_at,installer_type,uninstall_previous,apps(id,display_name,publisher,auto_update),win32_releases(*),winget_releases(*),detection_rules(type,config),release_requirements(id,timeout_seconds,run_as_system,hash)").
 		In("id", releaseIDs).
 		Execute(&releasesDetails)
 
@@ -336,6 +334,103 @@ func (as AppsService) DownloadApp(w http.ResponseWriter, r *http.Request) {
 
 	resp := as.sb.Storage.From(release.Win32.InstallBinaryBucket).CreateSignedUrl(release.Win32.InstallBinaryPath, 3600) // 1 hour expiry
 	// If we got here, we assume it worked?
+	if resp.SignedUrl == "" {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to generate download URL: empty URL"))
+		return
+	}
+
+	http.Redirect(w, r, resp.SignedUrl, http.StatusTemporaryRedirect)
+}
+
+func (as AppsService) DownloadRequirement(w http.ResponseWriter, r *http.Request) {
+	computerID := r.Header.Get("X-Computer-ID")
+	if computerID == "" {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("computer ID not found"))
+		return
+	}
+
+	requirementID := r.PathValue("requirementID")
+	if requirementID == "" {
+		utils.WriteError(w, http.StatusBadRequest, errors.New("requirement ID is required"))
+		return
+	}
+
+	// 1. Verify assignment
+	// Get computer's groups
+	var groupMembers []struct {
+		GroupID string `json:"group_id"`
+	}
+	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&groupMembers)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get group members: "+err.Error()))
+		return
+	}
+
+	if len(groupMembers) == 0 {
+		utils.WriteError(w, http.StatusForbidden, errors.New("access denied"))
+		return
+	}
+
+	groupIDs := make([]string, len(groupMembers))
+	for i, gm := range groupMembers {
+		groupIDs[i] = gm.GroupID
+	}
+
+	// Check if any of the computer's groups have a release that uses this requirement
+	var groupReleases []struct {
+		ReleaseID string `json:"release_id"`
+	}
+	err = as.sb.DB.From("computer_group_releases").
+		Select("release_id").
+		In("group_id", groupIDs).
+		Execute(&groupReleases)
+
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to check assignment: "+err.Error()))
+		return
+	}
+
+	if len(groupReleases) == 0 {
+		utils.WriteError(w, http.StatusForbidden, errors.New("no releases assigned to this computer"))
+		return
+	}
+
+	assignedReleaseIDs := make([]string, len(groupReleases))
+	for i, gr := range groupReleases {
+		assignedReleaseIDs[i] = gr.ReleaseID
+	}
+
+	// 2. Verify that the requirement belongs to one of the assigned releases
+	var requirements []struct {
+		Bucket      string `json:"bucket"`
+		StoragePath string `json:"storage_path"`
+	}
+	err = as.sb.DB.From("release_requirements").
+		Select("bucket,storage_path").
+		Limit(1).
+		Eq("id", requirementID).
+		In("release_id", assignedReleaseIDs).
+		Execute(&requirements)
+
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to check requirement assignment: "+err.Error()))
+		return
+	}
+
+	if len(requirements) == 0 {
+		utils.WriteError(w, http.StatusForbidden, errors.New("requirement not found or not assigned to this computer"))
+		return
+	}
+	req := requirements[0]
+
+	// 3. Generate signed URL
+	defer func() {
+		if r := recover(); r != nil {
+			utils.WriteError(w, http.StatusInternalServerError, errors.New(fmt.Sprintf("failed to generate download URL (panic): %v", r)))
+		}
+	}()
+
+	resp := as.sb.Storage.From(req.Bucket).CreateSignedUrl(req.StoragePath, 3600) // 1 hour expiry
 	if resp.SignedUrl == "" {
 		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to generate download URL: empty URL"))
 		return
