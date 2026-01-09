@@ -48,8 +48,6 @@ const DATE_OPERATORS = [
     { value: "before", label: "before date" },
 ] as const;
 
-// Combined operators for schema validation
-const OPERATORS = [...TEXT_OPERATORS, ...DATE_OPERATORS] as const;
 
 // Get operators based on property type
 const getOperatorsForProperty = (property: string) => {
@@ -422,136 +420,19 @@ function ConditionGroup({
                 {/* Conditions */}
                 <div className="space-y-2">
                     {conditions.map((condition, conditionIndex) => (
-                        <div key={condition.id} className="flex items-center gap-2">
-                            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-
-                            {/* Property */}
-                            <Controller
-                                control={control}
-                                name={`groups.${groupIndex}.conditions.${conditionIndex}.property`}
-                                render={({ field }) => (
-                                    <Select
-                                        value={field.value}
-                                        onValueChange={(v) => {
-                                            field.onChange(v);
-                                            onChange();
-                                        }}
-                                        disabled={disabled}
-                                    >
-                                        <SelectTrigger className="min-w-[140px] w-full max-w-[160px]">
-                                            <SelectValue placeholder="Property" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {PROPERTIES.map((p) => (
-                                                <SelectItem key={p.value} value={p.value}>
-                                                    {p.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-
-                            {/* Operator - with dynamic filtering based on property */}
-                            <Controller
-                                control={control}
-                                name={`groups.${groupIndex}.conditions.${conditionIndex}.operator`}
-                                render={({ field }) => {
-                                    // Watch the property value for this condition
-                                    const propertyValue = useWatch({
-                                        control,
-                                        name: `groups.${groupIndex}.conditions.${conditionIndex}.property`,
-                                    });
-                                    const availableOperators = getOperatorsForProperty(propertyValue);
-
-                                    // Check if current value is valid, if not show first valid option
-                                    const isValidOperator = availableOperators.some(o => o.value === field.value);
-                                    const displayValue = isValidOperator ? field.value : "";
-
-                                    return (
-                                        <Select
-                                            value={displayValue}
-                                            onValueChange={(v) => {
-                                                field.onChange(v);
-                                                onChange();
-                                            }}
-                                            disabled={disabled}
-                                        >
-                                            <SelectTrigger className="min-w-[130px] w-full max-w-[150px]">
-                                                <SelectValue placeholder="Operator" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {availableOperators.map((o) => (
-                                                    <SelectItem key={o.value} value={o.value}>
-                                                        {o.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    );
-                                }}
-                            />
-
-                            {/* Value - with conditional date picker */}
-                            <Controller
-                                control={control}
-                                name={`groups.${groupIndex}.conditions.${conditionIndex}.value`}
-                                render={({ field }) => {
-                                    // Watch the operator value for this condition
-                                    const operatorValue = useWatch({
-                                        control,
-                                        name: `groups.${groupIndex}.conditions.${conditionIndex}.operator`,
-                                    });
-                                    const isDateOperator = operatorValue === "after" || operatorValue === "before";
-
-                                    if (isDateOperator) {
-                                        return (
-                                            <div className="flex-1">
-                                                <DatePicker
-                                                    value={field.value}
-                                                    onChange={(v) => {
-                                                        field.onChange(v);
-                                                        onChange();
-                                                    }}
-                                                    disabled={disabled}
-                                                    placeholder="Select date"
-                                                />
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <Input
-                                            {...field}
-                                            placeholder="Value..."
-                                            className="flex-1"
-                                            onChange={(e) => {
-                                                field.onChange(e);
-                                                onChange();
-                                            }}
-                                            disabled={disabled}
-                                        />
-                                    );
-                                }}
-                            />
-
-                            {/* Remove condition */}
-                            {conditions.length > 1 && (
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 shrink-0"
-                                    onClick={() => {
-                                        removeCondition(conditionIndex);
-                                        onChange();
-                                    }}
-                                    disabled={disabled}
-                                >
-                                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                            )}
-                        </div>
+                        <ConditionRow
+                            key={condition.id}
+                            groupIndex={groupIndex}
+                            conditionIndex={conditionIndex}
+                            control={control}
+                            disabled={disabled}
+                            onChange={onChange}
+                            onRemove={() => {
+                                removeCondition(conditionIndex);
+                                onChange();
+                            }}
+                            canRemove={conditions.length > 1}
+                        />
                     ))}
                 </div>
 
@@ -572,5 +453,155 @@ function ConditionGroup({
                 </Button>
             </CardContent>
         </Card>
+    );
+}
+
+interface ConditionRowProps {
+    groupIndex: number;
+    conditionIndex: number;
+    control: any;
+    disabled?: boolean;
+    onChange: () => void;
+    onRemove: () => void;
+    canRemove: boolean;
+}
+
+function ConditionRow({
+    groupIndex,
+    conditionIndex,
+    control,
+    disabled,
+    onChange,
+    onRemove,
+    canRemove,
+}: ConditionRowProps) {
+    // Correctly call hooks at the top level of the component
+    const propertyValue = useWatch({
+        control,
+        name: `groups.${groupIndex}.conditions.${conditionIndex}.property`,
+    });
+
+    const operatorValue = useWatch({
+        control,
+        name: `groups.${groupIndex}.conditions.${conditionIndex}.operator`,
+    });
+
+    const availableOperators = getOperatorsForProperty(propertyValue);
+    const isDateOperator = operatorValue === "after" || operatorValue === "before";
+
+    return (
+        <div className="flex items-center gap-2">
+            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+
+            {/* Property */}
+            <Controller
+                control={control}
+                name={`groups.${groupIndex}.conditions.${conditionIndex}.property`}
+                render={({ field }) => (
+                    <Select
+                        value={field.value}
+                        onValueChange={(v) => {
+                            field.onChange(v);
+                            onChange();
+                        }}
+                        disabled={disabled}
+                    >
+                        <SelectTrigger className="min-w-[140px] w-full max-w-[160px]">
+                            <SelectValue placeholder="Property" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {PROPERTIES.map((p) => (
+                                <SelectItem key={p.value} value={p.value}>
+                                    {p.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+            />
+
+            {/* Operator - with dynamic filtering based on property */}
+            <Controller
+                control={control}
+                name={`groups.${groupIndex}.conditions.${conditionIndex}.operator`}
+                render={({ field }) => {
+                    // Check if current value is valid, if not show first valid option
+                    const isValidOperator = availableOperators.some(o => o.value === field.value);
+                    const displayValue = isValidOperator ? field.value : "";
+
+                    return (
+                        <Select
+                            value={displayValue}
+                            onValueChange={(v) => {
+                                field.onChange(v);
+                                onChange();
+                            }}
+                            disabled={disabled}
+                        >
+                            <SelectTrigger className="min-w-[130px] w-full max-w-[150px]">
+                                <SelectValue placeholder="Operator" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableOperators.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    );
+                }}
+            />
+
+            {/* Value - with conditional date picker */}
+            <Controller
+                control={control}
+                name={`groups.${groupIndex}.conditions.${conditionIndex}.value`}
+                render={({ field }) => {
+                    if (isDateOperator) {
+                        return (
+                            <div className="flex-1">
+                                <DatePicker
+                                    value={field.value}
+                                    onChange={(v) => {
+                                        field.onChange(v);
+                                        onChange();
+                                    }}
+                                    disabled={disabled}
+                                    placeholder="Select date"
+                                />
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <Input
+                            {...field}
+                            placeholder="Value..."
+                            className="flex-1"
+                            onChange={(e) => {
+                                field.onChange(e);
+                                onChange();
+                            }}
+                            disabled={disabled}
+                        />
+                    );
+                }}
+            />
+
+            {/* Remove condition */}
+            {canRemove && (
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={onRemove}
+                    disabled={disabled}
+                >
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            )}
+        </div>
     );
 }

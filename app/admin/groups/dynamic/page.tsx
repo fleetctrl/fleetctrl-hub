@@ -1,10 +1,8 @@
 import {
     Breadcrumb,
     BreadcrumbItem,
-    BreadcrumbLink,
     BreadcrumbList,
     BreadcrumbPage,
-    BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { DynamicGroupsTable } from "./data-table";
 import PageWrapper from "@/components/page-wrapper";

@@ -36,13 +36,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { X, Plus, Trash2, Pencil, Upload } from "lucide-react";
+import { X, Plus, Trash2, Pencil } from "lucide-react";
 import { detectionItemSchema, storedFileReferenceSchema } from "@/lib/schemas/create-app";
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/shadcn-io/dropzone";
 import { uploadFileToTempStorage, StoredFileReference, deleteStoredFile } from "@/lib/storage/temp-storage";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const assignmentSchema = z.object({
