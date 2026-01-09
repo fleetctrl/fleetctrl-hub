@@ -81,6 +81,7 @@ const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
 
 const DEFAULT_ASSIGNMENT_VALUE: z.infer<typeof assignmentTargetSchema> = {
   groupId: "",
+  groupType: "static",
   mode: "include",
 };
 
@@ -1171,7 +1172,7 @@ function AssignmentStep() {
   const uninstallValues = form.watch("assignment.uninstallGroups");
   const isSubmitting = form.formState.isSubmitting;
 
-  const groupsQuery = api.group.getAll.useQuery()
+  const groupsQuery = api.group.getAllForAssignment.useQuery()
 
   const [sheetState, setSheetState] = useState<{
     type: "install" | "uninstall";
@@ -1201,7 +1202,7 @@ function AssignmentStep() {
       return "Unknown group";
     }
 
-    return groupsQuery.data?.find((group) => group.id === id)?.display_name ?? id;
+    return groupsQuery.data?.find((group) => group.id === id)?.displayName ?? id;
   };
 
   const handleSubmitAssignment = assignmentForm.handleSubmit(
@@ -1418,7 +1419,13 @@ function AssignmentStep() {
                       <FormItem>
                         <FormLabel>Group</FormLabel>
                         <Select
-                          onValueChange={field.onChange}
+                          onValueChange={(val) => {
+                            field.onChange(val);
+                            const selectedGroup = groupsQuery.data?.find((g) => g.id === val);
+                            if (selectedGroup) {
+                              assignmentForm.setValue("groupType", selectedGroup.type);
+                            }
+                          }}
                           value={field.value}
                         >
                           <FormControl>
@@ -1429,7 +1436,12 @@ function AssignmentStep() {
                           <SelectContent>
                             {groupsQuery.data?.map((group) => (
                               <SelectItem key={group.id} value={group.id}>
-                                {group.display_name}
+                                <span className="flex items-center gap-2">
+                                  {group.displayName}
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${group.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                    {group.type}
+                                  </span>
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>

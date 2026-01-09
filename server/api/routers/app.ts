@@ -19,6 +19,9 @@ export const appRouter = createTRPCRouter({
       releases(
         computer_group_releases(
           computer_groups(id, display_name)
+        ),
+        dynamic_group_releases(
+          dynamic_computer_groups(id, display_name)
         )
       )
     `);
@@ -40,7 +43,7 @@ export const appRouter = createTRPCRouter({
 
     const outData = (data ?? []).map((app: any) => {
       const allGroups = (app.releases ?? []).flatMap((release: any) => {
-        return toArray(release.computer_group_releases).map((cgr: any) => {
+        const staticGroups = toArray(release.computer_group_releases).map((cgr: any) => {
           const compObj = Array.isArray(cgr?.computer_groups)
             ? cgr.computer_groups[0]
             : cgr?.computer_groups;
@@ -53,6 +56,22 @@ export const appRouter = createTRPCRouter({
 
           return { id, name };
         });
+
+        const dynamicGroups = toArray(release.dynamic_group_releases).map((dgr: any) => {
+          const compObj = Array.isArray(dgr?.dynamic_computer_groups)
+            ? dgr.dynamic_computer_groups[0]
+            : dgr?.dynamic_computer_groups;
+
+          if (!compObj || typeof compObj !== "object") return null;
+
+          const id = String((compObj as any)?.id ?? "");
+          const name = String((compObj as any)?.display_name ?? "");
+          if (!id) return null;
+
+          return { id, name };
+        });
+
+        return [...staticGroups, ...dynamicGroups];
       }).filter(Boolean) as { id: string; name: string }[];
 
       // Deduplicate groups by ID
@@ -147,6 +166,11 @@ export const appRouter = createTRPCRouter({
             assign_type,
             action,
             computer_groups(id, display_name)
+          ),
+          dynamic_group_releases(
+            assign_type,
+            action,
+            dynamic_computer_groups(id, display_name)
           ),
           detection_rules(*),
           release_requirements(*),
@@ -431,8 +455,9 @@ export const appRouter = createTRPCRouter({
             assign_type: group.mode,
             action: "install",
           };
+          const tableName = group.groupType === "dynamic" ? "dynamic_group_releases" : "computer_group_releases";
           await sql`
-            insert into computer_group_releases ${sql(insertAssignment)}
+            insert into ${sql(tableName)} ${sql(insertAssignment)}
           `;
         }
 
@@ -444,8 +469,9 @@ export const appRouter = createTRPCRouter({
             assign_type: group.mode,
             action: "uninstall",
           };
+          const tableName = group.groupType === "dynamic" ? "dynamic_group_releases" : "computer_group_releases";
           await sql`
-            insert into computer_group_releases ${sql(insertAssignment)}
+            insert into ${sql(tableName)} ${sql(insertAssignment)}
           `;
         }
       }
@@ -495,10 +521,12 @@ export const appRouter = createTRPCRouter({
           assignments: z.object({
             installGroups: z.array(z.object({
               groupId: z.string(),
+              groupType: z.enum(["static", "dynamic"]),
               mode: z.enum(["include", "exclude"]),
             })),
             uninstallGroups: z.array(z.object({
               groupId: z.string(),
+              groupType: z.enum(["static", "dynamic"]),
               mode: z.enum(["include", "exclude"]),
             })),
           }).optional(),
@@ -692,53 +720,91 @@ export const appRouter = createTRPCRouter({
 
       // Update Assignments
       if (input.data.assignments) {
-        // First delete existing assignments
-        const { error: deleteError } = await ctx.supabase
+        // First delete existing assignments from both tables
+        const { error: deleteStaticError } = await ctx.supabase
           .from("computer_group_releases")
           .delete()
           .eq("release_id", input.id);
 
-        if (deleteError) {
+        if (deleteStaticError) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: "Unable to clear existing assignments",
-            cause: deleteError,
+            message: "Unable to clear existing static assignments",
+            cause: deleteStaticError,
+          });
+        }
+
+        const { error: deleteDynamicError } = await ctx.supabase
+          .from("dynamic_group_releases")
+          .delete()
+          .eq("release_id", input.id);
+
+        if (deleteDynamicError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Unable to clear existing dynamic assignments",
+            cause: deleteDynamicError,
           });
         }
 
         const assignments = input.data.assignments;
-        const insertData = [];
+        const staticInsertData = [];
+        const dynamicInsertData = [];
 
         // Install Groups
         for (const group of assignments.installGroups) {
-          insertData.push({
+          const assignmentRow = {
             release_id: input.id,
             group_id: group.groupId,
             assign_type: group.mode,
-            action: "install",
-          });
+            action: "install" as const,
+          };
+          if (group.groupType === "dynamic") {
+            dynamicInsertData.push(assignmentRow);
+          } else {
+            staticInsertData.push(assignmentRow);
+          }
         }
 
         // Uninstall Groups
         for (const group of assignments.uninstallGroups) {
-          insertData.push({
+          const assignmentRow = {
             release_id: input.id,
             group_id: group.groupId,
             assign_type: group.mode,
-            action: "uninstall",
-          });
+            action: "uninstall" as const,
+          };
+          if (group.groupType === "dynamic") {
+            dynamicInsertData.push(assignmentRow);
+          } else {
+            staticInsertData.push(assignmentRow);
+          }
         }
 
-        if (insertData.length > 0) {
-          const { error: insertError } = await ctx.supabase
+        if (staticInsertData.length > 0) {
+          const { error: insertStaticError } = await ctx.supabase
             .from("computer_group_releases")
-            .insert(insertData);
+            .insert(staticInsertData);
 
-          if (insertError) {
+          if (insertStaticError) {
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
-              message: "Unable to insert new assignments",
-              cause: insertError,
+              message: "Unable to insert static assignments",
+              cause: insertStaticError,
+            });
+          }
+        }
+
+        if (dynamicInsertData.length > 0) {
+          const { error: insertDynamicError } = await ctx.supabase
+            .from("dynamic_group_releases")
+            .insert(dynamicInsertData);
+
+          if (insertDynamicError) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Unable to insert dynamic assignments",
+              cause: insertDynamicError,
             });
           }
         }

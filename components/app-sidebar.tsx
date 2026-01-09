@@ -44,7 +44,7 @@ const data = {
     },
     {
       title: "Groups",
-      url: "/admin/groups",
+      url: "/admin/groups/static",
       icon: IconUsers,
     },
     {

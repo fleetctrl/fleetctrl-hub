@@ -1,3 +1,5 @@
+POSTGRES_URL := $(shell cat .env | grep POSTGRES_URL | cut -d'=' -f2)
+
 # Vygeneruje migraci z aktuální databáze
 .PHONY: pull-schema
 diff-schema:

@@ -1,5 +1,6 @@
 import { accountRouter } from "./routers/account";
 import { computerRouter } from "./routers/computer";
+import { dynamicGroupRouter } from "./routers/dynamicGroup";
 import { groupRouter } from "./routers/group";
 import { keyRouter } from "./routers/key";
 import { rustdeskRouter } from "./routers/rustdesk";
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   rustdesk: rustdeskRouter,
   account: accountRouter,
   group: groupRouter,
+  dynamicGroup: dynamicGroupRouter,
   computer: computerRouter,
   app: appRouteRouter,
 });
