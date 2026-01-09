@@ -36,17 +36,18 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { X, Plus, Trash2, Pencil, Upload } from "lucide-react";
+import { X, Plus, Trash2, Pencil } from "lucide-react";
 import { detectionItemSchema, storedFileReferenceSchema } from "@/lib/schemas/create-app";
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/shadcn-io/dropzone";
 import { uploadFileToTempStorage, StoredFileReference, deleteStoredFile } from "@/lib/storage/temp-storage";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const assignmentSchema = z.object({
     groupId: z.string(),
+    groupType: z.enum(["static", "dynamic"]),
     mode: z.enum(["include", "exclude"]),
 });
 
@@ -155,19 +156,41 @@ const toDropzonePreview = (
 const mapReleaseToFormValues = (release: any) => {
     if (!release) return null;
 
-    const installGroups = release.computer_group_releases
+    const staticInstall = release.computer_group_releases
         ?.filter((r: any) => r.action === "install")
         .map((r: any) => ({
             groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+            groupType: "static" as const,
             mode: r.assign_type as "include" | "exclude",
         })) || [];
 
-    const uninstallGroups = release.computer_group_releases
+    const dynamicInstall = release.dynamic_group_releases
+        ?.filter((r: any) => r.action === "install")
+        .map((r: any) => ({
+            groupId: Array.isArray(r.dynamic_computer_groups) ? r.dynamic_computer_groups[0]?.id : r.dynamic_computer_groups?.id || "",
+            groupType: "dynamic" as const,
+            mode: r.assign_type as "include" | "exclude",
+        })) || [];
+
+    const installGroups = [...staticInstall, ...dynamicInstall];
+
+    const staticUninstall = release.computer_group_releases
         ?.filter((r: any) => r.action === "uninstall")
         .map((r: any) => ({
             groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+            groupType: "static" as const,
             mode: r.assign_type as "include" | "exclude",
         })) || [];
+
+    const dynamicUninstall = release.dynamic_group_releases
+        ?.filter((r: any) => r.action === "uninstall")
+        .map((r: any) => ({
+            groupId: Array.isArray(r.dynamic_computer_groups) ? r.dynamic_computer_groups[0]?.id : r.dynamic_computer_groups?.id || "",
+            groupType: "dynamic" as const,
+            mode: r.assign_type as "include" | "exclude",
+        })) || [];
+
+    const uninstallGroups = [...staticUninstall, ...dynamicUninstall];
 
     const detections = release.detection_rules?.map((d: any) => {
         const config = d.config;
@@ -239,7 +262,7 @@ export function ReleaseSheet({
 }: ReleaseSheetProps) {
     const router = useRouter();
     const utils = api.useUtils();
-    const { data: groups } = api.group.getAll.useQuery();
+    const { data: groups } = api.group.getAllForAssignment.useQuery();
 
     const formSchema = createFormSchema(isAutoUpdate);
     const form = useForm<FormValues>({
@@ -818,7 +841,7 @@ export function ReleaseSheet({
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => appendInstall({ groupId: "", mode: "include" })}
+                                            onClick={() => appendInstall({ groupId: "", groupType: "static", mode: "include" })}
                                         >
                                             <Plus className="h-4 w-4 mr-1" /> Add
                                         </Button>
@@ -832,7 +855,16 @@ export function ReleaseSheet({
                                                     name={`assignments.installGroups.${index}.groupId`}
                                                     render={({ field }) => (
                                                         <FormItem className="flex-1">
-                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                            <Select
+                                                                onValueChange={(val) => {
+                                                                    field.onChange(val);
+                                                                    const g = groups?.find((x) => x.id === val);
+                                                                    if (g) {
+                                                                        form.setValue(`assignments.installGroups.${index}.groupType`, g.type);
+                                                                    }
+                                                                }}
+                                                                value={field.value}
+                                                            >
                                                                 <FormControl>
                                                                     <SelectTrigger>
                                                                         <SelectValue placeholder="Select group" />
@@ -840,7 +872,14 @@ export function ReleaseSheet({
                                                                 </FormControl>
                                                                 <SelectContent>
                                                                     {groups?.map((g) => (
-                                                                        <SelectItem key={g.id} value={g.id}>{g.display_name}</SelectItem>
+                                                                        <SelectItem key={g.id} value={g.id}>
+                                                                            <span className="flex items-center gap-2">
+                                                                                {g.displayName}
+                                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${g.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                                                    {g.type}
+                                                                                </span>
+                                                                            </span>
+                                                                        </SelectItem>
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
@@ -886,7 +925,7 @@ export function ReleaseSheet({
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => appendUninstall({ groupId: "", mode: "include" })}
+                                            onClick={() => appendUninstall({ groupId: "", groupType: "static", mode: "include" })}
                                         >
                                             <Plus className="h-4 w-4 mr-1" /> Add
                                         </Button>
@@ -900,7 +939,16 @@ export function ReleaseSheet({
                                                     name={`assignments.uninstallGroups.${index}.groupId`}
                                                     render={({ field }) => (
                                                         <FormItem className="flex-1">
-                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                            <Select
+                                                                onValueChange={(val) => {
+                                                                    field.onChange(val);
+                                                                    const g = groups?.find((x) => x.id === val);
+                                                                    if (g) {
+                                                                        form.setValue(`assignments.uninstallGroups.${index}.groupType`, g.type);
+                                                                    }
+                                                                }}
+                                                                value={field.value}
+                                                            >
                                                                 <FormControl>
                                                                     <SelectTrigger>
                                                                         <SelectValue placeholder="Select group" />
@@ -908,7 +956,14 @@ export function ReleaseSheet({
                                                                 </FormControl>
                                                                 <SelectContent>
                                                                     {groups?.map((g) => (
-                                                                        <SelectItem key={g.id} value={g.id}>{g.display_name}</SelectItem>
+                                                                        <SelectItem key={g.id} value={g.id}>
+                                                                            <span className="flex items-center gap-2">
+                                                                                {g.displayName}
+                                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${g.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                                                    {g.type}
+                                                                                </span>
+                                                                            </span>
+                                                                        </SelectItem>
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>

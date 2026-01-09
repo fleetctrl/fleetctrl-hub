@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -21,8 +21,6 @@ import {
 import { columns, type AppRow, type AppsTableMeta } from "./columns";
 import { api } from "@/trpc/react";
 import Link from "next/link";
-
-type DialogState = null;
 
 const formatDateTime = (isoDate: string) =>
   new Date(isoDate).toLocaleString("cs-CZ", {

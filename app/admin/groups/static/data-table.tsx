@@ -208,6 +208,22 @@ export function GroupsTable() {
 
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
+      {/* Tab navigation */}
+      <div className="flex gap-1 border-b">
+        <a
+          href="/admin/groups/static"
+          className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
+        >
+          Static Groups
+        </a>
+        <a
+          href="/admin/groups/dynamic"
+          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          Dynamic Groups
+        </a>
+      </div>
+
       <Dialog
         open={isDialogOpen}
         onOpenChange={(open) => !open && closeDialog()}
@@ -311,8 +327,8 @@ export function GroupsTable() {
                                   const next = shouldInclude
                                     ? [...members, computer.id]
                                     : members.filter(
-                                        (id) => id !== computer.id
-                                      );
+                                      (id) => id !== computer.id
+                                    );
                                   field.onChange(Array.from(new Set(next)));
                                 }}
                               />

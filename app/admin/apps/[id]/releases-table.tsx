@@ -50,6 +50,14 @@ interface Release {
             display_name: string;
         } | { id: string; display_name: string; }[] | null;
     }[];
+    dynamic_group_releases?: {
+        assign_type: string;
+        action: string;
+        dynamic_computer_groups: {
+            id: string;
+            display_name: string;
+        } | { id: string; display_name: string; }[] | null;
+    }[];
     detection_rules?: {
         type: string;
         config: any;
@@ -88,14 +96,12 @@ const formatDateTime = (isoDate: string) =>
     });
 
 function AssignmentsBadges({ release }: { release: Release }) {
-    const groups = release.computer_group_releases || [];
+    const staticGroups = release.computer_group_releases || [];
+    const dynamicGroups = release.dynamic_group_releases || [];
 
-    if (groups.length === 0) {
+    if (staticGroups.length === 0 && dynamicGroups.length === 0) {
         return <span className="text-sm text-muted-foreground">No groups</span>;
     }
-
-    const visibleGroups = groups.slice(0, 2);
-    const remainingCount = groups.length - visibleGroups.length;
 
     const getGroupName = (cg: { id: string; display_name: string; } | { id: string; display_name: string; }[] | null | undefined) => {
         if (!cg) return "Unknown";
@@ -105,6 +111,20 @@ function AssignmentsBadges({ release }: { release: Release }) {
         return cg.display_name || "Unknown";
     };
 
+    const allGroupItems = [
+        ...staticGroups.map(g => ({ name: getGroupName(g.computer_groups), id: indexForID(g.computer_groups) })),
+        ...dynamicGroups.map(g => ({ name: getGroupName(g.dynamic_computer_groups), id: indexForID(g.dynamic_computer_groups) }))
+    ];
+
+    function indexForID(cg: any) {
+        if (!cg) return Math.random().toString();
+        if (Array.isArray(cg)) return cg[0]?.id || Math.random().toString();
+        return cg.id || Math.random().toString();
+    }
+
+    const visibleGroups = allGroupItems.slice(0, 2);
+    const remainingCount = allGroupItems.length - visibleGroups.length;
+
     return (
         <div className="flex flex-wrap items-center gap-1">
             {visibleGroups.map((g, index) => (
@@ -113,7 +133,7 @@ function AssignmentsBadges({ release }: { release: Release }) {
                     variant="outline"
                     className="max-w-[8rem] truncate text-xs"
                 >
-                    {getGroupName(g.computer_groups)}
+                    {g.name}
                 </Badge>
             ))}
             {remainingCount > 0 && (

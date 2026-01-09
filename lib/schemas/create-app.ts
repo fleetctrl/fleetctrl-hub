@@ -11,6 +11,7 @@ export const storedFileReferenceSchema = z.object({
 
 export const assignmentTargetSchema = z.object({
   groupId: z.string().min(1, { message: "Group is required" }),
+  groupType: z.enum(["static", "dynamic"]),
   mode: z.enum(["include", "exclude"], {
     message: "Select include or exclude",
   }),

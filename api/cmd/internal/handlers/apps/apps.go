@@ -76,24 +76,53 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Get group IDs
-	var groupMembers []struct {
+	// 1. Get static group IDs
+	var staticGroupMembers []struct {
 		GroupID string `json:"group_id"`
 	}
-	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&groupMembers)
+	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&staticGroupMembers)
 	if err != nil {
-		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get group members: "+err.Error()))
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get static group members: "+err.Error()))
 		return
 	}
 
-	if len(groupMembers) == 0 {
+	// 2. Get dynamic group IDs
+	var dynamicGroupMembers []struct {
+		GroupID string `json:"group_id"`
+	}
+	err = as.sb.DB.From("dynamic_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&dynamicGroupMembers)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get dynamic group members: "+err.Error()))
+		return
+	}
+
+	// Combine and deduplicate group IDs
+	groupIDSet := make(map[string]bool)
+	for _, gm := range staticGroupMembers {
+		groupIDSet[gm.GroupID] = true
+	}
+	for _, gm := range dynamicGroupMembers {
+		groupIDSet[gm.GroupID] = true
+	}
+
+	if len(groupIDSet) == 0 {
 		utils.WriteJSON(w, http.StatusOK, map[string][]AssignedApp{"assignedApps": {}})
 		return
 	}
 
-	groupIDs := make([]string, len(groupMembers))
-	for i, gm := range groupMembers {
-		groupIDs[i] = gm.GroupID
+	staticGroupIDs := make([]string, 0, len(staticGroupMembers))
+	for _, gm := range staticGroupMembers {
+		staticGroupIDs = append(staticGroupIDs, gm.GroupID)
+	}
+
+	dynamicGroupIDs := make([]string, 0, len(dynamicGroupMembers))
+	for _, gm := range dynamicGroupMembers {
+		dynamicGroupIDs = append(dynamicGroupIDs, gm.GroupID)
+	}
+
+	if len(staticGroupIDs) == 0 && len(dynamicGroupIDs) == 0 {
+		utils.WriteJSON(w, http.StatusOK, map[string][]AssignedApp{"assignedApps": {}})
+		return
 	}
 
 	// 2. Get releases for these groups
@@ -102,14 +131,41 @@ func (as AppsService) GetAssignedApps(w http.ResponseWriter, r *http.Request) {
 		AssignType string `json:"assign_type"`
 		Action     string `json:"action"`
 	}
-	err = as.sb.DB.From("computer_group_releases").
-		Select("release_id,assign_type,action").
-		In("group_id", groupIDs).
-		Execute(&groupReleases)
 
-	if err != nil {
-		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get group releases: "+err.Error()))
-		return
+	if len(staticGroupIDs) > 0 {
+		var staticReleases []struct {
+			ReleaseID  string `json:"release_id"`
+			AssignType string `json:"assign_type"`
+			Action     string `json:"action"`
+		}
+		err = as.sb.DB.From("computer_group_releases").
+			Select("release_id,assign_type,action").
+			In("group_id", staticGroupIDs).
+			Execute(&staticReleases)
+
+		if err != nil {
+			utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get static group releases: "+err.Error()))
+			return
+		}
+		groupReleases = append(groupReleases, staticReleases...)
+	}
+
+	if len(dynamicGroupIDs) > 0 {
+		var dynamicReleases []struct {
+			ReleaseID  string `json:"release_id"`
+			AssignType string `json:"assign_type"`
+			Action     string `json:"action"`
+		}
+		err = as.sb.DB.From("dynamic_group_releases").
+			Select("release_id,assign_type,action").
+			In("group_id", dynamicGroupIDs).
+			Execute(&dynamicReleases)
+
+		if err != nil {
+			utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get dynamic group releases: "+err.Error()))
+			return
+		}
+		groupReleases = append(groupReleases, dynamicReleases...)
 	}
 
 	if len(groupReleases) == 0 {
@@ -252,43 +308,86 @@ func (as AppsService) DownloadApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Verify assignment
-	// Get computer's groups
-	var groupMembers []struct {
+	// Get computer's static groups
+	var staticGroupMembers []struct {
 		GroupID string `json:"group_id"`
 	}
-	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&groupMembers)
+	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&staticGroupMembers)
 	if err != nil {
-		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get group members: "+err.Error()))
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get static group members: "+err.Error()))
 		return
 	}
 
-	if len(groupMembers) == 0 {
+	// Get computer's dynamic groups
+	var dynamicGroupMembers []struct {
+		GroupID string `json:"group_id"`
+	}
+	err = as.sb.DB.From("dynamic_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&dynamicGroupMembers)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get dynamic group members: "+err.Error()))
+		return
+	}
+
+	// Combine and deduplicate group IDs
+	groupIDSet := make(map[string]bool)
+	for _, gm := range staticGroupMembers {
+		groupIDSet[gm.GroupID] = true
+	}
+	for _, gm := range dynamicGroupMembers {
+		groupIDSet[gm.GroupID] = true
+	}
+
+	if len(groupIDSet) == 0 {
 		utils.WriteError(w, http.StatusForbidden, errors.New("access denied"))
 		return
 	}
 
-	groupIDs := make([]string, len(groupMembers))
-	for i, gm := range groupMembers {
-		groupIDs[i] = gm.GroupID
+	staticGroupIDs := make([]string, 0, len(staticGroupMembers))
+	for _, gm := range staticGroupMembers {
+		staticGroupIDs = append(staticGroupIDs, gm.GroupID)
 	}
 
-	// Check if any of the computer's groups have this release assigned
-	var groupReleases []struct {
-		ReleaseID string `json:"release_id"`
-	}
-	err = as.sb.DB.From("computer_group_releases").
-		Select("release_id").
-		In("group_id", groupIDs).
-		Eq("release_id", releaseID).
-		Execute(&groupReleases)
-
-	if err != nil {
-		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to check assignment: "+err.Error()))
-		return
+	dynamicGroupIDs := make([]string, 0, len(dynamicGroupMembers))
+	for _, gm := range dynamicGroupMembers {
+		dynamicGroupIDs = append(dynamicGroupIDs, gm.GroupID)
 	}
 
-	if len(groupReleases) == 0 {
-		utils.WriteError(w, http.StatusForbidden, errors.New("release not assigned to this computer"))
+	hasAssignment := false
+
+	// Check static group assignments
+	if len(staticGroupIDs) > 0 {
+		var groupReleases []struct {
+			ReleaseID string `json:"release_id"`
+		}
+		err = as.sb.DB.From("computer_group_releases").
+			Select("release_id").
+			In("group_id", staticGroupIDs).
+			Eq("release_id", releaseID).
+			Execute(&groupReleases)
+
+		if err == nil && len(groupReleases) > 0 {
+			hasAssignment = true
+		}
+	}
+
+	// Check dynamic group assignments if not found in static
+	if !hasAssignment && len(dynamicGroupIDs) > 0 {
+		var groupReleases []struct {
+			ReleaseID string `json:"release_id"`
+		}
+		err = as.sb.DB.From("dynamic_group_releases").
+			Select("release_id").
+			In("group_id", dynamicGroupIDs).
+			Eq("release_id", releaseID).
+			Execute(&groupReleases)
+
+		if err == nil && len(groupReleases) > 0 {
+			hasAssignment = true
+		}
+	}
+
+	if !hasAssignment {
+		utils.WriteError(w, http.StatusForbidden, errors.New("access denied"))
 		return
 	}
 
@@ -356,48 +455,92 @@ func (as AppsService) DownloadRequirement(w http.ResponseWriter, r *http.Request
 	}
 
 	// 1. Verify assignment
-	// Get computer's groups
-	var groupMembers []struct {
+	// Get computer's static groups
+	var staticGroupMembers []struct {
 		GroupID string `json:"group_id"`
 	}
-	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&groupMembers)
+	err := as.sb.DB.From("computer_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&staticGroupMembers)
 	if err != nil {
-		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get group members: "+err.Error()))
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get static group members: "+err.Error()))
 		return
 	}
 
-	if len(groupMembers) == 0 {
+	// Get computer's dynamic groups
+	var dynamicGroupMembers []struct {
+		GroupID string `json:"group_id"`
+	}
+	err = as.sb.DB.From("dynamic_group_members").Select("group_id").Eq("computer_id", computerID).Execute(&dynamicGroupMembers)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get dynamic group members: "+err.Error()))
+		return
+	}
+
+	// Combine and deduplicate group IDs
+	groupIDSet := make(map[string]bool)
+	for _, gm := range staticGroupMembers {
+		groupIDSet[gm.GroupID] = true
+	}
+	for _, gm := range dynamicGroupMembers {
+		groupIDSet[gm.GroupID] = true
+	}
+
+	if len(groupIDSet) == 0 {
 		utils.WriteError(w, http.StatusForbidden, errors.New("access denied"))
 		return
 	}
 
-	groupIDs := make([]string, len(groupMembers))
-	for i, gm := range groupMembers {
-		groupIDs[i] = gm.GroupID
+	staticGroupIDs := make([]string, 0, len(staticGroupMembers))
+	for _, gm := range staticGroupMembers {
+		staticGroupIDs = append(staticGroupIDs, gm.GroupID)
 	}
 
-	// Check if any of the computer's groups have a release that uses this requirement
-	var groupReleases []struct {
-		ReleaseID string `json:"release_id"`
+	dynamicGroupIDs := make([]string, 0, len(dynamicGroupMembers))
+	for _, gm := range dynamicGroupMembers {
+		dynamicGroupIDs = append(dynamicGroupIDs, gm.GroupID)
 	}
-	err = as.sb.DB.From("computer_group_releases").
-		Select("release_id").
-		In("group_id", groupIDs).
-		Execute(&groupReleases)
 
-	if err != nil {
-		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to check assignment: "+err.Error()))
+	// 2. Get releases for these groups
+	var assignedReleaseIDs []string
+
+	if len(staticGroupIDs) > 0 {
+		var staticReleases []struct {
+			ReleaseID string `json:"release_id"`
+		}
+		err = as.sb.DB.From("computer_group_releases").
+			Select("release_id").
+			In("group_id", staticGroupIDs).
+			Execute(&staticReleases)
+
+		if err != nil {
+			utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get static group releases: "+err.Error()))
+			return
+		}
+		for _, r := range staticReleases {
+			assignedReleaseIDs = append(assignedReleaseIDs, r.ReleaseID)
+		}
+	}
+
+	if len(dynamicGroupIDs) > 0 {
+		var dynamicReleases []struct {
+			ReleaseID string `json:"release_id"`
+		}
+		err = as.sb.DB.From("dynamic_group_releases").
+			Select("release_id").
+			In("group_id", dynamicGroupIDs).
+			Execute(&dynamicReleases)
+
+		if err != nil {
+			utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get dynamic group releases: "+err.Error()))
+			return
+		}
+		for _, r := range dynamicReleases {
+			assignedReleaseIDs = append(assignedReleaseIDs, r.ReleaseID)
+		}
+	}
+
+	if len(assignedReleaseIDs) == 0 {
+		utils.WriteError(w, http.StatusForbidden, errors.New("access denied"))
 		return
-	}
-
-	if len(groupReleases) == 0 {
-		utils.WriteError(w, http.StatusForbidden, errors.New("no releases assigned to this computer"))
-		return
-	}
-
-	assignedReleaseIDs := make([]string, len(groupReleases))
-	for i, gr := range groupReleases {
-		assignedReleaseIDs[i] = gr.ReleaseID
 	}
 
 	// 2. Verify that the requirement belongs to one of the assigned releases

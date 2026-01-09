@@ -96,6 +96,55 @@ export const groupRouter = createTRPCRouter({
 
     return data
   }),
+  // Get all groups (static + dynamic) for assignment selection
+  getAllForAssignment: protectedProcedure.query(async ({ ctx }) => {
+    // Get static groups
+    const { data: staticGroups, error: staticError } = await ctx.supabase
+      .from("computer_groups")
+      .select("id, display_name")
+      .order("display_name");
+
+    if (staticError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Unable to get static groups",
+        cause: staticError.message,
+      });
+    }
+
+    // Get dynamic groups
+    const { data: dynamicGroups, error: dynamicError } = await ctx.supabase
+      .from("dynamic_computer_groups")
+      .select("id, display_name")
+      .order("display_name");
+
+    if (dynamicError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Unable to get dynamic groups",
+        cause: dynamicError.message,
+      });
+    }
+
+    // Combine with type indicator
+    const result = [
+      ...(staticGroups ?? []).map((g: any) => ({
+        id: g.id,
+        displayName: g.display_name,
+        type: "static" as const,
+      })),
+      ...(dynamicGroups ?? []).map((g: any) => ({
+        id: g.id,
+        displayName: g.display_name,
+        type: "dynamic" as const,
+      })),
+    ];
+
+    // Sort by displayName
+    result.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    return result;
+  }),
   getTableData: protectedProcedure.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase.from("computer_groups").select(`
       id,
