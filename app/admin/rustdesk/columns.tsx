@@ -56,10 +56,6 @@ export const columns: ColumnDef<RustDesk>[] = [
     header: "RustDesk ID",
   },
   {
-    accessorKey: "ip",
-    header: "IP",
-  },
-  {
     accessorKey: "os",
     header: ({ column }) => {
       const sortState = column.getIsSorted();
@@ -89,33 +85,9 @@ export const columns: ColumnDef<RustDesk>[] = [
     },
   },
   {
-    accessorKey: "osVersion",
-    header: ({ column }) => {
-      const sortState = column.getIsSorted();
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (sortState === "asc") {
-              column.toggleSorting(true);
-            } else if (sortState === "desc") {
-              column.clearSorting();
-            } else {
-              column.toggleSorting(false);
-            }
-          }}
-        >
-          OS Version
-          {sortState === "asc" ? (
-            <ArrowUp className="ml-2 h-4 w-4" />
-          ) : sortState === "desc" ? (
-            <ArrowDown className="ml-2 h-4 w-4" />
-          ) : (
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          )}
-        </Button>
-      );
-    },
+    accessorKey: "clientVersion",
+    header: "Client",
+    cell: ({ row }) => row.original.clientVersion || "—",
   },
   {
     accessorKey: "loginUser",

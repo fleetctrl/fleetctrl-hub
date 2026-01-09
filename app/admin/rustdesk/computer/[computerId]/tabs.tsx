@@ -116,6 +116,10 @@ export default function Tabs({ computer }: Props) {
                 name="Windows version"
                 value={computer.osVersion ?? ""}
               />
+              <TableRow
+                name="Client version"
+                value={computer.clientVersion ?? "—"}
+              />
             </tbody>
           </table>
           <hr className="w-full" />

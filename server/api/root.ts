@@ -1,4 +1,5 @@
 import { accountRouter } from "./routers/account";
+import { clientRouter } from "./routers/client";
 import { computerRouter } from "./routers/computer";
 import { dynamicGroupRouter } from "./routers/dynamicGroup";
 import { groupRouter } from "./routers/group";
@@ -20,6 +21,7 @@ export const appRouter = createTRPCRouter({
   dynamicGroup: dynamicGroupRouter,
   computer: computerRouter,
   app: appRouteRouter,
+  clientUpdate: clientRouter,
 });
 
 // export type definition of API
