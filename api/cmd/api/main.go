@@ -10,6 +10,7 @@ import (
 
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/auth"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/apps"
+	clienthandler "github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/client"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/computers"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/tasks"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
@@ -57,18 +58,18 @@ func main() {
 
 	// Redis client
 	redisPass := os.Getenv("REDIS_PASSWORD")
-	client := redis.NewClient(&redis.Options{
+	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: redisPass,
 		DB:       0, // default DB
 		Protocol: 2, // RESP2 for compatibility
 	})
-	rdb = client
+	rdb = redisClient
 
 	// Test Redis connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := client.Ping(ctx).Result(); err != nil {
+	if _, err := redisClient.Ping(ctx).Result(); err != nil {
 		log.Fatal("Failed to connect to Redis: ", err)
 	}
 	log.Println("✓ Redis connection OK")
@@ -83,7 +84,7 @@ func main() {
 	var verifyKey any = []byte(jwtSecret)
 
 	// auth
-	as := auth.NewAuthService(sb, client, 900*time.Second, 2592000*time.Second, signAlg, signKey, verifyKey)
+	as := auth.NewAuthService(sb, redisClient, 900*time.Second, 2592000*time.Second, signAlg, signKey, verifyKey)
 	mux.Handle("POST /enroll", withMiddleware(as.Enroll))
 	mux.Handle("POST /token/refresh", withMiddleware(as.RefreshTokens))
 	mux.Handle("POST /token/recover", withMiddleware(as.Recover))
@@ -103,6 +104,11 @@ func main() {
 	mux.Handle("GET /apps/assigned", withMiddleware(withDPoP(appsSvc.GetAssignedApps)))
 	mux.Handle("GET /apps/download/{releaseID}", withMiddleware(withDPoP(appsSvc.DownloadApp)))
 	mux.Handle("GET /apps/requirement/download/{requirementID}", withMiddleware(withDPoP(appsSvc.DownloadRequirement)))
+
+	// client updates
+	clientSvc := clienthandler.NewClientService(sb)
+	mux.Handle("GET /client/version", withMiddleware(clientSvc.GetActiveVersion))
+	mux.Handle("GET /client/download/{versionID}", withMiddleware(withDPoP(clientSvc.DownloadClient)))
 
 	// other
 	mux.Handle("GET /health", withMiddleware(health))

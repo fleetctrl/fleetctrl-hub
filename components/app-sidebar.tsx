@@ -10,6 +10,7 @@ import {
   IconFileWord,
   IconInnerShadowTop,
   IconKey,
+  IconRefresh,
   IconReport,
   IconWorldSearch,
   IconUsers,
@@ -106,6 +107,11 @@ const data = {
       title: "Enroll Keys",
       url: "/admin/keys",
       icon: IconKey,
+    },
+    {
+      title: "Client versions",
+      url: "/admin/client",
+      icon: IconRefresh,
     },
   ],
   documents: [

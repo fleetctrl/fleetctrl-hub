@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -179,6 +180,40 @@ func withDPoP(next http.HandlerFunc) http.HandlerFunc {
 			computerID := strings.TrimPrefix(sub, "device:")
 			// Add to request headers for further use
 			r.Header.Set("X-Computer-ID", computerID)
+		}
+
+		// Client version check - inject update header if outdated
+		clientVersion := r.Header.Get("X-Client-Version")
+		computerID := r.Header.Get("X-Computer-ID")
+		if clientVersion != "" && sb != nil {
+			// Store the reported client version in the computers table
+			if computerID != "" {
+				_ = sb.DB.From("computers").
+					Update(map[string]any{"client_version": clientVersion}).
+					Eq("id", computerID).
+					Execute(nil)
+			}
+
+			// Check if update is needed
+			var activeVersions []struct {
+				ID      string `json:"id"`
+				Version string `json:"version"`
+				Hash    string `json:"hash"`
+			}
+			_ = sb.DB.From("client_updates").
+				Select("id,version,hash").
+				Limit(1).
+				Eq("is_active", "true").
+				Execute(&activeVersions)
+
+			if len(activeVersions) > 0 && activeVersions[0].Version != clientVersion {
+				// Inject update instruction as response header
+				updateJSON := fmt.Sprintf(`{"version":"%s","id":"%s","hash":"%s"}`,
+					activeVersions[0].Version,
+					activeVersions[0].ID,
+					activeVersions[0].Hash)
+				w.Header().Set("X-Client-Update", updateJSON)
+			}
 		}
 
 		next(w, r)

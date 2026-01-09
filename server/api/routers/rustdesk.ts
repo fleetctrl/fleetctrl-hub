@@ -14,6 +14,7 @@ export type RustDesk = {
     osVersion?: string;
     loginUser?: string;
     lastConnection?: string;
+    clientVersion?: string;
 };
 
 const SORT_COLUMN_MAP: Record<string, string> = {
@@ -112,6 +113,7 @@ export const rustdeskRouter = createTRPCRouter({
                 osVersion: data?.os_version,
                 loginUser: data?.login_user,
                 lastConnection: isActive ? "Online" : "Offline",
+                clientVersion: data?.client_version,
             } as RustDesk;
         });
 
@@ -135,6 +137,7 @@ export const rustdeskRouter = createTRPCRouter({
             osVersion: data?.os_version,
             loginUser: data?.login_user,
             lastConnection: data?.last_connection,
+            clientVersion: data?.client_version,
         } as RustDesk;
 
     }),
