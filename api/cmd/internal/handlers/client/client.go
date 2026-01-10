@@ -4,18 +4,22 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/pkg/cache"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
 	"github.com/nedpals/supabase-go"
 )
 
 type ClientService struct {
-	sb *supabase.Client
+	sb    *supabase.Client
+	cache *cache.Service
 }
 
-func NewClientService(sb *supabase.Client) *ClientService {
+func NewClientService(sb *supabase.Client, cache *cache.Service) *ClientService {
 	return &ClientService{
-		sb: sb,
+		sb:    sb,
+		cache: cache,
 	}
 }
 
@@ -27,24 +31,40 @@ type ClientUpdate struct {
 
 // GetActiveVersion returns the currently active client version
 func (cs *ClientService) GetActiveVersion(w http.ResponseWriter, r *http.Request) {
-	var versions []ClientUpdate
-	err := cs.sb.DB.From("client_updates").
-		Select("id,version,hash").
-		Limit(1).
-		Eq("is_active", "true").
-		Execute(&versions)
+	fetcher := func() (*ClientUpdate, error) {
+		var versions []ClientUpdate
+		err := cs.sb.DB.From("client_updates").
+			Select("id,version,hash").
+			Limit(1).
+			Eq("is_active", "true").
+			Execute(&versions)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(versions) == 0 {
+			return nil, nil // No active version
+		}
+
+		return &versions[0], nil
+	}
+
+	// Use generic WithCache helper
+	// Key: client:active_version
+	result, err := cache.WithCache(r.Context(), cs.cache, "client:active_version", 1*time.Hour, fetcher)
 
 	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get active version: "+err.Error()))
 		return
 	}
 
-	if len(versions) == 0 {
+	if result == nil {
 		utils.WriteJSON(w, http.StatusOK, map[string]any{"version": nil})
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, versions[0])
+	utils.WriteJSON(w, http.StatusOK, result)
 }
 
 // DownloadClient serves the client binary download

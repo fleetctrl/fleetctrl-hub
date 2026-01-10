@@ -30,6 +30,26 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// withInternalMiddleware protects internal endpoints using the SERVICE_ROLE_KEY.
+// This is used for server-to-server communication (e.g., Next.js -> Go API).
+func withInternalMiddleware(h http.HandlerFunc) http.Handler {
+	return loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Use SERVICE_ROLE_KEY or a specific INTERNAL_API_KEY
+		secret := os.Getenv("SERVICE_ROLE_KEY")
+		if secret == "" {
+			// Fallback or specific internal key if preferred
+			secret = os.Getenv("INTERNAL_API_KEY")
+		}
+
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer "+secret {
+			_ = utils.WriteError(w, http.StatusUnauthorized, errors.New("unauthorized internal access"))
+			return
+		}
+		h(w, r)
+	}))
+}
+
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

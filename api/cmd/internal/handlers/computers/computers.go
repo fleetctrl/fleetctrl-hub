@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/models"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/pkg/cache"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
 	"github.com/nedpals/supabase-go"
 )
 
 type ComputersService struct {
-	sb *supabase.Client
+	sb    *supabase.Client
+	cache *cache.Service
 }
 
 type rustdeskSyncPaylod struct {
@@ -23,9 +25,10 @@ type rustdeskSyncPaylod struct {
 	LoginUser  string `json:"login_user"`
 }
 
-func NewComputersService(sb *supabase.Client) *ComputersService {
+func NewComputersService(sb *supabase.Client, cache *cache.Service) *ComputersService {
 	return &ComputersService{
-		sb: sb,
+		sb:    sb,
+		cache: cache,
 	}
 }
 
@@ -36,19 +39,30 @@ func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) 
 		ID string `json:"id"`
 	}
 
-	var computer []ComputerRow
-	if err := cs.sb.DB.From("computers").Select("id").Eq("id", computerID).Execute(&computer); err != nil {
+	// Helper to check existence
+	checkExistence := func() (bool, error) {
+		var computer []ComputerRow
+		if err := cs.sb.DB.From("computers").Select("id").Eq("id", computerID).Execute(&computer); err != nil {
+			return false, err
+		}
+		return len(computer) > 0, nil
+	}
+
+	// Use cache for existence check (key: computer:exists:{id})
+	exists, err := cache.WithCache(r.Context(), cs.cache, "computer:exists:"+computerID, 1*time.Hour, checkExistence)
+
+	if err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	if len(computer) == 0 {
+
+	if !exists {
 		_ = utils.WriteError(w, http.StatusBadRequest, errors.New("no computer was found"))
 		return
 	}
 
 	var payload rustdeskSyncPaylod
-	err := utils.ParseJSON(r, &payload)
-	if err != nil {
+	if err := utils.ParseJSON(r, &payload); err != nil {
 		utils.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -67,7 +81,7 @@ func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) 
 	var updated []models.Computer
 	if err := cs.sb.DB.From("computers").
 		Update(update).
-		Eq("id", computer[0].ID).
+		Eq("id", computerID).
 		Execute(&updated); err != nil {
 		_ = utils.WriteError(w, http.StatusInternalServerError, err)
 		return
