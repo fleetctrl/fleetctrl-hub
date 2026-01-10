@@ -52,8 +52,7 @@ func (cs *ClientService) GetActiveVersion(w http.ResponseWriter, r *http.Request
 
 	// Use generic WithCache helper
 	// Key: client:active_version
-	// TTL: 5 minutes
-	result, err := cache.WithCache(r.Context(), cs.cache, "client:active_version", 5*time.Minute, fetcher)
+	result, err := cache.WithCache(r.Context(), cs.cache, "client:active_version", 1*time.Hour, fetcher)
 
 	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to get active version: "+err.Error()))
