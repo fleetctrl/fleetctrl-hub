@@ -13,6 +13,7 @@ import (
 	clienthandler "github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/client"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/computers"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/tasks"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/pkg/cache"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
 	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
@@ -66,6 +67,9 @@ func main() {
 	})
 	rdb = redisClient
 
+	// Cache service
+	cacheSvc := cache.New(redisClient)
+
 	// Test Redis connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -91,7 +95,7 @@ func main() {
 	mux.Handle("GET /enroll/{fingerprintHash}/is-enrolled", withMiddleware(as.IsEnrolled))
 
 	// coputers
-	cs := computers.NewComputersService(sb)
+	cs := computers.NewComputersService(sb, cacheSvc)
 	mux.Handle("PATCH /computer/rustdesk-sync", withMiddleware(withDPoP(cs.RustDeskSync)))
 
 	// tasks
@@ -106,7 +110,7 @@ func main() {
 	mux.Handle("GET /apps/requirement/download/{requirementID}", withMiddleware(withDPoP(appsSvc.DownloadRequirement)))
 
 	// client updates
-	clientSvc := clienthandler.NewClientService(sb)
+	clientSvc := clienthandler.NewClientService(sb, cacheSvc)
 	mux.Handle("GET /client/version", withMiddleware(clientSvc.GetActiveVersion))
 	mux.Handle("GET /client/download/{versionID}", withMiddleware(withDPoP(clientSvc.DownloadClient)))
 
