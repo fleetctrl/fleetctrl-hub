@@ -12,6 +12,7 @@ import (
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/apps"
 	clienthandler "github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/client"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/computers"
+	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/internal_api"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/handlers/tasks"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/pkg/cache"
 	"github.com/fleetctrl/fleetctrl-hub/api/cmd/internal/utils"
@@ -113,6 +114,10 @@ func main() {
 	clientSvc := clienthandler.NewClientService(sb, cacheSvc)
 	mux.Handle("GET /client/version", withMiddleware(clientSvc.GetActiveVersion))
 	mux.Handle("GET /client/download/{versionID}", withMiddleware(withDPoP(clientSvc.DownloadClient)))
+
+	// internal (protected by SERVICE_ROLE_KEY check in middleware)
+	internalSvc := internal_api.NewInternalService(cacheSvc)
+	mux.Handle("POST /internal/cache/invalidate", withInternalMiddleware(internalSvc.InvalidateCache))
 
 	// other
 	mux.Handle("GET /health", withMiddleware(health))
