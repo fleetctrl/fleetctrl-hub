@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
+import { invalidateCache } from "../utils/cache";
 
 export const clientRouter = createTRPCRouter({
     // Get all client update versions
@@ -67,6 +68,9 @@ export const clientRouter = createTRPCRouter({
                 });
             }
 
+            // Invalidate cache for active version
+            await invalidateCache("client:active_version");
+
             return data;
         }),
 
@@ -103,6 +107,9 @@ export const clientRouter = createTRPCRouter({
                     cause: error,
                 });
             }
+
+            // Invalidate cache for active version
+            await invalidateCache("client:active_version");
 
             return data;
         }),
