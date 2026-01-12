@@ -1,6 +1,9 @@
 -- Add intune_id to computers table
 ALTER TABLE public.computers ADD COLUMN intune_id TEXT;
 
+-- Drop old function signature to avoid parameter name mismatch errors
+DROP FUNCTION IF EXISTS public.evaluate_rule_expression(JSONB, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT);
+
 -- Update evaluate_rule_expression to check intune_id for intuneMdm property
 CREATE OR REPLACE FUNCTION public.evaluate_rule_expression(
   expr JSONB,
@@ -9,6 +12,7 @@ CREATE OR REPLACE FUNCTION public.evaluate_rule_expression(
   comp_os_version TEXT,
   comp_ip TEXT,
   comp_login_user TEXT,
+  comp_created_at TEXT,
   comp_intune_id TEXT
 ) RETURNS BOOLEAN AS $$
 DECLARE
@@ -35,6 +39,7 @@ BEGIN
       WHEN 'osVersion' THEN comp_os_version
       WHEN 'ip' THEN comp_ip
       WHEN 'loginUser' THEN comp_login_user
+      WHEN 'createdAt' THEN comp_created_at
       ELSE NULL
     END;
     RETURN public.evaluate_operator(expr->>'operator', prop_value, expr->>'value');
@@ -46,7 +51,7 @@ BEGIN
   FOR cond IN SELECT jsonb_array_elements(expr->'conditions')
   LOOP
     results := array_append(results, public.evaluate_rule_expression(
-      cond, comp_name, comp_os, comp_os_version, comp_ip, comp_login_user, comp_intune_id
+      cond, comp_name, comp_os, comp_os_version, comp_ip, comp_login_user, comp_created_at, comp_intune_id
     ));
   END LOOP;
   
@@ -83,6 +88,7 @@ BEGIN
     NEW.os_version::TEXT,
     NEW.ip::TEXT,
     NEW.login_user::TEXT,
+    NEW.created_at::TEXT,
     NEW.intune_id::TEXT
   );
   
@@ -108,6 +114,7 @@ BEGIN
     c.os_version::TEXT,
     c.ip::TEXT,
     c.login_user::TEXT,
+    c.created_at::TEXT,
     c.intune_id::TEXT
   );
   
@@ -121,6 +128,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Update preview function
+DROP FUNCTION IF EXISTS public.preview_dynamic_group_members(JSONB);
 CREATE OR REPLACE FUNCTION public.preview_dynamic_group_members(
   rule_expr JSONB
 ) RETURNS TABLE(
@@ -130,6 +138,7 @@ CREATE OR REPLACE FUNCTION public.preview_dynamic_group_members(
   os_version TEXT,
   ip TEXT,
   login_user TEXT,
+  created_at TEXT,
   intune_id TEXT
 ) AS $$
 BEGIN
@@ -141,6 +150,7 @@ BEGIN
     c.os_version::TEXT,
     c.ip::TEXT,
     c.login_user::TEXT,
+    c.created_at::TEXT,
     c.intune_id::TEXT
   FROM public.computers c
   WHERE public.evaluate_rule_expression(
@@ -150,7 +160,44 @@ BEGIN
     c.os_version::TEXT,
     c.ip::TEXT,
     c.login_user::TEXT,
+    c.created_at::TEXT,
     c.intune_id::TEXT
   );
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+-- Update bulk refresh function
+CREATE OR REPLACE FUNCTION public.refresh_all_dynamic_group_memberships()
+RETURNS void AS $$
+DECLARE
+  grp RECORD;
+BEGIN
+  -- Loop through all dynamic groups and refresh membership
+  FOR grp IN SELECT id, rule_expression FROM public.dynamic_computer_groups
+  LOOP
+    -- Clear existing members
+    DELETE FROM public.dynamic_group_members WHERE group_id = grp.id;
+    
+    -- Re-evaluate all computers for this group
+    INSERT INTO public.dynamic_group_members (group_id, computer_id)
+    SELECT grp.id, c.id
+    FROM public.computers c
+    WHERE public.evaluate_rule_expression(
+      grp.rule_expression,
+      c.name::TEXT,
+      c.os::TEXT,
+      c.os_version::TEXT,
+      c.ip::TEXT,
+      c.login_user::TEXT,
+      c.created_at::TEXT,
+      c.intune_id::TEXT
+    );
+    
+    -- Update last evaluated timestamp
+    UPDATE public.dynamic_computer_groups 
+    SET last_evaluated_at = now() 
+    WHERE id = grp.id;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
