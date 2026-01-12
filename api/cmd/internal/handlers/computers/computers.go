@@ -23,6 +23,7 @@ type rustdeskSyncPaylod struct {
 	OS         string `json:"os"`
 	OSVersion  string `json:"os_version"`
 	LoginUser  string `json:"login_user"`
+	IntuneID   string `json:"intune_id"`
 }
 
 func NewComputersService(sb *supabase.Client, cache *cache.Service) *ComputersService {
@@ -76,6 +77,7 @@ func (cs ComputersService) RustDeskSync(w http.ResponseWriter, r *http.Request) 
 		"os":              payload.OS,
 		"os_version":      payload.OSVersion,
 		"login_user":      payload.LoginUser,
+		"intune_id":       payload.IntuneID,
 		"last_connection": nowUTC,
 	}
 	var updated []models.Computer

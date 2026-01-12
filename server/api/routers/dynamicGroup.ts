@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 
 // Schema for a single rule condition (leaf node)
 const ruleConditionSchema = z.object({
-    property: z.enum(["name", "os", "osVersion", "ip", "loginUser", "createdAt"]),
+    property: z.enum(["name", "os", "osVersion", "ip", "loginUser", "createdAt", "intuneMdm"]),
     operator: z.enum([
         "equals",
         "notEquals",
