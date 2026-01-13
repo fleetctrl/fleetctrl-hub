@@ -24,7 +24,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { User } from "@supabase/supabase-js"
+
+export interface User {
+  firstname: string;
+  lastname: string;
+  email: string;
+  avatar: string;
+}
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7

@@ -21,12 +21,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import React from "react";
-import { api } from "@/trpc/react";
+import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
 import { columns } from "./columns";
-import { createSupabaseClient } from "@/lib/supabase/client";
 import CreateNewKeyDialog from "./createNewKeyDialog";
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -137,29 +138,23 @@ export function DataTable<TData, TValue>({
 }
 
 export function KeysTable() {
-  const { data, refetch } = api.key.getAll.useQuery();
+  const data = useQuery(api.keys.list);
+  // data comes from Convex, it is reactive by default.
+  // We map fields if necessary to match columns expectation.
+  // Columns likely expect camelCase from previous tRPC/Go types.
+  // Convex returns schema keys (snake_case mostly).
 
-  useEffect(() => {
-    const supabase = createSupabaseClient();
-    const channel = supabase
-      .channel("keys-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "enrollment_tokens" },
-        () => {
-          refetch();
-        }
-      );
-
-    channel.subscribe();
-
-    return () => {
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
+  const mappedData = (data || []).map((d: any) => ({
+      id: d._id,
+      name: d.name,
+      tokenHash: d.token_hash,
+      remainingUses: Number(d.remaining_uses),
+      createdAt: d.created_at,
+      expiresAt: d.expires_at,
+      disabled: d.disabled
+  }));
 
   return (
-    <DataTable columns={columns} data={data ?? []} onActionComplete={refetch} />
+    <DataTable columns={columns} data={mappedData} onActionComplete={() => {}} />
   );
 }

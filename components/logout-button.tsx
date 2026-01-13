@@ -1,15 +1,15 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export function LogoutButton() {
   const router = useRouter();
+  const { signOut } = useAuthActions();
 
   const logout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await signOut();
     router.push("/auth/login");
   };
 

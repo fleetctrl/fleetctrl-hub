@@ -134,11 +134,10 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const metadata = props.user?.user_metadata;
   const user = {
-    firstname: metadata?.firstname ?? "",
-    lastname: metadata?.lastname ?? "",
-    email: props.user?.email ?? "noname",
+    firstname: props.user?.firstname ?? "Admin",
+    lastname: props.user?.lastname ?? "User",
+    email: props.user?.email ?? "admin@example.com",
     avatar: "",
   };
   return (

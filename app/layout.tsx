@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { TRPCReactProvider } from "@/trpc/react";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -23,7 +22,6 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <TRPCReactProvider>
           <Toaster />
           <ThemeProvider
             attribute="class"
@@ -33,7 +31,6 @@ export default async function RootLayout({
           >
             {children}
           </ThemeProvider>
-        </TRPCReactProvider>
       </body>
     </html>
   );

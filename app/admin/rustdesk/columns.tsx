@@ -3,42 +3,32 @@ import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import RowOptions from "./rowOptions";
-import { RustDesk } from "@/server/api/routers/rustdesk";
+import { RustDesk } from "./data-table"; // Import type from data-table
 import Link from "next/link";
-
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
+import { formatDistanceToNow } from "date-fns";
 
 export const columns: ColumnDef<RustDesk>[] = [
   {
     accessorKey: "lastConnection",
     header: "",
+    cell: ({ row }) => {
+        const date = new Date(row.original.lastConnection);
+        const now = new Date();
+        const diff = now.getTime() - date.getTime();
+        const isOnline = diff < 1000 * 60 * 5; // 5 mins
+        return isOnline ? "Online" : "Offline";
+    }
   },
   {
     accessorKey: "name",
     header: ({ column }) => {
-      const sortState = column.getIsSorted();
       return (
         <Button
           variant="ghost"
-          onClick={() => {
-            if (sortState === "asc") {
-              column.toggleSorting(true);
-            } else if (sortState === "desc") {
-              column.clearSorting();
-            } else {
-              column.toggleSorting(false);
-            }
-          }}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Name
-          {sortState === "asc" ? (
-            <ArrowUp className="ml-2 h-4 w-4" />
-          ) : sortState === "desc" ? (
-            <ArrowDown className="ml-2 h-4 w-4" />
-          ) : (
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          )}
+          <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
@@ -57,32 +47,7 @@ export const columns: ColumnDef<RustDesk>[] = [
   },
   {
     accessorKey: "os",
-    header: ({ column }) => {
-      const sortState = column.getIsSorted();
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (sortState === "asc") {
-              column.toggleSorting(true);
-            } else if (sortState === "desc") {
-              column.clearSorting();
-            } else {
-              column.toggleSorting(false);
-            }
-          }}
-        >
-          OS
-          {sortState === "asc" ? (
-            <ArrowUp className="ml-2 h-4 w-4" />
-          ) : sortState === "desc" ? (
-            <ArrowDown className="ml-2 h-4 w-4" />
-          ) : (
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          )}
-        </Button>
-      );
-    },
+    header: "OS",
   },
   {
     accessorKey: "clientVersion",

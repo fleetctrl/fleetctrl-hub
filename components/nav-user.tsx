@@ -27,7 +27,7 @@ import {
     useSidebar,
 } from "@/components/ui/sidebar"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { useAuthActions } from "@convex-dev/auth/react"
 import Link from "next/link"
 
 export function NavUser({
@@ -42,10 +42,10 @@ export function NavUser({
 }) {
     const { isMobile } = useSidebar()
     const router = useRouter();
+    const { signOut } = useAuthActions();
 
     const logout = async () => {
-        const supabase = createClient();
-        await supabase.auth.signOut();
+        await signOut();
         router.push("/auth/login");
     };
 

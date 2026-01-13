@@ -8,9 +8,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { api } from "@/trpc/react";
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
+import { Id } from "@/convex/_generated/dataModel";
 import {
   AlertDialog,
   AlertDialogAction,

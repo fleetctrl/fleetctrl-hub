@@ -31,7 +31,8 @@ import { useForm } from "react-hook-form";
 import z from "zod";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { api } from "@/trpc/react";
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
 
 const createNewKeySchema = z.object({
   name: z.string().min(1, { message: "Key name is required" }),
@@ -57,20 +58,8 @@ export default function CreateNewKeyDialog({
   onCreate: () => void;
 }) {
   const router = useRouter();
-  const generateTokenMutation = api.key.create.useMutation({
-    onSuccess: (data) => {
-      setGeneratedToken(data.token);
-      toast.success("Generated token");
-      setOpen(false);
-      setTokenDialogOpen(true);
-      setCopied(false);
-      form.reset();
-      onCreate();
-    },
-    onError: () => {
-      toast.error("Unable to generate token");
-    },
-  });
+  const createKey = useMutation(api.keys.create);
+
   const [open, setOpen] = useState(false);
   const [openCalendar, setOpenCalendar] = useState(false);
   const [date, setDate] = useState<Date | undefined>(
@@ -104,13 +93,25 @@ export default function CreateNewKeyDialog({
 
   async function onSubmit(values: CreateNewKeyFormRaw) {
     // generate token
-    generateTokenMutation.mutate({
-      name: values.name,
-      expires_at: new Date(values.expires_at),
-      remaining_uses: Number.parseInt(
-        values?.remaining_uses?.toString() || "1"
-      ),
-    });
+    try {
+      const token = await createKey({
+        name: values.name,
+        expiresAt: new Date(values.expires_at).toISOString(),
+        remainingUses: Number.parseInt(
+          values?.remaining_uses?.toString() || "1"
+        ),
+      });
+
+      setGeneratedToken(token);
+      toast.success("Generated token");
+      setOpen(false);
+      setTokenDialogOpen(true);
+      setCopied(false);
+      form.reset();
+      onCreate();
+    } catch (e: any) {
+      toast.error("Unable to generate token: " + e.message);
+    }
   }
 
   return (
