@@ -28,6 +28,7 @@ const PROPERTIES = [
     { value: "ip", label: "IP Address" },
     { value: "loginUser", label: "Login User" },
     { value: "createdAt", label: "Created At" },
+    { value: "intuneMdm", label: "Intune Enrolled" },
 ] as const;
 
 // Operators available for comparison
@@ -48,18 +49,26 @@ const DATE_OPERATORS = [
     { value: "before", label: "before date" },
 ] as const;
 
+const BOOLEAN_OPERATORS = [
+    { value: "equals", label: "is" },
+    { value: "notEquals", label: "is not" },
+] as const;
+
 
 // Get operators based on property type
 const getOperatorsForProperty = (property: string) => {
     if (property === "createdAt") {
         return DATE_OPERATORS;
     }
+    if (property === "intuneMdm") {
+        return BOOLEAN_OPERATORS;
+    }
     return TEXT_OPERATORS;
 };
 
 // Schema for a single condition
 const conditionSchema = z.object({
-    property: z.enum(["name", "os", "osVersion", "ip", "loginUser", "createdAt"]),
+    property: z.enum(["name", "os", "osVersion", "ip", "loginUser", "createdAt", "intuneMdm"]),
     operator: z.enum([
         "equals",
         "notEquals",
@@ -553,7 +562,8 @@ function ConditionRow({
                 }}
             />
 
-            {/* Value - with conditional date picker */}
+
+            {/* Value - with conditional date picker or boolean select */}
             <Controller
                 control={control}
                 name={`groups.${groupIndex}.conditions.${conditionIndex}.value`}
@@ -571,6 +581,27 @@ function ConditionRow({
                                     placeholder="Select date"
                                 />
                             </div>
+                        );
+                    }
+
+                    if (propertyValue === "intuneMdm") {
+                        return (
+                            <Select
+                                value={field.value}
+                                onValueChange={(v) => {
+                                    field.onChange(v);
+                                    onChange();
+                                }}
+                                disabled={disabled}
+                            >
+                                <SelectTrigger className="flex-1">
+                                    <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="true">True</SelectItem>
+                                    <SelectItem value="false">False</SelectItem>
+                                </SelectContent>
+                            </Select>
                         );
                     }
 

@@ -15,6 +15,7 @@ export type RustDesk = {
     loginUser?: string;
     lastConnection?: string;
     clientVersion?: string;
+    intuneId?: string;
 };
 
 const SORT_COLUMN_MAP: Record<string, string> = {
@@ -25,6 +26,7 @@ const SORT_COLUMN_MAP: Record<string, string> = {
     osVersion: "os_version",
     loginUser: "login_user",
     lastConnection: "last_connection",
+    intuneId: "intune_id",
 };
 
 export const rustdeskRouter = createTRPCRouter({
@@ -114,6 +116,7 @@ export const rustdeskRouter = createTRPCRouter({
                 loginUser: data?.login_user,
                 lastConnection: isActive ? "Online" : "Offline",
                 clientVersion: data?.client_version,
+                intuneId: data?.intune_id,
             } as RustDesk;
         });
 
@@ -138,6 +141,7 @@ export const rustdeskRouter = createTRPCRouter({
             loginUser: data?.login_user,
             lastConnection: data?.last_connection,
             clientVersion: data?.client_version,
+            intuneId: data?.intune_id,
         } as RustDesk;
 
     }),
