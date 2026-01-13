@@ -102,6 +102,12 @@ export default function Tabs({ computer }: Props) {
                 name="RustDesk ID"
                 value={computer.rustdeskID?.toString() ?? ""}
               />
+              {computer.intuneId && (
+                <TableRow
+                  name="Intune ID"
+                  value={computer.intuneId}
+                />
+              )}
               <TableRow name="Computer name" value={computer?.name ?? ""} />
               <TableRow name="Computer IP" value={computer.ip ?? ""} />
               <TableRow name="User" value={computer.loginUser ?? ""} />
