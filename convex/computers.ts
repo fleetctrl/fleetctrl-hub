@@ -1,0 +1,233 @@
+/**
+ * Computers Module
+ *
+ * Handles computer CRUD operations.
+ */
+
+import {
+    query,
+    mutation,
+    internalMutation,
+    internalQuery,
+} from "./_generated/server";
+import { v } from "convex/values";
+import { internal } from "./_generated/api";
+
+// ========================================
+// Public Queries
+// ========================================
+
+/**
+ * List all computers.
+ */
+export const list = query({
+    handler: async (ctx) => {
+        const computers = await ctx.db.query("computers").collect();
+
+        return computers.map((c) => ({
+            id: c._id,
+            name: c.name,
+            fingerprintHash: c.fingerprint_hash,
+            rustdeskId: c.rustdesk_id,
+            ip: c.ip,
+            os: c.os,
+            osVersion: c.os_version,
+            loginUser: c.login_user,
+            clientVersion: c.client_version,
+            lastConnection: c.last_connection,
+            intuneId: c.intune_id,
+            createdAt: c._creationTime,
+        }));
+    },
+});
+
+/**
+ * Get a computer by ID.
+ */
+export const getById = query({
+    args: { id: v.id("computers") },
+    handler: async (ctx, { id }) => {
+        const computer = await ctx.db.get(id);
+        if (!computer) return null;
+
+        return {
+            id: computer._id,
+            name: computer.name,
+            fingerprintHash: computer.fingerprint_hash,
+            rustdeskId: computer.rustdesk_id,
+            ip: computer.ip,
+            os: computer.os,
+            osVersion: computer.os_version,
+            loginUser: computer.login_user,
+            clientVersion: computer.client_version,
+            lastConnection: computer.last_connection,
+            intuneId: computer.intune_id,
+            createdAt: computer._creationTime,
+        };
+    },
+});
+
+// ========================================
+// Public Mutations
+// ========================================
+
+/**
+ * Update computer with RustDesk sync data.
+ */
+export const rustdeskSync = mutation({
+    args: {
+        computerId: v.string(),
+        data: v.any(),
+    },
+    handler: async (ctx, { computerId, data }) => {
+        // Find computer
+        const computers = await ctx.db.query("computers").collect();
+        const computer = computers.find((c) => c._id.toString() === computerId);
+
+        if (!computer) {
+            throw new Error("Computer not found");
+        }
+
+        const syncData = data as {
+            rustdesk_id?: number;
+            ip?: string;
+            os?: string;
+            os_version?: string;
+            login_user?: string;
+        };
+
+        const updates: Record<string, unknown> = {
+            last_connection: Date.now(),
+        };
+
+        if (syncData.rustdesk_id !== undefined) {
+            updates.rustdesk_id = syncData.rustdesk_id;
+        }
+        if (syncData.ip !== undefined) {
+            updates.ip = syncData.ip;
+        }
+        if (syncData.os !== undefined) {
+            updates.os = syncData.os;
+        }
+        if (syncData.os_version !== undefined) {
+            updates.os_version = syncData.os_version;
+        }
+        if (syncData.login_user !== undefined) {
+            updates.login_user = syncData.login_user;
+        }
+
+        await ctx.db.patch(computer._id, updates);
+
+        // Trigger dynamic group membership refresh
+        await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
+            computerId: computer._id,
+        });
+
+        return { success: true };
+    },
+});
+
+/**
+ * Delete a computer.
+ */
+export const remove = mutation({
+    args: { id: v.id("computers") },
+    handler: async (ctx, { id }) => {
+        // Delete related data first
+        // Refresh tokens
+        const refreshTokens = await ctx.db
+            .query("refresh_tokens")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", id))
+            .collect();
+
+        for (const token of refreshTokens) {
+            await ctx.db.delete(token._id);
+        }
+
+        // Tasks
+        const tasks = await ctx.db
+            .query("tasks")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", id))
+            .collect();
+
+        for (const task of tasks) {
+            await ctx.db.delete(task._id);
+        }
+
+        // Static group memberships
+        const staticMemberships = await ctx.db
+            .query("computer_group_members")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", id))
+            .collect();
+
+        for (const membership of staticMemberships) {
+            await ctx.db.delete(membership._id);
+        }
+
+        // Dynamic group memberships
+        const dynamicMemberships = await ctx.db
+            .query("dynamic_group_members")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", id))
+            .collect();
+
+        for (const membership of dynamicMemberships) {
+            await ctx.db.delete(membership._id);
+        }
+
+        // Delete computer
+        await ctx.db.delete(id);
+
+        return { success: true };
+    },
+});
+
+// ========================================
+// Internal Mutations (for auth/http)
+// ========================================
+
+/**
+ * Update client version for a computer.
+ */
+export const updateClientVersion = internalMutation({
+    args: {
+        computerId: v.string(),
+        clientVersion: v.string(),
+    },
+    handler: async (ctx, { computerId, clientVersion }) => {
+        const computers = await ctx.db.query("computers").collect();
+        const computer = computers.find((c) => c._id.toString() === computerId);
+
+        if (computer) {
+            await ctx.db.patch(computer._id, {
+                client_version: clientVersion,
+                last_connection: Date.now(),
+            });
+        }
+    },
+});
+
+// ========================================
+// Internal Queries (for auth)
+// ========================================
+
+export const getByFingerprintHash = internalQuery({
+    args: { fingerprintHash: v.string() },
+    handler: async (ctx, { fingerprintHash }) => {
+        return await ctx.db
+            .query("computers")
+            .withIndex("by_fingerprint_hash", (q) =>
+                q.eq("fingerprint_hash", fingerprintHash)
+            )
+            .first();
+    },
+});
+
+export const getByJkt = internalQuery({
+    args: { jkt: v.string() },
+    handler: async (ctx, { jkt }) => {
+        return await ctx.db
+            .query("computers")
+            .withIndex("by_jkt", (q) => q.eq("jkt", jkt))
+            .first();
+    },
+});
