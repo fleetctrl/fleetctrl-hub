@@ -25,7 +25,9 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
-import { api } from "@/trpc/react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -39,7 +41,7 @@ import {
 import { X, Plus, Trash2, Pencil } from "lucide-react";
 import { detectionItemSchema, storedFileReferenceSchema } from "@/lib/schemas/create-app";
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/shadcn-io/dropzone";
-import { uploadFileToTempStorage, StoredFileReference, deleteStoredFile } from "@/lib/storage/temp-storage";
+import { uploadFileToConvex, StoredFile } from "@/lib/convex-upload";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,7 +88,7 @@ interface EditReleaseSheetProps {
         version: string;
         installer_type: string;
         uninstall_previous?: boolean;
-        disabled_at: string | null;
+        disabled_at?: string | number | null;
         computer_group_releases?: {
             assign_type: string;
             action: string;
@@ -102,16 +104,14 @@ interface EditReleaseSheetProps {
         release_requirements?: {
             timeout_seconds: number;
             run_as_system: boolean;
-            storage_path: string;
-            bucket: string;
+            storage_id?: string;
             byte_size: number;
             hash: string;
         }[];
         win32_releases?: {
             install_script: string;
             uninstall_script: string;
-            install_binary_bucket: string;
-            install_binary_path: string;
+            install_binary_storage_id?: string;
             install_binary_size: number;
             hash: string;
         }[];
@@ -136,9 +136,9 @@ const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
 };
 
 const toDropzonePreview = (
-    file?: StoredFileReference | null
+    file?: { name: string; size: number; type?: string | null } | null
 ): File[] | undefined => {
-    if (!file || !file.path) {
+    if (!file) {
         return undefined;
     }
 
@@ -148,7 +148,7 @@ const toDropzonePreview = (
             size: file.size,
             type: file.type ?? "application/octet-stream",
             lastModified: 0,
-        } as any as File,
+        } as unknown as File,
     ];
 };
 
@@ -156,80 +156,85 @@ const toDropzonePreview = (
 const mapReleaseToFormValues = (release: any) => {
     if (!release) return null;
 
-    const staticInstall = release.computer_group_releases
-        ?.filter((r: any) => r.action === "install")
+    // Handle both legacy/joined key names and new raw key names
+    const sAssignments = release.staticAssignments || release.computer_group_releases || [];
+    const dAssignments = release.dynamicAssignments || release.dynamic_group_releases || [];
+    const dRules = release.detections || release.detection_rules || [];
+
+    const staticInstall = sAssignments
+        .filter((r: any) => r.action === "install")
         .map((r: any) => ({
-            groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+            groupId: r.group_id || (Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id) || "",
             groupType: "static" as const,
             mode: r.assign_type as "include" | "exclude",
-        })) || [];
+        }));
 
-    const dynamicInstall = release.dynamic_group_releases
-        ?.filter((r: any) => r.action === "install")
+    const dynamicInstall = dAssignments
+        .filter((r: any) => r.action === "install")
         .map((r: any) => ({
-            groupId: Array.isArray(r.dynamic_computer_groups) ? r.dynamic_computer_groups[0]?.id : r.dynamic_computer_groups?.id || "",
+            groupId: r.group_id || (Array.isArray(r.dynamic_computer_groups) ? r.dynamic_computer_groups[0]?.id : r.dynamic_computer_groups?.id) || "",
             groupType: "dynamic" as const,
             mode: r.assign_type as "include" | "exclude",
-        })) || [];
+        }));
 
     const installGroups = [...staticInstall, ...dynamicInstall];
 
-    const staticUninstall = release.computer_group_releases
-        ?.filter((r: any) => r.action === "uninstall")
+    const staticUninstall = sAssignments
+        .filter((r: any) => r.action === "uninstall")
         .map((r: any) => ({
-            groupId: Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id || "",
+            groupId: r.group_id || (Array.isArray(r.computer_groups) ? r.computer_groups[0]?.id : r.computer_groups?.id) || "",
             groupType: "static" as const,
             mode: r.assign_type as "include" | "exclude",
-        })) || [];
+        }));
 
-    const dynamicUninstall = release.dynamic_group_releases
-        ?.filter((r: any) => r.action === "uninstall")
+    const dynamicUninstall = dAssignments
+        .filter((r: any) => r.action === "uninstall")
         .map((r: any) => ({
-            groupId: Array.isArray(r.dynamic_computer_groups) ? r.dynamic_computer_groups[0]?.id : r.dynamic_computer_groups?.id || "",
+            groupId: r.group_id || (Array.isArray(r.dynamic_computer_groups) ? r.dynamic_computer_groups[0]?.id : r.dynamic_computer_groups?.id) || "",
             groupType: "dynamic" as const,
             mode: r.assign_type as "include" | "exclude",
-        })) || [];
+        }));
 
     const uninstallGroups = [...staticUninstall, ...dynamicUninstall];
 
-    const detections = release.detection_rules?.map((d: any) => {
+    const detections = dRules.map((d: any) => {
         const config = d.config;
         if (d.type === "file") {
             return {
                 type: "file" as const,
                 path: config.path || "",
-                fileType: (config.operator || "exists") as any,
-                fileTypeValue: config.value || "",
+                fileType: (config.fileType || "exists") as any,
+                fileTypeValue: config.fileTypeValue || "",
             };
         } else {
             return {
                 type: "registry" as const,
-                path: config.path || "",
-                registryKey: config.path || "",
-                registryType: (config.operator || "exists") as any,
-                registryTypeValue: config.value || "",
+                path: config.path || config.registryKey || "",
+                registryKey: config.registryKey || config.path || "",
+                registryType: (config.registryType || "exists") as any,
+                registryTypeValue: config.registryTypeValue || "",
             };
         }
-    }) || [];
+    });
 
     const requirement = release.release_requirements?.[0];
     const win32Rel = (Array.isArray(release.win32_releases) ? release.win32_releases[0] : (release.win32_releases as any));
     const wingetRel = (Array.isArray(release.winget_releases) ? release.winget_releases[0] : (release.winget_releases as any));
 
     return {
-        type: release.installer_type as "win32" | "winget",
+        type: (release.installer_type || "win32") as "win32" | "winget",
         version: release.version === "latest" ? "" : release.version,
         uninstall_previous: release.uninstall_previous || false,
         disabled: !!release.disabled_at,
         wingetId: wingetRel?.winget_id || wingetRel?.wingetId || "",
         installScript: win32Rel?.install_script || win32Rel?.installScript || "",
         uninstallScript: win32Rel?.uninstall_script || win32Rel?.uninstallScript || "",
-        installBinary: win32Rel?.install_binary_path ? {
-            bucket: win32Rel.install_binary_bucket || win32Rel.installBinaryBucket,
-            path: win32Rel.install_binary_path || win32Rel.installBinaryPath,
-            name: (win32Rel.install_binary_path || win32Rel.installBinaryPath || "installer.zip").split("/").pop() || "installer.zip",
-            size: win32Rel.install_binary_size || win32Rel.installBinarySize,
+        installBinary: win32Rel?.install_binary_storage_id ? {
+            storageId: win32Rel.install_binary_storage_id,
+            name: "installer.zip", // Placeholder as filename is not in schema yet
+            size: win32Rel.install_binary_size || 0,
             hash: win32Rel.hash,
+            type: "application/zip",
         } : undefined,
         assignments: {
             installGroups: installGroups.filter((g: any) => g.groupId),
@@ -239,12 +244,12 @@ const mapReleaseToFormValues = (release: any) => {
         requirements: requirement ? {
             timeout: requirement.timeout_seconds,
             runAsSystem: requirement.run_as_system,
-            requirementScriptBinary: requirement.storage_path ? {
-                bucket: requirement.bucket,
-                path: requirement.storage_path,
-                name: (requirement.storage_path || "script.ps1").split("/").pop() || "script.ps1",
-                size: requirement.byte_size,
+            requirementScriptBinary: requirement.storage_id ? {
+                storageId: requirement.storage_id,
+                name: "script.ps1",
+                size: requirement.byte_size || 0,
                 hash: requirement.hash,
+                type: "text/plain",
             } : undefined,
         } : {
             timeout: 60,
@@ -261,8 +266,13 @@ export function ReleaseSheet({
     onOpenChange,
 }: ReleaseSheetProps) {
     const router = useRouter();
-    const utils = api.useUtils();
-    const { data: groups } = api.group.getAllForAssignment.useQuery();
+    const staticGroups = useQuery(api.staticGroups.list);
+    const dynamicGroups = useQuery(api.groups.getAll);
+
+    const groups: { id: string; displayName: string; type: "static" | "dynamic" }[] = [
+        ...(staticGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "static" as const })),
+        ...(dynamicGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "dynamic" as const })),
+    ];
 
     const formSchema = createFormSchema(isAutoUpdate);
     const form = useForm<FormValues>({
@@ -350,58 +360,53 @@ export function ReleaseSheet({
         }
     }, [release, form]);
 
-    const updateMutation = api.app.updateRelease.useMutation({
-        onSuccess: () => {
-            toast.success("Release updated successfully");
-            onOpenChange(false);
-            router.refresh();
-            utils.app.getReleases.invalidate({ appId });
-        },
-        onError: (error) => {
-            toast.error(`Error updating release: ${error.message}`);
-        },
-    });
+    const updateMutation = useMutation(api.apps.updateRelease);
+    const createMutation = useMutation(api.apps.createRelease);
+    const generateUploadUrl = useMutation(api.apps.generateUploadUrl);
 
-    const createMutation = api.app.createRelease.useMutation({
-        onSuccess: () => {
-            toast.success("Release created successfully");
-            onOpenChange(false);
-            router.refresh();
-            utils.app.getReleases.invalidate({ appId });
-        },
-        onError: (error) => {
-            toast.error(`Error creating release: ${error.message}`);
-        },
-    });
+    // Helpers for try-catch usage since Convex mutation hook doesn't provide onSuccess/onError directly
+    // Wait, useMutation returns a function that returns a Promise.
+    // I will handle callbacks in onSubmit.
 
-    function onSubmit(values: FormValues) {
+    async function onSubmit(values: FormValues) {
         // If there's no requirement script, we treat it as no requirement
         const submitData = {
             ...values,
             requirements: values.requirements?.requirementScriptBinary
-                ? values.requirements
+                ? {
+                    ...values.requirements,
+                    requirementScriptBinary: {
+                        ...values.requirements.requirementScriptBinary,
+                        storageId: values.requirements.requirementScriptBinary.storageId as Id<"_storage">
+                    }
+                }
                 : null,
+            installBinary: values.installBinary ? {
+                ...values.installBinary,
+                storageId: values.installBinary.storageId as Id<"_storage">
+            } : undefined
         };
 
-        if (release) {
-            updateMutation.mutate({
-                id: release.id,
-                data: submitData,
-            });
-        } else {
-            createMutation.mutate({
-                appId,
-                type: values.type,
-                version: values.version,
-                uninstall_previous: values.uninstall_previous,
-                wingetId: values.wingetId,
-                installBinary: values.installBinary,
-                installScript: values.installScript,
-                uninstallScript: values.uninstallScript,
-                detections: values.detections,
-                requirements: submitData.requirements as any,
-                assignments: values.assignments,
-            });
+        try {
+            if (release) {
+                await updateMutation({
+                    id: release.id as Id<"releases">,
+                    data: submitData as any, // Casting due to complex mapped types
+                });
+                toast.success("Release updated successfully");
+            } else {
+                await createMutation({
+                    appId: appId as Id<"apps">,
+                    ...submitData as any, // Casting
+                });
+                toast.success("Release created successfully");
+            }
+            onOpenChange(false);
+            router.refresh();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            console.error(error);
+            toast.error(`Error saving release: ${message}`);
         }
     }
 
@@ -413,15 +418,6 @@ export function ReleaseSheet({
                 const values = mapReleaseToFormValues(release);
                 if (values) form.reset(values);
             } else {
-                // Clean up any temp files if we're creating and haven't saved
-                const values = form.getValues();
-                if (values.installBinary?.path.startsWith("temp/")) {
-                    void deleteStoredFile({ file: values.installBinary }).catch(() => undefined);
-                }
-                if (values.requirements?.requirementScriptBinary?.path.startsWith("temp/")) {
-                    void deleteStoredFile({ file: values.requirements.requirementScriptBinary }).catch(() => undefined);
-                }
-
                 form.reset({
                     type: "win32",
                     version: "",
@@ -566,14 +562,12 @@ export function ReleaseSheet({
                                                     setIsUploadingBinary(true);
                                                     void (async () => {
                                                         try {
-                                                            const uploaded = await uploadFileToTempStorage({
-                                                                file,
-                                                                category: "installers",
-                                                            });
+                                                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
                                                             field.onChange(uploaded);
                                                             toast.success("Installer uploaded");
-                                                        } catch (err) {
-                                                            toast.error("Failed to upload installer");
+                                                        } catch (err: unknown) {
+                                                            const message = err instanceof Error ? err.message : "Unknown error";
+                                                            toast.error(`Failed to upload installer: ${message}`);
                                                             console.error(err);
                                                         } finally {
                                                             setIsUploadingBinary(false);
@@ -721,14 +715,12 @@ export function ReleaseSheet({
                                                     setIsUploadingRequirement(true);
                                                     void (async () => {
                                                         try {
-                                                            const uploaded = await uploadFileToTempStorage({
-                                                                file,
-                                                                category: "requirements",
-                                                            });
+                                                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
                                                             field.onChange(uploaded);
                                                             toast.success("Requirement script uploaded");
-                                                        } catch (err) {
-                                                            toast.error("Failed to upload requirement script");
+                                                        } catch (err: unknown) {
+                                                            const message = err instanceof Error ? err.message : "Unknown error";
+                                                            toast.error(`Failed to upload requirement script: ${message}`);
                                                             console.error(err);
                                                         } finally {
                                                             setIsUploadingRequirement(false);
@@ -1009,11 +1001,11 @@ export function ReleaseSheet({
                     <Button
                         type="submit"
                         form="release-form"
-                        disabled={updateMutation.isPending || createMutation.isPending}
+                        disabled={form.formState.isSubmitting}
                     >
                         {isEdit
-                            ? (updateMutation.isPending ? "Saving..." : "Save changes")
-                            : (createMutation.isPending ? "Creating..." : "Create Release")
+                            ? (form.formState.isSubmitting ? "Saving..." : "Save changes")
+                            : (form.formState.isSubmitting ? "Creating..." : "Create Release")
                         }
                     </Button>
                 </SheetFooter>

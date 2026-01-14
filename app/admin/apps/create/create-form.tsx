@@ -56,17 +56,15 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { api } from "@/trpc/react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import {
   detectionItemSchema,
   assignmentTargetSchema,
   createAppSchema,
 } from "@/lib/schemas/create-app";
-import {
-  deleteStoredFile,
-  StoredFileReference,
-  uploadFileToTempStorage,
-} from "@/lib/storage/temp-storage";
+import { uploadFileToConvex } from "@/lib/convex-upload";
 import { useRouter } from "next/navigation";
 
 const DEFAULT_DETECTION_VALUES: z.infer<typeof detectionItemSchema> = {
@@ -91,8 +89,9 @@ type CreateAppFormValues = z.infer<typeof FormSchema>;
 const useCreateAppFormContext = () =>
   useMultiStepFormContext<typeof FormSchema>();
 
+// Helper for dropzone preview - adapted for Convex StoredFile
 const toDropzonePreview = (
-  file?: StoredFileReference | null
+  file?: { name: string; size: number; type?: string | null } | null
 ): File[] | undefined => {
   if (!file) {
     return undefined;
@@ -104,22 +103,14 @@ const toDropzonePreview = (
       size: file.size,
       type: file.type ?? "application/octet-stream",
       lastModified: Date.now(),
-    } as File,
+    } as unknown as File,
   ];
 };
 
 export function CreateForm() {
   const router = useRouter()
-  const createMutation = api.app.create.useMutation({
-    onError: (e) => {
-      console.error(e.message);
-      toast.error("Error when creating app")
-    },
-    onSuccess: () => {
-      toast.success("App created")
-      router.push("/admin/apps")
-    }
-  })
+  const createMutation = useMutation(api.apps.create);
+
   const form = useForm<CreateAppFormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -155,8 +146,40 @@ export function CreateForm() {
     mode: "onBlur",
   });
 
-  const onSubmit = (data: CreateAppFormValues) => {
-    createMutation.mutate(data)
+  const onSubmit = async (data: CreateAppFormValues) => {
+    try {
+      // Transform data to match Convex schema if needed
+      // The schema matches closely enough, ID casting is done inside the mutation or we can do it here
+      // The form values uses strings for IDs, but Convex expects strings or Ids.
+      // Our updated schema.ts uses v.string() for IDs in nested objects which is good.
+      // However, installBinary needs to map storageId string to Id<"_storage">.
+
+      const transformedData = {
+        ...data,
+        release: {
+          ...data.release,
+          installBinary: data.release.installBinary ? {
+            ...data.release.installBinary,
+            storageId: data.release.installBinary.storageId as Id<"_storage">
+          } : undefined
+        },
+        requirement: data.requirement ? {
+          ...data.requirement,
+          requirementScriptBinary: data.requirement.requirementScriptBinary ? {
+            ...data.requirement.requirementScriptBinary,
+            storageId: data.requirement.requirementScriptBinary.storageId as Id<"_storage">
+          } : undefined
+        } : undefined
+      };
+
+      await createMutation(transformedData);
+      toast.success("App created");
+      router.push("/admin/apps");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(message);
+      toast.error(`Error when creating app: ${message}`);
+    }
   };
 
   return (
@@ -282,6 +305,9 @@ function ReleaseStep() {
   const watchedReleaseType = form.watch("release.type");
   const watchedAutoUpdate = form.watch("release.autoUpdate");
   const [isUploadingBinary, setIsUploadingBinary] = useState(false);
+
+  const generateUploadUrl = useMutation(api.apps.generateUploadUrl);
+
   useEffect(() => {
     setType(watchedReleaseType);
     setAutoUpdate(watchedAutoUpdate);
@@ -302,13 +328,11 @@ function ReleaseStep() {
     form.setValue("release.installBinary", undefined);
     form.setValue("release.allowMultipleVersions", false);
     form.setValue("release.uninstallPreviousVersion", false);
-    if (!binary) {
-      return;
-    }
-    void deleteStoredFile({
-      file: binary,
-    }).catch(() => undefined);
+
+    // Note: We are not explicitly deleting the previous file from storage here as creating logic is simpler.
+    // If needed, we could add a deleteFile mutation.
   }, [form, type]);
+
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -379,15 +403,7 @@ function ReleaseStep() {
                       setIsUploadingBinary(true);
                       void (async () => {
                         try {
-                          if (field.value) {
-                            await deleteStoredFile({
-                              file: field.value,
-                            });
-                          }
-                          const uploaded = await uploadFileToTempStorage({
-                            file,
-                            category: "installers",
-                          });
+                          const uploaded = await uploadFileToConvex(file, generateUploadUrl);
                           field.onChange(uploaded);
                           toast.success("Installer uploaded");
                         } catch (uploadError) {
@@ -558,6 +574,7 @@ function ReleaseStep() {
 function RequirementStep() {
   const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
   const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
+  const generateUploadUrl = useMutation(api.apps.generateUploadUrl);
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -594,15 +611,7 @@ function RequirementStep() {
                       setIsUploadingRequirement(true);
                       void (async () => {
                         try {
-                          if (field.value) {
-                            await deleteStoredFile({
-                              file: field.value,
-                            });
-                          }
-                          const uploaded = await uploadFileToTempStorage({
-                            file,
-                            category: "requirements",
-                          });
+                          const uploaded = await uploadFileToConvex(file, generateUploadUrl);
                           field.onChange(uploaded);
                           toast.success("Requirement script uploaded");
                         } catch (uploadError) {
@@ -1172,7 +1181,13 @@ function AssignmentStep() {
   const uninstallValues = form.watch("assignment.uninstallGroups");
   const isSubmitting = form.formState.isSubmitting;
 
-  const groupsQuery = api.group.getAllForAssignment.useQuery()
+  const staticGroups = useQuery(api.staticGroups.list);
+  const dynamicGroups = useQuery(api.groups.getAll);
+
+  const groups = [
+    ...(staticGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "static" as const })),
+    ...(dynamicGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "dynamic" as const })),
+  ];
 
   const [sheetState, setSheetState] = useState<{
     type: "install" | "uninstall";
@@ -1202,7 +1217,7 @@ function AssignmentStep() {
       return "Unknown group";
     }
 
-    return groupsQuery.data?.find((group) => group.id === id)?.displayName ?? id;
+    return groups.find((group) => group.id === id)?.displayName ?? id;
   };
 
   const handleSubmitAssignment = assignmentForm.handleSubmit(
@@ -1421,7 +1436,7 @@ function AssignmentStep() {
                         <Select
                           onValueChange={(val) => {
                             field.onChange(val);
-                            const selectedGroup = groupsQuery.data?.find((g) => g.id === val);
+                            const selectedGroup = groups.find((g) => g.id === val);
                             if (selectedGroup) {
                               assignmentForm.setValue("groupType", selectedGroup.type);
                             }
@@ -1434,7 +1449,7 @@ function AssignmentStep() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {groupsQuery.data?.map((group) => (
+                            {groups.map((group) => (
                               <SelectItem key={group.id} value={group.id}>
                                 <span className="flex items-center gap-2">
                                   {group.displayName}

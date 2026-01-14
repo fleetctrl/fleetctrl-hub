@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,18 +40,17 @@ export default function RowOptions({
   onActionComplete,
 }: RowOptionsProps) {
   const [open, setOpen] = useState(false);
-  const deleteMutation = api.app.delete.useMutation({
-    onError: (error) => {
-      toast.error(error.message);
-    },
-    onSuccess: async () => {
+  const deleteApp = useMutation(api.apps.remove);
+
+  async function handleDelete() {
+    try {
+      await deleteApp({ id: appId as Id<"apps"> });
       toast.success("App deleted");
       await onActionComplete?.();
-    },
-  });
-
-  function handleDelete() {
-    deleteMutation.mutate({ id: appId });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to delete app";
+      toast.error(message);
+    }
     setOpen(false);
   }
 

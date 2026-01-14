@@ -8,7 +8,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -26,25 +28,19 @@ import { useState } from "react";
 
 type RowOptionsProps = {
   tokenID: string;
-  onActionComplete?: () => Promise<unknown> | void;
 };
-export default function RowOptions({
-  tokenID,
-  onActionComplete,
-}: RowOptionsProps) {
+
+export default function RowOptions({ tokenID }: RowOptionsProps) {
   const [open, setOpen] = useState(false);
-  const deleteMutation = api.key.delete.useMutation({
-    async onSuccess() {
-      toast.success("Computer deleted");
-      await onActionComplete?.();
-    },
-    onError() {
-      toast.error("Unable to delete computer");
-    },
-  });
+  const deleteToken = useMutation(api.enrollmentTokens.remove);
 
   async function handleDelete() {
-    await deleteMutation.mutateAsync({ id: tokenID });
+    try {
+      await deleteToken({ id: tokenID as Id<"enrollment_tokens"> });
+      toast.success("Key deleted");
+    } catch {
+      toast.error("Unable to delete key");
+    }
     setOpen(false);
   }
 

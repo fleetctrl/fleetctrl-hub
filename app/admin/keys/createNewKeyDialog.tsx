@@ -31,7 +31,8 @@ import { useForm } from "react-hook-form";
 import z from "zod";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 const createNewKeySchema = z.object({
   name: z.string().min(1, { message: "Key name is required" }),
@@ -51,26 +52,10 @@ const createNewKeySchema = z.object({
 });
 type CreateNewKeyFormRaw = z.input<typeof createNewKeySchema>;
 
-export default function CreateNewKeyDialog({
-  onCreate,
-}: {
-  onCreate: () => void;
-}) {
+export default function CreateNewKeyDialog() {
   const router = useRouter();
-  const generateTokenMutation = api.key.create.useMutation({
-    onSuccess: (data) => {
-      setGeneratedToken(data.token);
-      toast.success("Generated token");
-      setOpen(false);
-      setTokenDialogOpen(true);
-      setCopied(false);
-      form.reset();
-      onCreate();
-    },
-    onError: () => {
-      toast.error("Unable to generate token");
-    },
-  });
+  const createToken = useMutation(api.enrollmentTokens.create);
+
   const [open, setOpen] = useState(false);
   const [openCalendar, setOpenCalendar] = useState(false);
   const [date, setDate] = useState<Date | undefined>(
@@ -103,14 +88,21 @@ export default function CreateNewKeyDialog({
   }, [open, setOpen, router]);
 
   async function onSubmit(values: CreateNewKeyFormRaw) {
-    // generate token
-    generateTokenMutation.mutate({
-      name: values.name,
-      expires_at: new Date(values.expires_at),
-      remaining_uses: Number.parseInt(
-        values?.remaining_uses?.toString() || "1"
-      ),
-    });
+    try {
+      const result = await createToken({
+        name: values.name,
+        expiresAt: new Date(values.expires_at).getTime(),
+        remainingUses: Number.parseInt(values?.remaining_uses?.toString() || "1"),
+      });
+      setGeneratedToken(result.token);
+      toast.success("Generated token");
+      setOpen(false);
+      setTokenDialogOpen(true);
+      setCopied(false);
+      form.reset();
+    } catch {
+      toast.error("Unable to generate token");
+    }
   }
 
   return (
@@ -311,22 +303,22 @@ export default function CreateNewKeyDialog({
                               value={time}
                               min={
                                 date &&
-                                new Date(
-                                  date.getFullYear(),
-                                  date.getMonth(),
-                                  date.getDate()
-                                ).getTime() ===
+                                  new Date(
+                                    date.getFullYear(),
+                                    date.getMonth(),
+                                    date.getDate()
+                                  ).getTime() ===
                                   new Date(
                                     new Date().setHours(0, 0, 0, 0)
                                   ).getTime()
                                   ? (() => {
-                                      const n = new Date();
-                                      const p = (x: number) =>
-                                        String(x).padStart(2, "0");
-                                      return `${p(n.getHours())}:${p(
-                                        n.getMinutes()
-                                      )}:${p(n.getSeconds())}`;
-                                    })()
+                                    const n = new Date();
+                                    const p = (x: number) =>
+                                      String(x).padStart(2, "0");
+                                    return `${p(n.getHours())}:${p(
+                                      n.getMinutes()
+                                    )}:${p(n.getSeconds())}`;
+                                  })()
                                   : undefined
                               }
                               onChange={(e) => {

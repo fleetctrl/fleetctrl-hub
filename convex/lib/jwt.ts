@@ -4,6 +4,7 @@
  */
 
 import { SignJWT, jwtVerify } from "jose";
+import { arrayBufferToBase64Url } from "./encoding";
 
 // Token TTLs
 const ACCESS_TOKEN_TTL = 900; // 15 minutes in seconds
@@ -104,7 +105,7 @@ export async function verifyAccessToken(token: string): Promise<TokenPayload> {
 export function generateRefreshToken(): string {
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
-    return Buffer.from(bytes).toString("base64url");
+    return arrayBufferToBase64Url(bytes);
 }
 
 /**
@@ -118,7 +119,7 @@ export async function hashToken(token: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(token);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    return Buffer.from(hashBuffer).toString("base64url");
+    return arrayBufferToBase64Url(hashBuffer);
 }
 
 /**

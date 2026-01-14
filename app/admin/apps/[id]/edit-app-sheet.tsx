@@ -22,10 +22,12 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const formSchema = z.object({
     display_name: z.string().min(2, {
@@ -41,8 +43,8 @@ interface EditAppSheetProps {
     app: {
         id: string;
         display_name: string;
-        description: string | null;
-        publisher: string | null;
+        description?: string | null;
+        publisher?: string | null;
     };
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -50,7 +52,8 @@ interface EditAppSheetProps {
 
 export function EditAppSheet({ app, open, onOpenChange }: EditAppSheetProps) {
     const router = useRouter();
-    const utils = api.useUtils();
+    const updateApp = useMutation(api.apps.update);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -70,23 +73,22 @@ export function EditAppSheet({ app, open, onOpenChange }: EditAppSheetProps) {
         });
     }, [app, form]);
 
-    const updateMutation = api.app.update.useMutation({
-        onSuccess: () => {
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        try {
+            setIsSubmitting(true);
+            await updateApp({
+                id: app.id as Id<"apps">,
+                data: values,
+            });
             toast.success("App updated successfully");
             onOpenChange(false);
-            router.refresh(); // Refresh server components
-            utils.app.getById.invalidate({ id: app.id }); // Invalidate query
-        },
-        onError: (error) => {
-            toast.error(`Error updating app: ${error.message}`);
-        },
-    });
-
-    function onSubmit(values: z.infer<typeof formSchema>) {
-        updateMutation.mutate({
-            id: app.id,
-            data: values,
-        });
+            router.refresh();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Error updating app: ${message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
     }
 
     function handleOpenChange(isOpen: boolean) {
@@ -157,8 +159,8 @@ export function EditAppSheet({ app, open, onOpenChange }: EditAppSheetProps) {
                     </form>
                 </Form>
                 <SheetFooter>
-                    <Button type="submit" form="edit-app-form" disabled={updateMutation.isPending}>
-                        {updateMutation.isPending ? "Saving..." : "Save changes"}
+                    <Button type="submit" form="edit-app-form" disabled={isSubmitting}>
+                        {isSubmitting ? "Saving..." : "Save changes"}
                     </Button>
                 </SheetFooter>
             </SheetContent>

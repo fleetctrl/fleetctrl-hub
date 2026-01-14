@@ -264,13 +264,135 @@ export const refreshAllDynamicGroups = internalMutation({
     },
 });
 
+/**
+ * Public mutation to refresh all dynamic groups.
+ * Called from admin UI.
+ */
+export const refreshAll = mutation({
+    handler: async (ctx) => {
+        const groups = await ctx.db.query("dynamic_computer_groups").collect();
+        const computers = await ctx.db.query("computers").collect();
+        let totalAdded = 0;
+        let totalRemoved = 0;
+
+        for (const group of groups) {
+            // Clear existing members
+            const existing = await ctx.db
+                .query("dynamic_group_members")
+                .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
+                .collect();
+
+            for (const member of existing) {
+                await ctx.db.delete(member._id);
+                totalRemoved++;
+            }
+
+            // Evaluate all computers
+            for (const computer of computers) {
+                if (evaluateRule(group.rule_expression as RuleExpression, computer)) {
+                    await ctx.db.insert("dynamic_group_members", {
+                        group_id: group._id,
+                        computer_id: computer._id,
+                        added_at: Date.now(),
+                    });
+                    totalAdded++;
+                }
+            }
+
+            await ctx.db.patch(group._id, { last_evaluated_at: Date.now() });
+        }
+
+        return { groups: groups.length, added: totalAdded, removed: totalRemoved };
+    },
+});
+
 // ========================================
 // Public Queries
 // ========================================
 
 /**
- * Get all dynamic groups with member counts.
+ * Get a single dynamic group by ID.
  */
+export const getById = query({
+    args: { id: v.id("dynamic_computer_groups") },
+    handler: async (ctx, { id }) => {
+        const group = await ctx.db.get(id);
+        if (!group) return null;
+
+        return {
+            id: group._id,
+            displayName: group.display_name,
+            description: group.description,
+            ruleExpression: group.rule_expression,
+            lastEvaluatedAt: group.last_evaluated_at,
+            createdAt: group._creationTime,
+        };
+    },
+});
+
+/**
+ * Get all dynamic groups - alias for listDynamicGroups for frontend compatibility.
+ */
+export const getAll = query({
+    handler: async (ctx) => {
+        const groups = await ctx.db.query("dynamic_computer_groups").collect();
+
+        return Promise.all(
+            groups.map(async (group) => {
+                const members = await ctx.db
+                    .query("dynamic_group_members")
+                    .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
+                    .collect();
+
+                return {
+                    id: group._id,
+                    displayName: group.display_name,
+                    description: group.description,
+                    ruleExpression: group.rule_expression,
+                    memberCount: members.length,
+                    createdAt: new Date(group._creationTime).toISOString(),
+                    updatedAt: group.last_evaluated_at
+                        ? new Date(group.last_evaluated_at).toISOString()
+                        : null,
+                    lastEvaluatedAt: group.last_evaluated_at
+                        ? new Date(group.last_evaluated_at).toISOString()
+                        : null,
+                };
+            })
+        );
+    },
+});
+
+/**
+ * Get members for admin UI.
+ */
+export const getMembers = query({
+    args: { id: v.id("dynamic_computer_groups") },
+    handler: async (ctx, { id }) => {
+        const members = await ctx.db
+            .query("dynamic_group_members")
+            .withIndex("by_group_id", (q) => q.eq("group_id", id))
+            .collect();
+
+        return Promise.all(
+            members.map(async (member) => {
+                const computer = await ctx.db.get(member.computer_id);
+                return {
+                    computerId: member.computer_id,
+                    addedAt: member.added_at,
+                    computer: computer
+                        ? {
+                            id: computer._id,
+                            name: computer.name,
+                            os: computer.os,
+                            ip: computer.ip,
+                        }
+                        : null,
+                };
+            })
+        );
+    },
+});
 export const listDynamicGroups = query({
     handler: async (ctx) => {
         const groups = await ctx.db.query("dynamic_computer_groups").collect();

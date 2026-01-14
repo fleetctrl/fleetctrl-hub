@@ -51,8 +51,9 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { api } from "@/trpc/react";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import {
     columns,
     type DynamicGroupRow,
@@ -88,54 +89,27 @@ const groupFormSchema = z.object({
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 export function DynamicGroupsTable() {
-    const utils = api.useUtils();
-    const { data: groups, refetch } = api.dynamicGroup.getAll.useQuery(undefined, {
-        staleTime: 0,
-        gcTime: 0,
-        refetchOnMount: "always",
-    });
+    // Convex queries - automatically reactive!
+    const groups = useQuery(api.groups.getAll);
 
-    const createMutation = api.dynamicGroup.create.useMutation({
-        onSuccess: () => {
-            toast.success("Dynamic group created");
-            utils.dynamicGroup.invalidate();
-            refetch();
-        },
-        onError: (error) => toast.error(error.message),
-    });
+    // Convex mutations
+    const createGroup = useMutation(api.groups.createDynamicGroup);
+    const updateGroup = useMutation(api.groups.updateDynamicGroup);
+    const deleteGroup = useMutation(api.groups.deleteDynamicGroup);
+    const refreshGroups = useMutation(api.groups.refreshAll);
 
-    const updateMutation = api.dynamicGroup.update.useMutation({
-        onSuccess: () => {
-            toast.success("Dynamic group updated");
-            utils.dynamicGroup.invalidate();
-            refetch();
-        },
-        onError: (error) => toast.error(error.message),
-    });
-
-    const deleteMutation = api.dynamicGroup.delete.useMutation({
-        onSuccess: () => {
-            toast.success("Dynamic group deleted");
-            utils.dynamicGroup.invalidate();
-            refetch();
-        },
-        onError: (error) => toast.error(error.message),
-    });
-
-    const refreshMutation = api.dynamicGroup.refreshAll.useMutation({
-        onSuccess: () => {
-            toast.success("Memberships refreshed");
-            refetch();
-        },
-        onError: (error) => toast.error(error.message),
-    });
+    // State
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const groupRows: DynamicGroupRow[] = useMemo(() => {
         if (!groups) return [];
         return groups.map((group) => ({
             id: group.id,
             displayName: group.displayName,
-            description: group.description,
+            description: group.description ?? null,
             memberCount: group.memberCount,
             createdAtFormatted: formatDateTime(group.createdAt) ?? "",
             updatedAtFormatted: formatDateTime(group.updatedAt) ?? "",
@@ -148,10 +122,11 @@ export function DynamicGroupsTable() {
     const [viewMembersGroupId, setViewMembersGroupId] = useState<string | null>(null);
 
     // Query for members when dialog is open
-    const { data: membersData, isLoading: membersLoading } = api.dynamicGroup.getMembers.useQuery(
-        { id: viewMembersGroupId! },
-        { enabled: !!viewMembersGroupId }
+    const membersData = useQuery(
+        api.groups.getMembers,
+        viewMembersGroupId ? { id: viewMembersGroupId as Id<"dynamic_computer_groups"> } : "skip"
     );
+    const membersLoading = viewMembersGroupId && membersData === undefined;
 
     const defaultRuleExpression: RuleExpressionFormValues = {
         logic: "AND",
@@ -175,9 +150,9 @@ export function DynamicGroupsTable() {
     // Fetch full group details when editing
     const editingGroupId =
         dialogState?.mode === "edit" ? dialogState.groupId : null;
-    const { data: editingGroup } = api.dynamicGroup.getById.useQuery(
-        { id: editingGroupId! },
-        { enabled: !!editingGroupId }
+    const editingGroup = useQuery(
+        api.groups.getById,
+        editingGroupId ? { id: editingGroupId as Id<"dynamic_computer_groups"> } : "skip"
     );
 
     // Update form when editing group data loads
@@ -217,28 +192,61 @@ export function DynamicGroupsTable() {
     const onSubmit = async (values: GroupFormValues) => {
         const apiRuleExpression = formToApiFormat(values.ruleExpression);
 
-        if (dialogState?.mode === "create") {
-            await createMutation.mutateAsync({
-                name: values.displayName,
-                description: values.description,
-                ruleExpression: apiRuleExpression as any,
-            });
-        } else if (dialogState?.mode === "edit" && values.id) {
-            await updateMutation.mutateAsync({
-                id: values.id,
-                name: values.displayName,
-                description: values.description,
-                ruleExpression: apiRuleExpression as any,
-            });
+        try {
+            if (dialogState?.mode === "create") {
+                setIsCreating(true);
+                await createGroup({
+                    displayName: values.displayName,
+                    description: values.description,
+                    ruleExpression: apiRuleExpression,
+                });
+                toast.success("Dynamic group created");
+            } else if (dialogState?.mode === "edit" && values.id) {
+                setIsUpdating(true);
+                await updateGroup({
+                    id: values.id as Id<"dynamic_computer_groups">,
+                    displayName: values.displayName,
+                    description: values.description,
+                    ruleExpression: apiRuleExpression,
+                });
+                toast.success("Dynamic group updated");
+            }
+            closeDialog();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "An error occurred";
+            toast.error(message);
+        } finally {
+            setIsCreating(false);
+            setIsUpdating(false);
         }
-
-        closeDialog();
     };
 
     const handleDelete = async () => {
         if (deleteGroupId) {
-            await deleteMutation.mutateAsync({ id: deleteGroupId });
-            setDeleteGroupId(null);
+            try {
+                setIsDeleting(true);
+                await deleteGroup({ id: deleteGroupId as Id<"dynamic_computer_groups"> });
+                toast.success("Dynamic group deleted");
+                setDeleteGroupId(null);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : "An error occurred";
+                toast.error(message);
+            } finally {
+                setIsDeleting(false);
+            }
+        }
+    };
+
+    const handleRefresh = async () => {
+        try {
+            setIsRefreshing(true);
+            await refreshGroups();
+            toast.success("Memberships refreshed");
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "An error occurred";
+            toast.error(message);
+        } finally {
+            setIsRefreshing(false);
         }
     };
 
@@ -255,34 +263,9 @@ export function DynamicGroupsTable() {
 
     const hasGroups = groupRows.length > 0;
     const isDialogOpen = dialogState !== null;
-    const isLoading =
-        createMutation.isPending ||
-        updateMutation.isPending ||
-        deleteMutation.isPending;
+    const isLoading = isCreating || isUpdating || isDeleting;
 
-    // Realtime subscription
-    useEffect(() => {
-        const supabase = createSupabaseClient();
-        const channel = supabase
-            .channel("dynamic-group-changes")
-            .on(
-                "postgres_changes",
-                { event: "*", schema: "public", table: "dynamic_computer_groups" },
-                () => refetch()
-            )
-            .on(
-                "postgres_changes",
-                { event: "*", schema: "public", table: "dynamic_group_members" },
-                () => refetch()
-            );
-
-        channel.subscribe();
-
-        return () => {
-            channel.unsubscribe();
-            supabase.removeChannel(channel);
-        };
-    }, [refetch]);
+    // Convex queries are automatically reactive - no subscription needed!
 
     return (
         <div className="flex w-full flex-col gap-4 pb-10">
@@ -315,10 +298,10 @@ export function DynamicGroupsTable() {
                     <div className="flex gap-2">
                         <Button
                             variant="outline"
-                            onClick={() => refreshMutation.mutate()}
-                            disabled={refreshMutation.isPending}
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
                         >
-                            <RefreshCw className={`h-4 w-4 mr-2 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                             Refresh
                         </Button>
                         <Button onClick={openCreateDialog}>Create dynamic group</Button>

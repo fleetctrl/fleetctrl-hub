@@ -6,6 +6,7 @@
 
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { arrayBufferToBase64Url } from "./lib/encoding";
 
 // ========================================
 // Public Queries
@@ -48,13 +49,13 @@ export const create = mutation({
         // Generate random token
         const bytes = new Uint8Array(32);
         crypto.getRandomValues(bytes);
-        const token = Buffer.from(bytes).toString("base64url");
+        const token = arrayBufferToBase64Url(bytes);
 
         // Hash the token for storage
         const encoder = new TextEncoder();
         const data = encoder.encode(token);
         const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        const tokenHash = Buffer.from(hashBuffer).toString("base64url");
+        const tokenHash = arrayBufferToBase64Url(hashBuffer);
 
         // Token fragment (first 8 chars for display)
         const tokenFragment = token.slice(0, 8);

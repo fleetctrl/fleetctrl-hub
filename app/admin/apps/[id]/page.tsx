@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
-import { api } from "@/trpc/react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import PageWrapper from "@/components/page-wrapper";
 import {
     Breadcrumb,
@@ -23,16 +25,16 @@ export default function AppDetailPage() {
     const params = useParams();
     const appId = params.id as string;
 
-    const { data: app, isLoading, error } = api.app.getById.useQuery({ id: appId });
-    const { data: releases, isLoading: releasesLoading } = api.app.getReleases.useQuery(
-        { appId },
-        { enabled: !!appId }
-    );
+    const app = useQuery(api.apps.getById, { id: appId as Id<"apps"> });
+    const releases = useQuery(api.apps.getReleases, { appId: appId as Id<"apps"> });
+
+    const isLoading = app === undefined;
+    const releasesLoading = releases === undefined;
+    const error = app === null;
+
     const [activeView, setActiveView] = useState<"overview" | "properties">("overview");
     const [showEditSheet, setShowEditSheet] = useState(false);
     const [showCreateReleaseSheet, setShowCreateReleaseSheet] = useState(false);
-
-    console.log(app);
 
     // Determine if we can add a new release
     // For autoupdate apps, only 1 release is allowed

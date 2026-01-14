@@ -5,6 +5,7 @@
 
 import { importJWK, jwtVerify } from "jose";
 import type { JWK } from "jose";
+import { base64UrlToString, arrayBufferToBase64Url } from "./encoding";
 
 export interface DPoPClaims {
     htu: string;
@@ -47,7 +48,7 @@ export async function verifyDPoP(
 
     let header: { typ?: string; alg?: string; jwk?: JWK };
     try {
-        const headerJson = Buffer.from(headerB64, "base64url").toString("utf-8");
+        const headerJson = base64UrlToString(headerB64);
         header = JSON.parse(headerJson);
     } catch {
         throw new Error("Invalid DPoP header encoding");
@@ -170,7 +171,7 @@ export async function computeJKT(jwk: JWK): Promise<string> {
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
 
     // Base64url encode
-    return Buffer.from(hashBuffer).toString("base64url");
+    return arrayBufferToBase64Url(hashBuffer);
 }
 
 /**
@@ -188,7 +189,7 @@ export async function verifyATH(
     const encoder = new TextEncoder();
     const data = encoder.encode(accessToken);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const ath = Buffer.from(hashBuffer).toString("base64url");
+    const ath = arrayBufferToBase64Url(hashBuffer);
     return ath === expectedATH;
 }
 
@@ -202,5 +203,5 @@ export async function computeATH(accessToken: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(accessToken);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    return Buffer.from(hashBuffer).toString("base64url");
+    return arrayBufferToBase64Url(hashBuffer);
 }

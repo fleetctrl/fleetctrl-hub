@@ -19,23 +19,19 @@ import {
 } from "@/components/ui/table";
 
 import { columns, type AppRow, type AppsTableMeta } from "./columns";
-import { api } from "@/trpc/react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 
-const formatDateTime = (isoDate: string) =>
-  new Date(isoDate).toLocaleString("cs-CZ", {
+const formatDateTime = (timestamp: number) =>
+  new Date(timestamp).toLocaleString("cs-CZ", {
     dateStyle: "medium",
     timeStyle: "short",
   });
 
-
-
 export function AppsTable() {
-  const { data: apps, refetch } = api.app.getTableData.useQuery(undefined, {
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
-  });
+  // Convex useQuery is automatically reactive!
+  const apps = useQuery(api.apps.getTableData);
 
   const appRows: AppRow[] = useMemo(() => {
     if (!apps) {
@@ -52,8 +48,6 @@ export function AppsTable() {
   }, [apps]);
 
   const openEditDialog = (appId: string) => {
-    // Navigate to edit page or open edit sheet if we had one here
-    // For now we navigate to the app details page where edit resides
     window.location.href = `/admin/apps/${appId}`;
   };
 
@@ -64,7 +58,7 @@ export function AppsTable() {
     meta: {
       onEdit: openEditDialog,
       onActionComplete: () => {
-        refetch();
+        // Convex is automatically reactive - no refetch needed
       },
     } satisfies AppsTableMeta,
   });

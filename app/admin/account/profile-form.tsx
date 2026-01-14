@@ -20,8 +20,8 @@ import { Form, FormField } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
-import { api } from "@/trpc/react";
 import { toast } from "sonner";
+import { useUser } from "@clerk/nextjs";
 
 type ProfileFormProps = {
   firstName?: string;
@@ -38,11 +38,7 @@ export function ProfileForm({
   firstName: initialFirstName = "",
   lastName: initialLastName = "",
 }: ProfileFormProps) {
-  const updateAccountMutation = api.account.update.useMutation({
-    onError: () => {
-      toast.error("Unable to save changes");
-    },
-  });
+  const { user, isLoaded } = useUser();
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -50,16 +46,25 @@ export function ProfileForm({
       firstname: initialFirstName,
       lastname: initialLastName,
     },
+    values: user ? {
+      firstname: user.firstName || "",
+      lastname: user.lastName || ""
+    } : undefined,
     criteriaMode: "all",
     mode: "onTouched",
   });
 
   async function onSubmit(values: ProfileFormValues) {
+    if (!user) return;
     try {
-      await updateAccountMutation.mutateAsync(values);
+      await user.update({
+        firstName: values.firstname,
+        lastName: values.lastname,
+      });
       toast.success("Saved changes");
-    } catch {
-      /* onError už toastnul */
+    } catch (e) {
+      toast.error("Unable to save changes");
+      console.error(e);
     }
   }
 
@@ -129,9 +134,9 @@ export function ProfileForm({
               <Field orientation="horizontal">
                 <Button
                   type="submit"
-                  disabled={form.formState.isSubmitting || updateAccountMutation.isPending}
+                  disabled={form.formState.isSubmitting || !isLoaded}
                 >
-                  {form.formState.isSubmitting || updateAccountMutation.isPending
+                  {form.formState.isSubmitting
                     ? "Saving…"
                     : "Save changes"}
                 </Button>

@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/field";
 import { Item, ItemContent } from "@/components/ui/item";
 import { Form, FormField } from "@/components/ui/form";
-import { api } from "@/trpc/react";
 import { toast } from "sonner";
+import { useUser } from "@clerk/nextjs";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -47,15 +47,7 @@ const passwordSchema = z
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 export function PasswordForm() {
-  const changePasswordMutation = api.account.changePassword.useMutation({
-    onError: (values) => {
-      if (values.data?.code == "UNAUTHORIZED") {
-        form.setError("currentPassword", { message: "Your current password is incorrect." })
-      } else {
-        toast.error("Error changing password")
-      }
-    }
-  })
+  const { user, isLoaded } = useUser();
 
   const form = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
@@ -73,21 +65,34 @@ export function PasswordForm() {
 
   const isSubmitDisabled =
     form.formState.isSubmitting ||
+    !isLoaded ||
     !currentPasswordValue ||
     !newPasswordValue ||
     !repeatPasswordValue ||
     newPasswordValue.length < MIN_PASSWORD_LENGTH;
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    changePasswordMutation.mutate({
-      oldPassword: values.currentPassword,
-      newPassword: values.newPassword
-    })
-
-    if (changePasswordMutation.isError) {
-      return
+    if (!user) return;
+    try {
+      await user.updatePassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword
+      });
+      toast.success("Password updated");
+      form.reset();
+    } catch (err: any) {
+      // Clerk error handling
+      const errors = err?.errors || [];
+      const errorCode = errors[0]?.code;
+      if (errorCode === "form_password_incorrect") {
+        form.setError("currentPassword", { message: "Incorrect password." });
+      } else if (errorCode === "form_password_pwned") {
+        form.setError("newPassword", { message: "Password has been found in a data breach." });
+      } else {
+        toast.error("Error changing password");
+        console.error(err);
+      }
     }
-    form.reset();
   });
 
   return (

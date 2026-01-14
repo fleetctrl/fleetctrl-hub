@@ -12,7 +12,6 @@ import React, {
 } from "react";
 
 import { Slot, Slottable } from "@radix-ui/react-slot";
-import { useMutation, UseMutationResult } from "@tanstack/react-query";
 import { FieldErrors, FieldValues, Path, UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 
@@ -33,6 +32,19 @@ type StepProps = React.PropsWithChildren<
   } & React.HTMLProps<HTMLDivElement>
 >;
 
+export type CustomMutationResult = {
+  mutate: () => void;
+  mutateAsync: () => Promise<unknown>;
+  isPending: boolean;
+  isError: boolean;
+  isSuccess: boolean;
+  isIdle: boolean;
+  status: "idle" | "pending" | "success" | "error";
+  data: unknown;
+  error: unknown;
+  reset: () => void;
+};
+
 type MultiStepFormContextValue<TFieldValues extends FieldValues> = {
   form: UseFormReturn<TFieldValues>;
   currentStep: string;
@@ -47,7 +59,7 @@ type MultiStepFormContextValue<TFieldValues extends FieldValues> = {
   isStepValid: () => boolean;
   isValid: boolean;
   errors: FieldErrors<TFieldValues>;
-  mutation: UseMutationResult<unknown, unknown, void, unknown>;
+  mutation: CustomMutationResult;
 };
 
 const MultiStepFormContext = createContext<unknown>(null);
@@ -298,11 +310,44 @@ export function useMultiStepForm<Schema extends z.ZodType<FieldValues>>(
   const isValid = form.formState.isValid;
   const errors = form.formState.errors;
 
-  const mutation = useMutation({
-    mutationFn: () => {
-      return form.handleSubmit(onSubmit)();
-    },
-  });
+  const [mutationState, setMutationState] = useState<{
+    status: "idle" | "pending" | "success" | "error";
+    error: unknown;
+    data: unknown;
+  }>({ status: "idle", error: null, data: null });
+
+  const mutateAsync = useCallback(async () => {
+    setMutationState((prev) => ({ ...prev, status: "pending", error: null }));
+    try {
+      const result = await form.handleSubmit(onSubmit)();
+      setMutationState({ status: "success", data: result, error: null });
+      return result;
+    } catch (err) {
+      setMutationState({ status: "error", error: err, data: null });
+      throw err;
+    }
+  }, [form, onSubmit]);
+
+  const mutate = useCallback(() => {
+    void mutateAsync().catch(() => { });
+  }, [mutateAsync]);
+
+  const reset = useCallback(() => {
+    setMutationState({ status: "idle", error: null, data: null });
+  }, []);
+
+  const mutation = useMemo(() => ({
+    mutate,
+    mutateAsync,
+    isPending: mutationState.status === "pending",
+    isError: mutationState.status === "error",
+    isSuccess: mutationState.status === "success",
+    isIdle: mutationState.status === "idle",
+    status: mutationState.status,
+    data: mutationState.data,
+    error: mutationState.error,
+    reset,
+  }), [mutate, mutateAsync, reset, mutationState]);
 
   return useMemo<MultiStepFormContextValue<z.infer<Schema>>>(
     () => ({
@@ -433,9 +478,9 @@ function AnimatedStep({
     isActive
       ? {}
       : {
-          "-translate-x-full": direction === "forward" || index < currentIndex,
-          "translate-x-full": direction === "backward" || index > currentIndex,
-        }
+        "-translate-x-full": direction === "forward" || index < currentIndex,
+        "translate-x-full": direction === "backward" || index > currentIndex,
+      }
   );
 
   const className = cn(baseClasses, visibilityClasses, transformClasses);

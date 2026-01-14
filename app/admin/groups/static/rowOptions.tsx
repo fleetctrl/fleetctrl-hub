@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -37,18 +39,16 @@ export default function RowOptions({
   onActionComplete,
 }: RowOptionsProps) {
   const [open, setOpen] = useState(false);
-  const deleteMutation = api.group.delete.useMutation({
-    onError: () => {
-      toast.error("Unable to delete group");
-    },
-    onSuccess: async () => {
+  const deleteGroup = useMutation(api.staticGroups.remove);
+
+  async function handleDelete() {
+    try {
+      await deleteGroup({ id: groupId as Id<"computer_groups"> });
       toast.success("Group deleted");
       await onActionComplete?.();
-    },
-  });
-
-  function handleDelete() {
-    deleteMutation.mutateAsync({ id: groupId });
+    } catch {
+      toast.error("Unable to delete group");
+    }
     setOpen(false);
   }
 
