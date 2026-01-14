@@ -18,11 +18,13 @@ import { internal } from "./_generated/api";
 // ========================================
 
 /**
- * List all computers.
+ * List all computers (simple version).
  */
 export const list = query({
     handler: async (ctx) => {
         const computers = await ctx.db.query("computers").collect();
+        const now = Date.now();
+        const fiveMinutesAgo = now - 5 * 60 * 1000;
 
         return computers.map((c) => ({
             id: c._id,
@@ -34,10 +36,115 @@ export const list = query({
             osVersion: c.os_version,
             loginUser: c.login_user,
             clientVersion: c.client_version,
-            lastConnection: c.last_connection,
+            lastConnection:
+                c.last_connection && c.last_connection >= fiveMinutesAgo
+                    ? "Online"
+                    : "Offline",
             intuneId: c.intune_id,
             createdAt: c._creationTime,
         }));
+    },
+});
+
+/**
+ * Paginated list for admin table.
+ * Supports filtering by login_user and sorting.
+ */
+export const listPaginated = query({
+    args: {
+        skip: v.optional(v.number()),
+        limit: v.optional(v.number()),
+        filter: v.optional(v.string()),
+        sortField: v.optional(v.string()),
+        sortDesc: v.optional(v.boolean()),
+    },
+    handler: async (ctx, { skip = 0, limit = 10, filter, sortField, sortDesc }) => {
+        let computers = await ctx.db.query("computers").collect();
+        const now = Date.now();
+        const fiveMinutesAgo = now - 5 * 60 * 1000;
+
+        // Filter by login_user
+        if (filter) {
+            const lowerFilter = filter.toLowerCase();
+            computers = computers.filter(
+                (c) =>
+                    c.login_user?.toLowerCase().includes(lowerFilter) ||
+                    c.name?.toLowerCase().includes(lowerFilter)
+            );
+        }
+
+        // Sort
+        if (sortField) {
+            computers.sort((a, b) => {
+                let aVal: unknown;
+                let bVal: unknown;
+
+                switch (sortField) {
+                    case "name":
+                        aVal = a.name;
+                        bVal = b.name;
+                        break;
+                    case "rustdeskID":
+                        aVal = a.rustdesk_id;
+                        bVal = b.rustdesk_id;
+                        break;
+                    case "ip":
+                        aVal = a.ip;
+                        bVal = b.ip;
+                        break;
+                    case "os":
+                        aVal = a.os;
+                        bVal = b.os;
+                        break;
+                    case "osVersion":
+                        aVal = a.os_version;
+                        bVal = b.os_version;
+                        break;
+                    case "loginUser":
+                        aVal = a.login_user;
+                        bVal = b.login_user;
+                        break;
+                    case "lastConnection":
+                        aVal = a.last_connection;
+                        bVal = b.last_connection;
+                        break;
+                    default:
+                        return 0;
+                }
+
+                if (aVal === undefined || aVal === null) return 1;
+                if (bVal === undefined || bVal === null) return -1;
+
+                const comparison =
+                    typeof aVal === "string"
+                        ? aVal.localeCompare(bVal as string)
+                        : (aVal as number) - (bVal as number);
+
+                return sortDesc ? -comparison : comparison;
+            });
+        }
+
+        const total = computers.length;
+        const paginated = computers.slice(skip, skip + limit);
+
+        return {
+            data: paginated.map((c) => ({
+                id: c._id,
+                rustdeskID: c.rustdesk_id,
+                name: c.name,
+                ip: c.ip,
+                os: c.os,
+                osVersion: c.os_version,
+                loginUser: c.login_user,
+                lastConnection:
+                    c.last_connection && c.last_connection >= fiveMinutesAgo
+                        ? "Online"
+                        : "Offline",
+                clientVersion: c.client_version,
+                intuneId: c.intune_id,
+            })),
+            total,
+        };
     },
 });
 

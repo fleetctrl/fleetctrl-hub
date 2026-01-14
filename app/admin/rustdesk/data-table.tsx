@@ -25,9 +25,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { createSupabaseClient } from "@/lib/supabase/client";
-import { api } from "@/trpc/react";
-import type { RustDesk } from "@/server/api/routers/rustdesk";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { columns } from "./columns";
 import {
   InputGroup,
@@ -36,6 +35,20 @@ import {
 } from "@/components/ui/input-group";
 import { SearchIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+
+// Type for RustDesk data from Convex
+type RustDesk = {
+  id: string;
+  rustdeskID?: number;
+  name?: string;
+  ip?: string;
+  os?: string;
+  osVersion?: string;
+  loginUser?: string;
+  lastConnection?: string;
+  clientVersion?: string;
+  intuneId?: string;
+};
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -120,9 +133,9 @@ function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -219,31 +232,20 @@ export function RustDeskTable() {
   const skip = pagination.pageIndex * pagination.pageSize;
   const limit = pagination.pageSize;
 
-  const sortInput = useMemo(
-    () =>
-      sorting.length
-        ? sorting.map((item) => ({ id: item.id, desc: Boolean(item.desc) }))
-        : undefined,
-    [sorting]
-  );
+  // Get sort field and direction for Convex query
+  const sortField = sorting.length > 0 ? sorting[0].id : undefined;
+  const sortDesc = sorting.length > 0 ? sorting[0].desc : undefined;
 
-  const { data, refetch, isFetching } = api.rustdesk.get.useQuery(
-    {
-      range: {
-        skip,
-        limit,
-      },
-      sort: sortInput,
-      filter: {
-        login_user: filter,
-      },
-    },
-    {
-      staleTime: 0,
-      gcTime: 0,
-      refetchOnMount: "always",
-    }
-  );
+  // Convex useQuery is automatically reactive - no refetch needed!
+  const data = useQuery(api.computers.listPaginated, {
+    skip,
+    limit,
+    filter: filter || undefined,
+    sortField,
+    sortDesc,
+  });
+
+  const isFetching = data === undefined;
 
   useEffect(() => {
     if (!data) {
@@ -268,29 +270,11 @@ export function RustDeskTable() {
       return;
     }
 
-    setTableData(data.data);
+    setTableData(data.data as RustDesk[]);
     setDisplayPagination(pagination);
   }, [data, pagination]);
 
-  useEffect(() => {
-    const supabase = createSupabaseClient();
-    const channel = supabase
-      .channel("computer-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "computers" },
-        () => {
-          refetch();
-        }
-      );
-
-    channel.subscribe();
-
-    return () => {
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
+  // Convex queries are automatically reactive - no Supabase subscription needed!
 
   useEffect(() => {
     if (typeof tableTotal !== "number") {

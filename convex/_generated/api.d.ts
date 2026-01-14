@@ -13,11 +13,13 @@ import type * as auth from "../auth.js";
 import type * as client from "../client.js";
 import type * as computers from "../computers.js";
 import type * as crons from "../crons.js";
+import type * as enrollmentTokens from "../enrollmentTokens.js";
 import type * as groups from "../groups.js";
 import type * as http from "../http.js";
 import type * as lib_dpop from "../lib/dpop.js";
 import type * as lib_jtiStore from "../lib/jtiStore.js";
 import type * as lib_jwt from "../lib/jwt.js";
+import type * as staticGroups from "../staticGroups.js";
 import type * as tasks from "../tasks.js";
 
 import type {
@@ -32,11 +34,13 @@ declare const fullApi: ApiFromModules<{
   client: typeof client;
   computers: typeof computers;
   crons: typeof crons;
+  enrollmentTokens: typeof enrollmentTokens;
   groups: typeof groups;
   http: typeof http;
   "lib/dpop": typeof lib_dpop;
   "lib/jtiStore": typeof lib_jtiStore;
   "lib/jwt": typeof lib_jwt;
+  staticGroups: typeof staticGroups;
   tasks: typeof tasks;
 }>;
 
