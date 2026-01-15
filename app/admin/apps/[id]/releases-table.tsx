@@ -48,17 +48,17 @@ interface Release {
         assign_type: string;
         action: string;
         computer_groups: {
-            id: string;
+            _id: string;
             display_name: string;
-        } | { id: string; display_name: string; }[] | null;
+        } | null;
     }[];
     dynamic_group_releases?: {
         assign_type: string;
         action: string;
         dynamic_computer_groups: {
-            id: string;
+            _id: string;
             display_name: string;
-        } | { id: string; display_name: string; }[] | null;
+        } | null;
     }[];
     staticAssignments?: unknown[];
     dynamicAssignments?: unknown[];
@@ -70,17 +70,15 @@ interface Release {
     release_requirements?: {
         timeout_seconds: number;
         run_as_system: boolean;
-        storage_path: string;
-        bucket: string;
-        byte_size: number;
+        storage_id: string;
+        byte_size?: number;
         hash: string;
     }[];
     win32_releases?: {
         install_script: string;
         uninstall_script: string;
-        install_binary_bucket: string;
-        install_binary_path: string;
-        install_binary_size: number;
+        install_binary_storage_id: string;
+        install_binary_size?: number;
         hash: string;
     }[];
     winget_releases?: {
@@ -108,24 +106,22 @@ function AssignmentsBadges({ release }: { release: Release }) {
         return <span className="text-sm text-muted-foreground">No groups</span>;
     }
 
-    const getGroupName = (cg: { id: string; display_name: string; } | { id: string; display_name: string; }[] | null | undefined) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getGroupName = (cg: any) => {
         if (!cg) return "Unknown";
-        if (Array.isArray(cg)) {
-            return cg[0]?.display_name || "Unknown";
-        }
         return cg.display_name || "Unknown";
     };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function indexForID(cg: any) {
+        if (!cg) return Math.random().toString();
+        return cg._id || Math.random().toString();
+    }
 
     const allGroupItems = [
         ...staticGroups.map(g => ({ name: getGroupName(g.computer_groups), id: indexForID(g.computer_groups) })),
         ...dynamicGroups.map(g => ({ name: getGroupName(g.dynamic_computer_groups), id: indexForID(g.dynamic_computer_groups) }))
     ];
-
-    function indexForID(cg: any) {
-        if (!cg) return Math.random().toString();
-        if (Array.isArray(cg)) return cg[0]?.id || Math.random().toString();
-        return cg.id || Math.random().toString();
-    }
 
     const visibleGroups = allGroupItems.slice(0, 2);
     const remainingCount = allGroupItems.length - visibleGroups.length;

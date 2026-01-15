@@ -41,7 +41,7 @@ import {
 import { X, Plus, Trash2, Pencil } from "lucide-react";
 import { detectionItemSchema, storedFileReferenceSchema } from "@/lib/schemas/create-app";
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/shadcn-io/dropzone";
-import { uploadFileToConvex, StoredFile } from "@/lib/convex-upload";
+import { uploadFileToConvex } from "@/lib/convex-upload";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -93,9 +93,9 @@ interface EditReleaseSheetProps {
             assign_type: string;
             action: string;
             computer_groups: {
-                id: string;
+                _id: string;
                 display_name: string;
-            } | { id: string; display_name: string; }[] | null;
+            } | null;
         }[];
         detection_rules?: {
             type: string;
@@ -105,14 +105,14 @@ interface EditReleaseSheetProps {
             timeout_seconds: number;
             run_as_system: boolean;
             storage_id?: string;
-            byte_size: number;
+            byte_size?: number;
             hash: string;
         }[];
         win32_releases?: {
             install_script: string;
             uninstall_script: string;
             install_binary_storage_id?: string;
-            install_binary_size: number;
+            install_binary_size?: number;
             hash: string;
         }[];
         winget_releases?: {

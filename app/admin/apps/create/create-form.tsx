@@ -160,14 +160,16 @@ export function CreateForm() {
           ...data.release,
           installBinary: data.release.installBinary ? {
             ...data.release.installBinary,
-            storageId: data.release.installBinary.storageId as Id<"_storage">
+            storageId: data.release.installBinary.storageId as Id<"_storage">,
+            type: data.release.installBinary.type ?? "application/octet-stream"
           } : undefined
         },
         requirement: data.requirement ? {
           ...data.requirement,
           requirementScriptBinary: data.requirement.requirementScriptBinary ? {
             ...data.requirement.requirementScriptBinary,
-            storageId: data.requirement.requirementScriptBinary.storageId as Id<"_storage">
+            storageId: data.requirement.requirementScriptBinary.storageId as Id<"_storage">,
+            type: data.requirement.requirementScriptBinary.type ?? "application/octet-stream"
           } : undefined
         } : undefined
       };
@@ -323,8 +325,6 @@ function ReleaseStep() {
     if (type === "win32") {
       return;
     }
-    const binary = form.getValues("release").installBinary;
-
     form.setValue("release.installBinary", undefined);
     form.setValue("release.allowMultipleVersions", false);
     form.setValue("release.uninstallPreviousVersion", false);

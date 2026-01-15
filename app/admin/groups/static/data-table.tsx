@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -74,10 +74,6 @@ export function GroupsTable() {
   // Convex mutations
   const createGroupMutation = useMutation(api.staticGroups.create);
   const editGroupMutation = useMutation(api.staticGroups.edit);
-
-  // State for mutations
-  const [isCreating, setIsCreating] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
 
   const groupRows: GroupRow[] = useMemo(() => {
     if (!groups) {
@@ -179,7 +175,6 @@ export function GroupsTable() {
 
   const hasGroups = groupRows.length > 0;
   const isDialogOpen = dialogState !== null;
-  const isLoading = isCreating || isEditing;
 
   // Convex queries are automatically reactive - no Supabase subscription needed!
 
