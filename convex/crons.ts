@@ -51,7 +51,7 @@ crons.daily(
  */
 crons.interval(
     "refresh dynamic groups",
-    { minutes: 15 },
+    { minutes: 60 },
     internal.groups.refreshAllDynamicGroups
 );
 
