@@ -114,6 +114,30 @@ const dpopAuth = createMiddleware<Env>(async (c, next) => {
         const computerId = sub.slice(7);
 
 
+        // Check for client updates
+        const clientVersion = c.req.header("X-Client-Version");
+        if (clientVersion) {
+            try {
+                // Check if update is needed
+                const activeVersion = await c.env.ctx.runQuery(api.client.getActiveVersion, {});
+
+                if (activeVersion && activeVersion.version !== clientVersion) {
+                    // Inject update instruction as response header
+                    c.header(
+                        "X-Client-Update",
+                        JSON.stringify({
+                            version: activeVersion.version,
+                            id: activeVersion.id,
+                            hash: activeVersion.hash,
+                        })
+                    );
+                }
+            } catch (e) {
+                console.error("Client update check failed:", e);
+                // Non-critical, continue
+            }
+        }
+
         // Set computerId in context
         c.set("computerId", computerId);
 
