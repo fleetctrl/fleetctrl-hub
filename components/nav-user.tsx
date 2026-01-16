@@ -27,27 +27,22 @@ import {
     useSidebar,
 } from "@/components/ui/sidebar"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { authClient } from "@/lib/auth-client"
 import Link from "next/link"
 
-export function NavUser({
-    user,
-}: {
-    user: {
-        firstname: string
-        lastname: string
-        email: string
-        avatar: string
-    }
-}) {
+export function NavUser() {
     const { isMobile } = useSidebar()
-    const router = useRouter();
+    const router = useRouter()
+    const { data: session } = authClient.useSession()
 
     const logout = async () => {
-        const supabase = createClient();
-        await supabase.auth.signOut();
-        router.push("/auth/login");
-    };
+        await authClient.signOut()
+        router.push("/sign-in")
+    }
+
+    const email = session?.user?.email ?? "Loading..."
+    const name = session?.user?.name ?? email
+    const initials = name.charAt(0).toUpperCase()
 
     return (
         <SidebarMenu>
@@ -59,13 +54,13 @@ export function NavUser({
                             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                         >
                             <Avatar className="h-8 w-8 rounded-lg grayscale">
-                                <AvatarImage src={user.avatar} alt={user.firstname} />
-                                <AvatarFallback className="rounded-lg">{user.firstname.charAt(0).toUpperCase()+user.lastname.charAt(0).toUpperCase()}</AvatarFallback>
+                                <AvatarImage src="" alt={name} />
+                                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                             </Avatar>
                             <div className="grid flex-1 text-left text-sm leading-tight">
-                                <span className="truncate font-medium">{user.firstname + " " + user.lastname}</span>
+                                <span className="truncate font-medium">{name}</span>
                                 <span className="text-muted-foreground truncate text-xs">
-                                    {user.email}
+                                    {email}
                                 </span>
                             </div>
                             <IconDotsVertical className="ml-auto size-4" />
@@ -80,13 +75,13 @@ export function NavUser({
                         <DropdownMenuLabel className="p-0 font-normal">
                             <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                                 <Avatar className="h-8 w-8 rounded-lg">
-                                    <AvatarImage src={user.avatar} alt={user.firstname} />
-                                    <AvatarFallback className="rounded-lg">{user.firstname.charAt(0).toUpperCase()+user.lastname.charAt(0).toUpperCase()}</AvatarFallback>
+                                    <AvatarImage src="" alt={name} />
+                                    <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                                 </Avatar>
                                 <div className="grid flex-1 text-left text-sm leading-tight">
-                                    <span className="truncate font-medium">{user.firstname + " " + user.lastname}</span>
+                                    <span className="truncate font-medium">{name}</span>
                                     <span className="text-muted-foreground truncate text-xs">
-                                        {user.email}
+                                        {email}
                                     </span>
                                 </div>
                             </div>

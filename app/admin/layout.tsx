@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import {
   SidebarInset,
   SidebarProvider,
@@ -11,16 +9,12 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data?.user) {
-    redirect("/auth/login");
-  }
+  // Authentication is now handled by middleware (convexAuthNextjsMiddleware)
+  // No need to check auth here - protected routes redirect to sign-in automatically
 
   return (
     <SidebarProvider>
-      <AppSidebar user={data.user} />
+      <AppSidebar />
       <SidebarInset>
         {children}
       </SidebarInset>

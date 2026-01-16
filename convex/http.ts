@@ -10,8 +10,12 @@ import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { verifyDPoP, computeATH } from "./lib/dpop";
 import { verifyAccessToken } from "./lib/jwt";
+import { authComponent, createAuth } from "./auth";
 
 const http = httpRouter();
+
+// Register BetterAuth routes for admin authentication
+authComponent.registerRoutes(http, createAuth);
 
 // ========================================
 // CORS Configuration
@@ -201,7 +205,7 @@ http.route({
                 return errorResponse(400, "Missing required fields");
             }
 
-            const result = await ctx.runAction(api.auth.enroll, {
+            const result = await ctx.runAction(api.deviceAuth.enroll, {
                 enrollmentToken,
                 name,
                 fingerprintHash: fingerprint_hash,
@@ -232,7 +236,7 @@ http.route({
                 return errorResponse(400, "Missing refresh_token");
             }
 
-            const result = await ctx.runAction(api.auth.refreshTokens, {
+            const result = await ctx.runAction(api.deviceAuth.refreshTokens, {
                 refreshToken: refresh_token,
             });
 
@@ -276,7 +280,7 @@ http.route({
                 return errorResponse(401, "Replayed DPoP proof");
             }
 
-            const result = await ctx.runAction(api.auth.recover, {
+            const result = await ctx.runAction(api.deviceAuth.recover, {
                 jkt: dpopResult.jkt,
             });
 
@@ -305,7 +309,7 @@ http.route({
             return errorResponse(400, "Missing fingerprint hash");
         }
 
-        const result = await ctx.runQuery(api.auth.isEnrolled, {
+        const result = await ctx.runQuery(api.deviceAuth.isEnrolled, {
             fingerprintHash,
         });
 

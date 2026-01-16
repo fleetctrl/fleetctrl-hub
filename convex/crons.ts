@@ -37,7 +37,7 @@ crons.interval(
 crons.daily(
     "cleanup expired refresh tokens",
     { hourUTC: 3, minuteUTC: 0 },
-    internal.auth.cleanupExpiredTokens
+    internal.deviceAuth.cleanupExpiredTokens
 );
 
 // ========================================

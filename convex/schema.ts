@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+    // BetterAuth manages its own tables via the component
     // ========================================
     // CORE TABLES
     // ========================================
