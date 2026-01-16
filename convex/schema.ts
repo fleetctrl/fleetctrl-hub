@@ -9,7 +9,7 @@ export default defineSchema({
 
     computers: defineTable({
         name: v.string(),
-        fingerprint_hash: v.optional(v.string()),
+        fingerprint: v.optional(v.string()),
         jkt: v.optional(v.string()),
         rustdesk_id: v.optional(v.number()),
         ip: v.optional(v.string()),
@@ -20,7 +20,7 @@ export default defineSchema({
         last_connection: v.optional(v.number()),
         intune_id: v.optional(v.string()),
     })
-        .index("by_fingerprint_hash", ["fingerprint_hash"])
+        .index("by_fingerprint", ["fingerprint"])
         .index("by_jkt", ["jkt"])
         .index("by_rustdesk_id", ["rustdesk_id"]),
 

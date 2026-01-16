@@ -29,7 +29,7 @@ export const list = query({
         return computers.map((c) => ({
             id: c._id,
             name: c.name,
-            fingerprintHash: c.fingerprint_hash,
+            fingerprint: c.fingerprint,
             rustdeskId: c.rustdesk_id,
             ip: c.ip,
             os: c.os,
@@ -160,7 +160,7 @@ export const getById = query({
         return {
             id: computer._id,
             name: computer.name,
-            fingerprintHash: computer.fingerprint_hash,
+            fingerprint: computer.fingerprint,
             rustdeskId: computer.rustdesk_id,
             ip: computer.ip,
             os: computer.os,
@@ -317,13 +317,13 @@ export const updateClientVersion = internalMutation({
 // Internal Queries (for auth)
 // ========================================
 
-export const getByFingerprintHash = internalQuery({
-    args: { fingerprintHash: v.string() },
-    handler: async (ctx, { fingerprintHash }) => {
+export const getByFingerprint = internalQuery({
+    args: { fingerprint: v.string() },
+    handler: async (ctx, { fingerprint }) => {
         return await ctx.db
             .query("computers")
-            .withIndex("by_fingerprint_hash", (q) =>
-                q.eq("fingerprint_hash", fingerprintHash)
+            .withIndex("by_fingerprint", (q) =>
+                q.eq("fingerprint", fingerprint)
             )
             .first();
     },

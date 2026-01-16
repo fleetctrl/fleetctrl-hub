@@ -27,15 +27,15 @@ import {
 // ========================================
 
 /**
- * Check if a computer is enrolled by fingerprint hash.
+ * Check if a computer is enrolled by fingerprint.
  */
 export const isEnrolled = query({
-    args: { fingerprintHash: v.string() },
-    handler: async (ctx, { fingerprintHash }) => {
+    args: { fingerprint: v.string() },
+    handler: async (ctx, { fingerprint }) => {
         const computer = await ctx.db
             .query("computers")
-            .withIndex("by_fingerprint_hash", (q) =>
-                q.eq("fingerprint_hash", fingerprintHash)
+            .withIndex("by_fingerprint", (q) =>
+                q.eq("fingerprint", fingerprint)
             )
             .first();
 
@@ -67,13 +67,13 @@ export const getRefreshTokenByHash = internalQuery({
     },
 });
 
-export const getComputerByFingerprintHash = internalQuery({
-    args: { fingerprintHash: v.string() },
-    handler: async (ctx, { fingerprintHash }) => {
+export const getComputerByFingerprint = internalQuery({
+    args: { fingerprint: v.string() },
+    handler: async (ctx, { fingerprint }) => {
         return await ctx.db
             .query("computers")
-            .withIndex("by_fingerprint_hash", (q) =>
-                q.eq("fingerprint_hash", fingerprintHash)
+            .withIndex("by_fingerprint", (q) =>
+                q.eq("fingerprint", fingerprint)
             )
             .first();
     },
@@ -110,13 +110,13 @@ export const decrementTokenUses = internalMutation({
 export const createComputer = internalMutation({
     args: {
         name: v.string(),
-        fingerprintHash: v.string(),
+        fingerprint: v.string(),
         jkt: v.string(),
     },
-    handler: async (ctx, { name, fingerprintHash, jkt }) => {
+    handler: async (ctx, { name, fingerprint, jkt }) => {
         return await ctx.db.insert("computers", {
             name,
-            fingerprint_hash: fingerprintHash,
+            fingerprint: fingerprint,
             jkt,
         });
     },
@@ -223,10 +223,10 @@ export const enroll = action({
     args: {
         enrollmentToken: v.string(),
         name: v.string(),
-        fingerprintHash: v.string(),
+        fingerprint: v.string(),
         jkt: v.string(),
     },
-    handler: async (ctx, { enrollmentToken, name, fingerprintHash, jkt }) => {
+    handler: async (ctx, { enrollmentToken, name, fingerprint, jkt }) => {
         // 1. Validate enrollment token
         const tokenHash = await hashToken(enrollmentToken);
 
@@ -265,8 +265,8 @@ export const enroll = action({
         let computerId: Id<"computers">;
         const existing = await ctx.runQuery(
             // @ts-expect-error - internal API
-            "deviceAuth:getComputerByFingerprintHash",
-            { fingerprintHash }
+            "deviceAuth:getComputerByFingerprint",
+            { fingerprint }
         );
 
         if (existing) {
@@ -288,7 +288,7 @@ export const enroll = action({
                 "deviceAuth:createComputer",
                 {
                     name,
-                    fingerprintHash,
+                    fingerprint,
                     jkt,
                 }
             );
