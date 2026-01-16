@@ -196,7 +196,7 @@ export const rustdeskSync = mutation({
         }
 
         const syncData = data as {
-            rustdesk_id?: number;
+            rustdesk_id?: number | string;
             ip?: string;
             os?: string;
             os_version?: string;
@@ -208,7 +208,14 @@ export const rustdeskSync = mutation({
         };
 
         if (syncData.rustdesk_id !== undefined) {
-            updates.rustdesk_id = syncData.rustdesk_id;
+            // Handle RustDesk ID being sent as string
+            let rid = syncData.rustdesk_id;
+            if (typeof rid === "string") {
+                rid = parseInt(rid, 10);
+            }
+            if (!isNaN(rid)) {
+                updates.rustdesk_id = rid;
+            }
         }
         if (syncData.ip !== undefined) {
             updates.ip = syncData.ip;
