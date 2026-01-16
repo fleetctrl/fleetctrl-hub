@@ -91,6 +91,8 @@ export function GroupsTable() {
 
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
     defaultValues: {
