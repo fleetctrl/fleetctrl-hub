@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/form";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { env } from "@/lib/env";
 
 // Zod schema for sign in/sign up form
 const authFormSchema = z.object({
@@ -39,6 +40,9 @@ export default function SignInPage() {
     const [step, setStep] = useState<"signIn" | "signUp">("signIn");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Check if registration is allowed
+    const allowRegistration = process.env.NEXT_PUBLIC_ALLOW_REGISTRATION !== "false";
 
     const { data: session, isPending } = authClient.useSession();
 
@@ -65,6 +69,12 @@ export default function SignInPage() {
 
         try {
             if (step === "signUp") {
+                if (!allowRegistration) {
+                    setError("Registration is disabled");
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 const result = await authClient.signUp.email({
                     email: data.email,
                     password: data.password,
@@ -100,153 +110,143 @@ export default function SignInPage() {
         }
     };
 
-    // Show loading while checking session
     if (isPending) {
-        return (
-            <div className="flex min-h-svh w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-                <div className="text-white">Loading...</div>
-            </div>
-        );
+        return null; // Don't show anything while checking session to avoid flicker
     }
 
     return (
-        <div className="flex min-h-svh w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-10">
-            <div className="w-full max-w-sm">
-                <Card className="backdrop-blur-sm bg-background/95 border-slate-700/50 shadow-2xl">
-                    <CardHeader className="space-y-1">
-                        <CardTitle className="text-2xl font-bold tracking-tight">
-                            {step === "signIn" ? "Welcome back" : "Create an account"}
-                        </CardTitle>
-                        <CardDescription>
-                            {step === "signIn"
-                                ? "Enter your credentials to access the admin panel"
-                                : "Enter your details to create a new account"}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)}>
-                                <div className="flex flex-col gap-4">
-                                    {step === "signUp" && (
-                                        <FormField
-                                            control={form.control}
-                                            name="name"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Name</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            type="text"
-                                                            placeholder="Your name"
-                                                            disabled={isSubmitting}
-                                                            className="bg-background/50"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
+        <div className="flex h-screen w-full items-center justify-center px-4">
+            <Card className="mx-auto max-w-sm w-full">
+                <CardHeader>
+                    <CardTitle className="text-2xl">
+                        {step === "signIn" ? "Login" : "Sign Up"}
+                    </CardTitle>
+                    <CardDescription>
+                        {step === "signIn"
+                            ? "Enter your email below to login to your account"
+                            : "Enter your information to create an account"}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+                            {step === "signUp" && (
+                                <FormField
+                                    control={form.control}
+                                    name="name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Name</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="John Doe"
+                                                    disabled={isSubmitting}
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            )}
+                            <FormField
+                                control={form.control}
+                                name="email"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Email</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="email"
+                                                placeholder="m@example.com"
+                                                disabled={isSubmitting}
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="password"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <div className="flex items-center justify-between">
+                                            <FormLabel>Password</FormLabel>
+                                            {step === "signIn" && (
+                                                <Link
+                                                    href="#"
+                                                    className="ml-auto inline-block text-sm underline"
+                                                >
+                                                    Forgot your password?
+                                                </Link>
                                             )}
-                                        />
-                                    )}
-                                    <FormField
-                                        control={form.control}
-                                        name="email"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Email</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="email"
-                                                        placeholder="admin@example.com"
-                                                        disabled={isSubmitting}
-                                                        className="bg-background/50"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="password"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Password</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="password"
-                                                        disabled={isSubmitting}
-                                                        className="bg-background/50"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    {error && (
-                                        <p className="text-sm text-red-500 bg-red-500/10 px-3 py-2 rounded-md">
-                                            {error}
-                                        </p>
-                                    )}
-                                    <Button
-                                        type="submit"
-                                        className="w-full"
-                                        disabled={isSubmitting}
+                                        </div>
+                                        <FormControl>
+                                            <Input
+                                                type="password"
+                                                disabled={isSubmitting}
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            {error && (
+                                <div className="text-sm text-red-500 font-medium">{error}</div>
+                            )}
+                            <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                {isSubmitting
+                                    ? step === "signIn"
+                                        ? "Logging in..."
+                                        : "Creating account..."
+                                    : step === "signIn"
+                                        ? "Login"
+                                        : "Sign Up"}
+                            </Button>
+                        </form>
+                    </Form>
+
+                    {/* Only show sign up toggle if registration is allowed */}
+                    {allowRegistration && (
+                        <div className="mt-4 text-center text-sm">
+                            {step === "signIn" ? (
+                                <>
+                                    Don&apos;t have an account?{" "}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStep("signUp");
+                                            setError(null);
+                                            form.clearErrors();
+                                        }}
+                                        className="underline"
                                     >
-                                        {isSubmitting
-                                            ? step === "signIn"
-                                                ? "Signing in..."
-                                                : "Creating account..."
-                                            : step === "signIn"
-                                                ? "Sign in"
-                                                : "Create account"}
-                                    </Button>
-                                </div>
-                                <div className="mt-4 text-center text-sm text-muted-foreground">
-                                    {step === "signIn" ? (
-                                        <>
-                                            Don&apos;t have an account?{" "}
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setStep("signUp");
-                                                    setError(null);
-                                                    form.clearErrors();
-                                                }}
-                                                className="text-primary hover:underline underline-offset-4"
-                                            >
-                                                Sign up
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            Already have an account?{" "}
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setStep("signIn");
-                                                    setError(null);
-                                                    form.clearErrors();
-                                                }}
-                                                className="text-primary hover:underline underline-offset-4"
-                                            >
-                                                Sign in
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </form>
-                        </Form>
-                    </CardContent>
-                </Card>
-                <p className="mt-4 text-center text-xs text-muted-foreground">
-                    <Link href="/" className="hover:underline">
-                        ← Back to home
-                    </Link>
-                </p>
-            </div>
+                                        Sign up
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    Already have an account?{" "}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStep("signIn");
+                                            setError(null);
+                                            form.clearErrors();
+                                        }}
+                                        className="underline"
+                                    >
+                                        Login
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }
