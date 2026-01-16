@@ -113,18 +113,6 @@ const dpopAuth = createMiddleware<Env>(async (c, next) => {
         }
         const computerId = sub.slice(7);
 
-        // Update client version if provided
-        const clientVersion = c.req.header("X-Client-Version");
-        if (clientVersion) {
-            try {
-                await c.env.ctx.runMutation(internal.computers.updateClientVersion, {
-                    computerId,
-                    clientVersion,
-                });
-            } catch {
-                // Non-critical, continue
-            }
-        }
 
         // Set computerId in context
         c.set("computerId", computerId);
@@ -371,9 +359,16 @@ protectedApi.patch("/computer/rustdesk-sync", async (c) => {
     const computerId = c.var.computerId;
     const body = await c.req.json();
 
+    const clientVersion = c.req.header("X-Client-Version");
+
+    const payload = {
+        ...body,
+        client_version: clientVersion || body.client_version,
+    };
+
     await c.env.ctx.runMutation(api.computers.rustdeskSync, {
         computerId,
-        data: body,
+        data: payload,
     });
 
     return c.json({ status: "ok" });

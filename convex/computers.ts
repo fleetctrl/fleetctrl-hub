@@ -229,6 +229,11 @@ export const rustdeskSync = mutation({
         if (syncData.login_user !== undefined) {
             updates.login_user = syncData.login_user;
         }
+        // @ts-expect-error - dynamic field
+        if (syncData.client_version !== undefined) {
+            // @ts-expect-error - dynamic field
+            updates.client_version = syncData.client_version;
+        }
 
         await ctx.db.patch(computer._id, updates);
 
