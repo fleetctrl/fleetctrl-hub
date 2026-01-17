@@ -695,10 +695,16 @@ export const create = mutation({
 
         // 5. Create Detections
         for (const d of args.detection.detections) {
+            const isFile = d.type === "file";
             await ctx.db.insert("detection_rules", {
                 release_id: releaseId,
                 type: d.type,
-                config: d,
+                config: {
+                    "version": "1",
+                    "operator": isFile ? d.fileType : d.registryType,
+                    "path": isFile ? d.path : d.registryKey,
+                    "value": isFile ? d.fileTypeValue : d.registryTypeValue,
+                },
             });
         }
 
@@ -745,15 +751,7 @@ const releaseArgs = {
     })),
     installScript: v.optional(v.string()),
     uninstallScript: v.optional(v.string()),
-    detections: v.array(v.object({
-        type: v.union(v.literal("file"), v.literal("registry")),
-        path: v.string(),
-        fileType: v.optional(v.string()),
-        fileTypeValue: v.optional(v.string()),
-        registryKey: v.optional(v.string()),
-        registryType: v.optional(v.string()),
-        registryTypeValue: v.optional(v.string()),
-    })),
+    detections: v.array(v.any()),
     requirements: v.optional(v.union(v.object({
         requirementScriptBinary: v.optional(v.object({
             storageId: v.id("_storage"),
@@ -827,10 +825,16 @@ export const createRelease = mutation({
 
         // 4. Detections
         for (const d of args.detections) {
+            const isFile = d.type === "file";
             await ctx.db.insert("detection_rules", {
                 release_id: releaseId,
                 type: d.type,
-                config: d,
+                config: {
+                    "version": "1",
+                    "operator": isFile ? d.fileType : d.registryType,
+                    "path": isFile ? d.path : d.registryKey,
+                    "value": isFile ? d.fileTypeValue : d.registryTypeValue,
+                },
             });
         }
 
@@ -937,10 +941,16 @@ export const updateRelease = mutation({
 
         // 5. Re-create Detections
         for (const d of data.detections) {
+            const isFile = d.type === "file";
             await ctx.db.insert("detection_rules", {
                 release_id: id,
                 type: d.type,
-                config: d,
+                config: {
+                    "version": "1",
+                    "operator": isFile ? d.fileType : d.registryType,
+                    "path": isFile ? d.path : d.registryKey,
+                    "value": isFile ? d.fileTypeValue : d.registryTypeValue,
+                },
             });
         }
 

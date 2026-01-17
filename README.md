@@ -57,7 +57,7 @@ The application will then be available at [http://localhost:3000](http://localho
 
 ## Docker (Produciton Build)
  
- The project includes a `Dockerfile` and `docker-compose.yaml` to build and run the application in a containerized environment.
+The project includes a `docker-compose.yaml` to build and run the application in a containerized environment.
  
  **Prerequisites for Docker Build:**
  1. Make sure you have a valid `.env` file in the root directory. It must contain:
