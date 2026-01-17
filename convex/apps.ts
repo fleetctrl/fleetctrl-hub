@@ -134,6 +134,7 @@ export const getAssigned = query({
                         win32: win32
                             ? {
                                 install_binary_path: win32.install_binary_storage_id,
+                                installer_name: win32.installer_name,
                                 hash: win32.hash,
                                 install_script: win32.install_script,
                                 uninstall_script: win32.uninstall_script,
@@ -151,6 +152,7 @@ export const getAssigned = query({
                         })),
                         requirements: reqs.map((r) => ({
                             id: r._id,
+                            script_name: r.script_name,
                             timeout_seconds: r.timeout_seconds,
                             run_as_system: r.run_as_system,
                             hash: r.hash,
@@ -667,6 +669,7 @@ export const create = mutation({
             if (!args.release.installBinary) throw new Error("Install binary required for win32");
             await ctx.db.insert("win32_releases", {
                 release_id: releaseId,
+                installer_name: args.release.installBinary.name,
                 install_binary_storage_id: args.release.installBinary.storageId,
                 hash: args.release.installBinary.hash,
                 install_script: args.release.installScript || "",
@@ -685,6 +688,7 @@ export const create = mutation({
         if (args.requirement && args.requirement.requirementScriptBinary) {
             await ctx.db.insert("release_requirements", {
                 release_id: releaseId,
+                script_name: args.requirement.requirementScriptBinary.name,
                 timeout_seconds: args.requirement.timeout || 60,
                 run_as_system: args.requirement.runAsSystem || false,
                 storage_id: args.requirement.requirementScriptBinary.storageId,
@@ -797,6 +801,7 @@ export const createRelease = mutation({
             if (!args.installBinary) throw new Error("Install binary required for win32");
             await ctx.db.insert("win32_releases", {
                 release_id: releaseId,
+                installer_name: args.installBinary.name,
                 install_binary_storage_id: args.installBinary.storageId,
                 hash: args.installBinary.hash,
                 install_script: args.installScript || "",
@@ -815,6 +820,7 @@ export const createRelease = mutation({
         if (args.requirements && args.requirements.requirementScriptBinary) {
             await ctx.db.insert("release_requirements", {
                 release_id: releaseId,
+                script_name: args.requirements.requirementScriptBinary.name,
                 timeout_seconds: args.requirements.timeout || 60,
                 run_as_system: args.requirements.runAsSystem || false,
                 storage_id: args.requirements.requirementScriptBinary.storageId,
@@ -911,6 +917,7 @@ export const updateRelease = mutation({
 
             await ctx.db.insert("win32_releases", {
                 release_id: id,
+                installer_name: hasBinary ? data.installBinary!.name : oldWin32.installer_name,
                 install_binary_storage_id: hasBinary ? data.installBinary!.storageId : oldWin32.install_binary_storage_id,
                 hash: hasBinary ? data.installBinary!.hash : oldWin32.hash,
                 install_script: data.installScript !== undefined ? data.installScript : (oldWin32?.install_script || ""),
@@ -931,6 +938,7 @@ export const updateRelease = mutation({
         if (data.requirements && data.requirements.requirementScriptBinary) {
             await ctx.db.insert("release_requirements", {
                 release_id: id,
+                script_name: data.requirements.requirementScriptBinary.name,
                 timeout_seconds: data.requirements.timeout || 60,
                 run_as_system: data.requirements.runAsSystem || false,
                 storage_id: data.requirements.requirementScriptBinary.storageId,

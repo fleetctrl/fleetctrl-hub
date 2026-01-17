@@ -148,6 +148,7 @@ export default defineSchema({
 
     win32_releases: defineTable({
         release_id: v.id("releases"),
+        installer_name: v.string(),
         install_binary_storage_id: v.id("_storage"),
         hash: v.string(),
         install_script: v.string(),
@@ -170,6 +171,7 @@ export default defineSchema({
         release_id: v.id("releases"),
         timeout_seconds: v.number(),
         run_as_system: v.boolean(),
+        script_name: v.string(),
         storage_id: v.id("_storage"),
         hash: v.string(),
         byte_size: v.optional(v.number()),
