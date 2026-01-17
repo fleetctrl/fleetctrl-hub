@@ -1,56 +1,65 @@
-# Go Builder
-FROM golang:1.25-alpine AS go-builder
+FROM node:22-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY api/go.mod api/go.sum ./
-RUN go mod download
-COPY api/ .
-# Build static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-X 'main.runningInDocker=true'" -o fleetctrl-api ./cmd/api/
 
-# Base image
-FROM node:24-bookworm-slim AS base
-WORKDIR /app
-EXPOSE 3000
-EXPOSE 8080
+# Install pnpm
+RUN npm install -g pnpm@10.25.0
 
-# Install Postgres client tools needed by the startup migration script
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends postgresql-client ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-
-# Make pnpm available in all stages
-RUN corepack enable && corepack prepare pnpm@9 --activate
-
-# Builder stage
-FROM base AS builder
 COPY package.json pnpm-lock.yaml ./
-# Install all dependencies (including dev) in builder
 RUN pnpm install --frozen-lockfile
 
-# Production stage
-FROM base AS production
-ENV NODE_ENV=production
-
-# Copy dependencies and source (build happens at container start)
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=builder /app/node_modules ./node_modules
-COPY . /app
-
-# Copy API binary
-COPY --from=go-builder /app/fleetctrl-api /app/fleetctrl-api
-
-RUN chmod +x /app/scripts/migrate_with_backup.sh
-
-# Generate build at startup and run Next.js once migrations have been applied
-# Run API in background
-# Run migrations, then start API in background and Next.js in foreground
-CMD sh -c '/app/scripts/migrate_with_backup.sh && (/app/fleetctrl-api &) && pnpm build && pnpm start'
-
-# Development stage
-FROM base AS dev
-ENV NODE_ENV=development
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+RUN npm install -g pnpm@10.25.0
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-CMD ["pnpm", "dev"]
+
+# Next.js collects completely anonymous telemetry data about general usage.
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Arguments for build
+ARG CONVEX_SITE_URL
+ARG NEXT_PUBLIC_CONVEX_SITE_URL
+
+# Set environment variables for build
+ENV CONVEX_SITE_URL=$CONVEX_SITE_URL
+ENV NEXT_PUBLIC_CONVEX_SITE_URL=$NEXT_PUBLIC_CONVEX_SITE_URL
+
+RUN pnpm build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+
+# Set the correct permission for prerender cache
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
+
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/convex ./convex
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+# set hostname to localhost
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]

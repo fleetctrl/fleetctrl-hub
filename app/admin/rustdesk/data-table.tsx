@@ -27,7 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { columns } from "./columns";
+import { columns, RustDesk } from "./columns";
 import {
   InputGroup,
   InputGroupAddon,
@@ -35,20 +35,6 @@ import {
 } from "@/components/ui/input-group";
 import { SearchIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-
-// Type for RustDesk data from Convex
-type RustDesk = {
-  id: string;
-  rustdeskID?: number;
-  name?: string;
-  ip?: string;
-  os?: string;
-  osVersion?: string;
-  loginUser?: string;
-  lastConnection?: string;
-  clientVersion?: string;
-  intuneId?: string;
-};
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];

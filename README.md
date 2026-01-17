@@ -1,59 +1,80 @@
-# fleetctrl-hub
+# FleetCtrl Hub
 
-## Install package manager
+FleetCtrl Hub is a modern device management (MDM/Fleet Management) platform that enables centralized management of computers, groups, applications, and releases.
 
-```
-npm install -g pnpm@latest-10
-```
+## 🛠 Technologies
 
-## Start
+The project is built on the following technologies:
 
-1. Nainstalujte node moduly
+- **Frontend:** [Next.js 15](https://nextjs.org/) (App Router)
+- **Backend & Database:** [Convex](https://convex.dev/)
+- **Authentication:** [Better Auth](https://better-auth.com/) (integrated with Convex)
+- **Styling:** [Tailwind CSS](https://tailwindcss.com/) & [Radix UI](https://www.radix-ui.com/)
+- **Validation:** [Zod](https://zod.dev/)
 
-```
-pnpm install --frozen-lockfile
-```
+## Getting Started
 
-2. Vygeneruj anon a service key
+### Requirements
 
-```
-node ./supabase/scripts/gen_anon.cjs
+- **Node.js**: version 20 or newer
+- **pnpm**: recommended package manager (version 10+)
 
-node ./supabase/scripts/gen_service.cjs
-```
+### Installation
 
-3. Nainstalujte makefile
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd fleetctrl-hub
+   ```
 
-4. spusť supabase a webserver
+2. Install dependencies:
+   ```bash
+   pnpm install
+   ```
 
-```
-docker compose up -d
-```
+3. Environment setup:
+   The project uses Convex. To initialize the development environment, log in to your Convex account:
+   ```bash
+   npx convex dev
+   ```
+   This command will prompt you to create a new project or link to an existing one and will generate the necessary configuration files (such as `.env.local` with `CONVEX_DEPLOYMENT` and `NEXT_PUBLIC_CONVEX_URL`).
 
-5. pushni db schema
+### Running Development
 
-```
-make push-schema
-```
+For local development, two processes need to be running:
 
-## Go API
+1. **Convex Backend** (syncing schema changes and functions):
+   ```bash
+   npx convex dev
+   ```
 
-V adresáři `api` je jednoduché Go API nahrazující postgres funkce Supabase. API očekává proměnné prostředí `SUPABASE_URL`, `SUPABASE_KEY` a `API_TOKEN`.
-Token se předává v hlavičce `Authorization: Bearer <token>` a je ověřován middlewarem.
+2. **Next.js Frontend** (web application):
+   ```bash
+   pnpm dev
+   ```
 
-```bash
-go run ./api
-# nebo
-docker compose up api
-```
+The application will then be available at [http://localhost:3000](http://localhost:3000).
 
-## Vytvoření migrace
-
-```
-make diff-schema
-```
-
-## License
-
-This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
-See the [LICENSE](./LICENSE) file for details.
+## Docker (Produciton Build)
+ 
+ The project includes a `Dockerfile` and `docker-compose.yaml` to build and run the application in a containerized environment.
+ 
+ **Prerequisites for Docker Build:**
+ 1. Make sure you have a valid `.env` file in the root directory. It must contain:
+    - `CONVEX_SITE_URL`
+    - `NEXT_PUBLIC_CONVEX_SITE_URL` (usually identical to CONVEX_SITE_URL)
+    - `NEXT_PUBLIC_CONVEX_URL`
+    - Other necessary secrets
+ 
+ 2. **Deploy the backend first!**
+    The Docker container runs the Next.js frontend in standalone mode. It does **not** run the Convex backend or sync schema changes. Before building or running the container, ensure your Convex backend is live and updated:
+    ```bash
+    npx convex deploy
+    ```
+ 
+ 3. Build and run:
+    ```bash
+    docker compose up -d --build
+    ```
+ 
+ The application will be available at [http://localhost:3000](http://localhost:3000).
