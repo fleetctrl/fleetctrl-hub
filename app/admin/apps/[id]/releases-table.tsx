@@ -31,51 +31,54 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 interface Release {
     id: string;
     version: string;
-    created_at: string;
+    created_at: string | number;
     installer_type: string;
-    disabled_at: string | null;
+    disabled_at?: string | number | null;
     uninstall_previous?: boolean;
     computer_group_releases?: {
         assign_type: string;
         action: string;
         computer_groups: {
-            id: string;
+            _id: string;
             display_name: string;
-        } | { id: string; display_name: string; }[] | null;
+        } | null;
     }[];
     dynamic_group_releases?: {
         assign_type: string;
         action: string;
         dynamic_computer_groups: {
-            id: string;
+            _id: string;
             display_name: string;
-        } | { id: string; display_name: string; }[] | null;
+        } | null;
     }[];
+    staticAssignments?: unknown[];
+    dynamicAssignments?: unknown[];
     detection_rules?: {
         type: string;
-        config: any;
+        config: unknown;
     }[];
+    detections?: unknown[];
     release_requirements?: {
         timeout_seconds: number;
         run_as_system: boolean;
-        storage_path: string;
-        bucket: string;
-        byte_size: number;
+        storage_id: string;
+        byte_size?: number;
         hash: string;
     }[];
     win32_releases?: {
         install_script: string;
         uninstall_script: string;
-        install_binary_bucket: string;
-        install_binary_path: string;
-        install_binary_size: number;
+        install_binary_storage_id: string;
+        install_binary_size?: number;
         hash: string;
     }[];
     winget_releases?: {
@@ -89,8 +92,8 @@ interface ReleasesTableProps {
     isAutoUpdate?: boolean;
 }
 
-const formatDateTime = (isoDate: string) =>
-    new Date(isoDate).toLocaleString("cs-CZ", {
+const formatDateTime = (date: string | number) =>
+    new Date(date).toLocaleString("cs-CZ", {
         dateStyle: "medium",
         timeStyle: "short",
     });
@@ -103,24 +106,22 @@ function AssignmentsBadges({ release }: { release: Release }) {
         return <span className="text-sm text-muted-foreground">No groups</span>;
     }
 
-    const getGroupName = (cg: { id: string; display_name: string; } | { id: string; display_name: string; }[] | null | undefined) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getGroupName = (cg: any) => {
         if (!cg) return "Unknown";
-        if (Array.isArray(cg)) {
-            return cg[0]?.display_name || "Unknown";
-        }
         return cg.display_name || "Unknown";
     };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function indexForID(cg: any) {
+        if (!cg) return Math.random().toString();
+        return cg._id || Math.random().toString();
+    }
 
     const allGroupItems = [
         ...staticGroups.map(g => ({ name: getGroupName(g.computer_groups), id: indexForID(g.computer_groups) })),
         ...dynamicGroups.map(g => ({ name: getGroupName(g.dynamic_computer_groups), id: indexForID(g.dynamic_computer_groups) }))
     ];
-
-    function indexForID(cg: any) {
-        if (!cg) return Math.random().toString();
-        if (Array.isArray(cg)) return cg[0]?.id || Math.random().toString();
-        return cg.id || Math.random().toString();
-    }
 
     const visibleGroups = allGroupItems.slice(0, 2);
     const remainingCount = allGroupItems.length - visibleGroups.length;
@@ -145,22 +146,11 @@ function AssignmentsBadges({ release }: { release: Release }) {
 
 export function ReleasesTable({ releases, appId, isAutoUpdate = false }: ReleasesTableProps) {
     const router = useRouter();
-    const utils = api.useUtils();
+    const deleteRelease = useMutation(api.apps.deleteRelease);
     const [selectedRelease, setSelectedRelease] = useState<Release | null>(null);
     const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [releaseToDelete, setReleaseToDelete] = useState<Release | null>(null);
-
-    const deleteMutation = api.app.deleteRelease.useMutation({
-        onSuccess: () => {
-            toast.success("Release deleted successfully");
-            router.refresh();
-            utils.app.getReleases.invalidate({ appId });
-        },
-        onError: (error) => {
-            toast.error(`Error deleting release: ${error.message}`);
-        },
-    });
 
     const handleEditClick = (release: Release) => {
         setSelectedRelease(release);
@@ -172,9 +162,16 @@ export function ReleasesTable({ releases, appId, isAutoUpdate = false }: Release
         setDeleteDialogOpen(true);
     };
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (releaseToDelete) {
-            deleteMutation.mutate({ id: releaseToDelete.id });
+            try {
+                await deleteRelease({ id: releaseToDelete.id as Id<"releases"> });
+                toast.success("Release deleted successfully");
+                router.refresh();
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : "Unknown error";
+                toast.error(`Error deleting release: ${message}`);
+            }
         }
         setDeleteDialogOpen(false);
         setReleaseToDelete(null);

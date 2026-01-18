@@ -1,12 +1,11 @@
 import { z } from "zod";
 
 export const storedFileReferenceSchema = z.object({
-  bucket: z.string().min(1),
-  path: z.string().min(1),
+  storageId: z.string(),
   name: z.string().min(1),
   size: z.number().int().nonnegative(),
   type: z.string().optional().nullable(),
-  hash: z.string().optional(),
+  hash: z.string().min(1),
 });
 
 export const assignmentTargetSchema = z.object({

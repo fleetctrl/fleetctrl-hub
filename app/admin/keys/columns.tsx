@@ -1,7 +1,18 @@
 "use client";
 import { ColumnDef } from "@tanstack/react-table";
 import RowOptions from "./rowOptions";
-import { Key } from "@/server/api/routers/key";
+
+// Type matching Convex enrollmentTokens.list output
+export type Key = {
+  id: string;
+  name?: string;
+  tokenFragment?: string;
+  remainingUses: number;
+  disabled: boolean;
+  expiresAt?: number;
+  lastUsedAt?: number;
+  createdAt: number;
+};
 
 export type KeysTableMeta = {
   onActionComplete?: () => Promise<unknown> | void;
@@ -16,7 +27,7 @@ export const columns: ColumnDef<Key>[] = [
         <div className="flex flex-col">
           <span>{row.original.name}</span>
           <span className="text-xs text-gray-500">
-            {row.original.token_fragment}
+            {row.original.tokenFragment}
           </span>
         </div>
       );
@@ -29,19 +40,18 @@ export const columns: ColumnDef<Key>[] = [
   {
     accessorKey: "expiresAt",
     header: "Expiration",
+    cell: ({ row }) => {
+      const val = row.original.expiresAt;
+      if (!val) return "-";
+      return new Date(val).toLocaleString();
+    },
   },
   {
     id: "actions",
     enableHiding: false,
-    cell: ({ row, table }) => {
-      const meta = table.options.meta as KeysTableMeta | undefined;
-      const onActionComplete = meta?.onActionComplete;
-      return (
-        <RowOptions
-          tokenID={row.original.id}
-          onActionComplete={onActionComplete}
-        />
-      );
+    cell: ({ row }) => {
+      return <RowOptions tokenID={row.original.id} />;
     },
   },
 ];
+

@@ -20,7 +20,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 
 interface RowOptionsProps {
@@ -35,48 +37,53 @@ export default function RowOptions({
     onActionComplete,
 }: RowOptionsProps) {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-    const setActiveMutation = api.clientUpdate.setActive.useMutation({
-        onSuccess: () => {
+    const setActive = useMutation(api.clientUpdates.setActive);
+    const deactivate = useMutation(api.clientUpdates.deactivate);
+    const remove = useMutation(api.clientUpdates.remove);
+
+    const handleActivate = async () => {
+        setActionLoading("activate");
+        try {
+            await setActive({ id: versionId as Id<"client_updates"> });
             toast.success("Version activated");
             onActionComplete?.();
-        },
-        onError: (error) => {
-            toast.error("Failed to activate version: " + error.message);
-        },
-    });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error("Failed to activate version: " + message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
-    const deactivateMutation = api.clientUpdate.deactivate.useMutation({
-        onSuccess: () => {
+    const handleDeactivate = async () => {
+        setActionLoading("deactivate");
+        try {
+            await deactivate({ id: versionId as Id<"client_updates"> });
             toast.success("Version deactivated");
             onActionComplete?.();
-        },
-        onError: (error) => {
-            toast.error("Failed to deactivate version: " + error.message);
-        },
-    });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error("Failed to deactivate version: " + message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
-    const deleteMutation = api.clientUpdate.delete.useMutation({
-        onSuccess: () => {
+    const handleDelete = async () => {
+        setActionLoading("delete");
+        try {
+            await remove({ id: versionId as Id<"client_updates"> });
             toast.success("Version deleted");
             onActionComplete?.();
-        },
-        onError: (error) => {
-            toast.error("Failed to delete version: " + error.message);
-        },
-    });
-
-    const handleActivate = () => {
-        setActiveMutation.mutate({ id: versionId });
-    };
-
-    const handleDeactivate = () => {
-        deactivateMutation.mutate({ id: versionId });
-    };
-
-    const handleDelete = () => {
-        deleteMutation.mutate({ id: versionId });
-        setDeleteDialogOpen(false);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error("Failed to delete version: " + message);
+        } finally {
+            setActionLoading(null);
+            setDeleteDialogOpen(false);
+        }
     };
 
     return (
@@ -92,7 +99,7 @@ export default function RowOptions({
                     {isActive ? (
                         <DropdownMenuItem
                             onClick={handleDeactivate}
-                            disabled={deactivateMutation.isPending}
+                            disabled={actionLoading === "deactivate"}
                         >
                             <Pause className="mr-2 h-4 w-4" />
                             Deactivate
@@ -100,7 +107,7 @@ export default function RowOptions({
                     ) : (
                         <DropdownMenuItem
                             onClick={handleActivate}
-                            disabled={setActiveMutation.isPending}
+                            disabled={actionLoading === "activate"}
                         >
                             <Play className="mr-2 h-4 w-4" />
                             Set as Active
@@ -109,7 +116,7 @@ export default function RowOptions({
                     <DropdownMenuItem
                         onClick={() => setDeleteDialogOpen(true)}
                         className="text-destructive focus:text-destructive"
-                        disabled={isActive}
+                        disabled={isActive || actionLoading === "delete"}
                     >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
@@ -131,8 +138,9 @@ export default function RowOptions({
                         <AlertDialogAction
                             onClick={handleDelete}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            disabled={actionLoading === "delete"}
                         >
-                            Delete
+                            {actionLoading === "delete" ? "Deleting..." : "Delete"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

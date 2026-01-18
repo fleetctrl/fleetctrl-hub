@@ -12,7 +12,9 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { api } from "@/trpc/react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -34,23 +36,15 @@ export default function RowOptions({
   rustdeskId,
   computerId,
 }: RowOptionsProps) {
-  const utils = api.useUtils();
   const [open, setOpen] = useState(false);
-  const deleteMutation = api.rustdesk.delete.useMutation({
-    async onSuccess() {
-      await utils.rustdesk.get.invalidate();
-      toast.success("Computer deleted");
-    },
-    onError() {
-      toast.error("Unable to delete computer");
-    },
-  });
+  const deleteComputer = useMutation(api.computers.remove);
+
   async function handleCopy() {
     const connectionString = `"C:\\Program Files\\RustDesk\\RustDesk.exe" --connect ${rustdeskId}`;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(connectionString);
-        toast.success("Kopírování probehl úspěšně");
+        toast.success("Kopírování probehl úspěšně");
       } else {
         toast.error("Kopírování selhalo");
       }
@@ -62,10 +56,12 @@ export default function RowOptions({
 
   async function handleDelete() {
     try {
-      await deleteMutation.mutateAsync({ id: computerId });
+      await deleteComputer({ id: computerId as Id<"computers"> });
+      toast.success("Computer deleted");
       setOpen(false);
     } catch (error) {
       console.error(error);
+      toast.error("Unable to delete computer");
     }
   }
 

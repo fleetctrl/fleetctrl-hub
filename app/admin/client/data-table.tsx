@@ -31,12 +31,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { columns, type ClientUpdateRow, type ClientUpdatesTableMeta } from "./columns";
-import { api } from "@/trpc/react";
-import { createClient } from "@/lib/supabase/client";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
+import { Id } from "@/convex/_generated/dataModel";
 
-const formatDateTime = (isoDate: string) =>
-    new Date(isoDate).toLocaleString("cs-CZ", {
+const formatDateTime = (timestamp: number) =>
+    new Date(timestamp).toLocaleString("cs-CZ", {
         dateStyle: "medium",
         timeStyle: "short",
     });
@@ -48,23 +49,12 @@ export function ClientUpdatesTable() {
     const [version, setVersion] = useState("");
     const [notes, setNotes] = useState("");
 
-    const { data: clientUpdates, refetch } = api.clientUpdate.getAll.useQuery(undefined, {
-        staleTime: 0,
-        gcTime: 0,
-        refetchOnMount: "always",
-    });
+    // Convex queries
+    const clientUpdates = useQuery(api.clientUpdates.getAll);
 
-    const createMutation = api.clientUpdate.create.useMutation({
-        onSuccess: () => {
-            toast.success("Client version uploaded successfully");
-            setUploadDialogOpen(false);
-            resetForm();
-            refetch();
-        },
-        onError: (error) => {
-            toast.error("Failed to create version: " + error.message);
-        },
-    });
+    // Convex mutations
+    const generateUploadUrl = useMutation(api.clientUpdates.generateUploadUrl);
+    const createUpdate = useMutation(api.clientUpdates.create);
 
     const resetForm = () => {
         setUploadFile(null);
@@ -81,35 +71,41 @@ export function ClientUpdatesTable() {
         setIsUploading(true);
 
         try {
-            const supabase = createClient();
-
-            // Calculate SHA256 hash
+            // 1. Calculate SHA256 hash (keep client-side calculation)
             const arrayBuffer = await uploadFile.arrayBuffer();
             const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const hash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
-            // Upload to Supabase storage
-            const storagePath = `client-updates/${version}/${uploadFile.name}`;
-            const { error: uploadError } = await supabase.storage
-                .from("internal")
-                .upload(storagePath, uploadFile, {
-                    cacheControl: "3600",
-                    upsert: false,
-                });
+            // 2. Generate Upload URL
+            const postUrl = await generateUploadUrl();
 
-            if (uploadError) {
-                throw new Error("Storage upload failed: " + uploadError.message);
+            // 3. Upload File
+            const result = await fetch(postUrl, {
+                method: "POST",
+                headers: { "Content-Type": uploadFile.type },
+                body: uploadFile,
+            });
+
+            if (!result.ok) {
+                throw new Error(`Upload failed: ${result.statusText}`);
             }
 
-            // Create database record
-            createMutation.mutate({
+            const { storageId } = await result.json();
+
+            // 4. Create Database Record
+            await createUpdate({
                 version: version.trim(),
-                storage_path: storagePath,
+                storageId: storageId as Id<"_storage">,
                 hash,
                 byte_size: uploadFile.size,
                 notes: notes.trim() || undefined,
             });
+
+            toast.success("Client version uploaded successfully");
+            setUploadDialogOpen(false);
+            resetForm();
+
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Upload failed");
         } finally {
@@ -117,9 +113,8 @@ export function ClientUpdatesTable() {
         }
     };
 
-    // Compare semantic versions (returns negative if a < b, positive if a > b, 0 if equal)
+    // Compare semantic versions
     const compareSemver = (a: string, b: string): number => {
-        // Normalize versions: remove 'v' prefix and split by dots/hyphens
         const normalize = (v: string) => v.replace(/^v/i, "").split(/[.-]/).map(p => parseInt(p, 10) || 0);
         const partsA = normalize(a);
         const partsB = normalize(b);
@@ -137,15 +132,15 @@ export function ClientUpdatesTable() {
         if (!clientUpdates) return [];
         return clientUpdates
             .map((update) => ({
-                id: update.id,
+                id: update._id,
                 version: update.version,
                 hash: update.hash,
                 byte_size: update.byte_size,
                 is_active: update.is_active,
-                notes: update.notes,
-                createdAtFormatted: formatDateTime(update.created_at),
+                notes: update.notes ?? null,
+                createdAtFormatted: formatDateTime(update._creationTime),
             }))
-            .sort((a, b) => compareSemver(b.version, a.version)); // Descending: highest first
+            .sort((a, b) => compareSemver(b.version, a.version));
     }, [clientUpdates]);
 
     const table = useReactTable<ClientUpdateRow>({
@@ -153,7 +148,9 @@ export function ClientUpdatesTable() {
         columns,
         getCoreRowModel: getCoreRowModel(),
         meta: {
-            onActionComplete: () => refetch(),
+            onActionComplete: () => {
+                // No-op for Convex (automatic reactivity)
+            },
         } satisfies ClientUpdatesTableMeta,
     });
 
@@ -245,7 +242,7 @@ export function ClientUpdatesTable() {
                                 </Button>
                                 <Button
                                     onClick={handleUpload}
-                                    disabled={isUploading || createMutation.isPending || !uploadFile || !version.trim()}
+                                    disabled={isUploading || !uploadFile || !version.trim()}
                                 >
                                     {isUploading ? "Uploading..." : "Upload"}
                                 </Button>

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { TRPCReactProvider } from "@/trpc/react";
+import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
+import { getToken } from "@/lib/auth-server";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -10,8 +11,8 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "RustDesk server",
-  description: "RustDesk server for clients",
+  title: "FleetCtrl",
+  description: "Fleet management for RustDesk clients",
 };
 
 export default async function RootLayout({
@@ -19,11 +20,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Get initial token for SSR
+  const initialToken = await getToken();
 
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <TRPCReactProvider>
+        <ConvexClientProvider initialToken={initialToken}>
           <Toaster />
           <ThemeProvider
             attribute="class"
@@ -33,7 +36,7 @@ export default async function RootLayout({
           >
             {children}
           </ThemeProvider>
-        </TRPCReactProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );

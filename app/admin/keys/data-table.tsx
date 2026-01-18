@@ -21,22 +21,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import React from "react";
-import { api } from "@/trpc/react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { columns } from "./columns";
-import { createSupabaseClient } from "@/lib/supabase/client";
 import CreateNewKeyDialog from "./createNewKeyDialog";
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
-  onActionComplete: () => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  onActionComplete,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -54,14 +53,11 @@ export function DataTable<TData, TValue>({
       sorting,
       columnFilters,
     },
-    meta: {
-      onActionComplete: onActionComplete,
-    },
   });
 
   return (
     <div className="w-full flex flex-col gap-5">
-      <CreateNewKeyDialog onCreate={onActionComplete} />
+      <CreateNewKeyDialog />
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -73,9 +69,9 @@ export function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   );
                 })}
@@ -137,29 +133,11 @@ export function DataTable<TData, TValue>({
 }
 
 export function KeysTable() {
-  const { data, refetch } = api.key.getAll.useQuery();
-
-  useEffect(() => {
-    const supabase = createSupabaseClient();
-    const channel = supabase
-      .channel("keys-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "enrollment_tokens" },
-        () => {
-          refetch();
-        }
-      );
-
-    channel.subscribe();
-
-    return () => {
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
+  // Convex useQuery is automatically reactive!
+  const data = useQuery(api.enrollmentTokens.list);
 
   return (
-    <DataTable columns={columns} data={data ?? []} onActionComplete={refetch} />
+    <DataTable columns={columns} data={data ?? []} />
   );
 }
+

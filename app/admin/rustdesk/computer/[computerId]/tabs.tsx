@@ -23,11 +23,21 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { RustDesk } from "@/server/api/routers/rustdesk";
-import { api } from "@/trpc/react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { SiteHeader } from "@/components/site-header";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {
-  computer: RustDesk;
+  computerId: Id<"computers">;
 };
 
 type TableRowProps = {
@@ -61,106 +71,168 @@ const changeNetworkStringSchema = z.object({ networkString: z.string().min(1, { 
 
 type ChangeNetworkStringSchema = z.infer<typeof changeNetworkStringSchema>;
 
-export default function Tabs({ computer }: Props) {
+// Define a type for the computer data returned by the query
+type ComputerData = NonNullable<ReturnType<typeof useQuery<typeof api.computers.getById>>>;
+
+export default function Tabs({ computerId }: Props) {
   const [openChangePassword, setOpenChangePassword] = useState(false);
   const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
 
-  const { data: tasks, refetch } = api.rustdesk.getTasks.useQuery({ id: computer.id });
-  const createTaskMutation = api.rustdesk.createTask.useMutation({
-    onSuccess: () => {
-      toast.success("Password was changed");
-    },
-    onError: () => {
-      toast.error("Failed to change password");
-    },
-  });
+  const computer = useQuery(api.computers.getById, { id: computerId });
+  const tasks = useQuery(api.tasks.getByComputer, { computerId });
+  const createTask = useMutation(api.tasks.create);
+
+  const isLoading = computer === undefined;
+
+  if (isLoading) {
+    return (
+      <>
+        <SiteHeader>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin/rustdesk">RustDesk</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem><Skeleton className="h-4 w-24" /></BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </SiteHeader>
+        <div className="container mx-auto w-full px-4 py-6">
+          <Skeleton className="h-10 w-48 mb-6" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </>
+    );
+  }
+
+  if (computer === null) {
+    return (
+      <>
+        <SiteHeader>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin/rustdesk">RustDesk</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>Not Found</BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </SiteHeader>
+        <div className="container mx-auto w-full px-4 py-6">
+          Computer not found
+        </div>
+      </>
+    );
+  }
 
   return (
-    <div className="flex gap-5 w-full">
-      <div className="flex flex-col w-full gap-3">
-        <div className="flex gap-2 mb-2">
-          <ChangePasswordDialog
-            computer={computer}
-            open={openChangePassword}
-            setOpen={setOpenChangePassword}
-            onClose={() => void refetch()}
-            createTaskMutation={createTaskMutation}
-          />
-          <ChangeNetworkStringDialog
-            computer={computer}
-            open={openChangeNetwork}
-            setOpen={setOpenChangeNetwork}
-            onClose={() => void refetch()}
-            createTaskMutation={createTaskMutation} />
-        </div>
-        <hr />
+    <>
+      <SiteHeader>
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/admin/rustdesk">RustDesk</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>{computer?.name ?? ""}</BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </SiteHeader>
+      <div className="container mx-auto w-full px-4 py-6">
+        <div className="flex flex-col w-full gap-6">
+          <div className="w-full">
+            <h1 className="text-3xl font-bold">{computer?.name ?? ""}</h1>
+          </div>
+          <div className="flex w-full">
+            <div className="flex gap-5 w-full">
+              <div className="flex flex-col w-full gap-3">
+                <div className="flex gap-2 mb-2">
+                  <ChangePasswordDialog
+                    computer={computer}
+                    open={openChangePassword}
+                    setOpen={setOpenChangePassword}
+                    createTask={createTask}
+                  />
+                  <ChangeNetworkStringDialog
+                    computer={computer}
+                    open={openChangeNetwork}
+                    setOpen={setOpenChangeNetwork}
+                    createTask={createTask} />
+                </div>
+                <hr />
 
-        <div className="flex flex-col gap-3 w-full">
-          <table className="w-full">
-            <tbody>
-              <TableRow
-                name="RustDesk ID"
-                value={computer.rustdeskID?.toString() ?? ""}
-              />
-              {computer.intuneId && (
-                <TableRow
-                  name="Intune ID"
-                  value={computer.intuneId}
-                />
-              )}
-              <TableRow name="Computer name" value={computer?.name ?? ""} />
-              <TableRow name="Computer IP" value={computer.ip ?? ""} />
-              <TableRow name="User" value={computer.loginUser ?? ""} />
-              {computer.lastConnection && (
-                <TableRow
-                  name="Last check-in time"
-                  value={new Date(computer.lastConnection).toLocaleString("cs")}
-                />
-              )}
-              <TableRow name="Windows type" value={computer.os ?? ""} />
-              <TableRow
-                name="Windows version"
-                value={computer.osVersion ?? ""}
-              />
-              <TableRow
-                name="Client version"
-                value={computer.clientVersion ?? "—"}
-              />
-            </tbody>
-          </table>
-          <hr className="w-full" />
-          <div>
-            <h2>Device actions</h2>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="px-5 py-2 text-left">Action</th>
-                  <th className="px-5 py-2 text-left">Status</th>
-                  <th className="px-5 py-2 text-left">Date/Time</th>
-                  <th className="px-5 py-2 text-left">Error</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks?.map((task) => {
-                  return (
-                    <tr key={task.id}>
-                      <td className="px-5 py-2 text-left">{task.task}</td>
-                      <td className="px-5 py-2 text-left">{task.status}</td>
-                      <td className="px-5 py-2 text-left">
-                        {new Date(task.created_at).toLocaleString("cs")}
-                      </td>
-                      <td className="px-5 py-2 text-left">
-                        {task.error ?? ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                <div className="flex flex-col gap-3 w-full">
+                  <table className="w-full">
+                    <tbody>
+                      <TableRow
+                        name="RustDesk ID"
+                        value={computer.rustdeskId?.toString() ?? ""}
+                      />
+                      {computer.intuneId && (
+                        <TableRow
+                          name="Intune ID"
+                          value={computer.intuneId}
+                        />
+                      )}
+                      <TableRow name="Computer name" value={computer?.name ?? ""} />
+                      <TableRow name="Computer IP" value={computer.ip ?? ""} />
+                      <TableRow name="User" value={computer.loginUser ?? ""} />
+                      {computer.lastConnection && (
+                        <TableRow
+                          name="Last check-in time"
+                          value={new Date(computer.lastConnection).toLocaleString("cs")}
+                        />
+                      )}
+                      <TableRow name="Windows type" value={computer.os ?? ""} />
+                      <TableRow
+                        name="Windows version"
+                        value={computer.osVersion ?? ""}
+                      />
+                      <TableRow
+                        name="Client version"
+                        value={computer.clientVersion ?? "—"}
+                      />
+                    </tbody>
+                  </table>
+                  <hr className="w-full" />
+                  <div>
+                    <h2>Device actions</h2>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="px-5 py-2 text-left">Action</th>
+                          <th className="px-5 py-2 text-left">Status</th>
+                          <th className="px-5 py-2 text-left">Date/Time</th>
+                          <th className="px-5 py-2 text-left">Error</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tasks?.map((task) => {
+                          return (
+                            <tr key={task.id}>
+                              <td className="px-5 py-2 text-left">{task.taskType}</td>
+                              <td className="px-5 py-2 text-left">{task.status}</td>
+                              <td className="px-5 py-2 text-left">
+                                {new Date(task.createdAt).toLocaleString("cs")}
+                              </td>
+                              <td className="px-5 py-2 text-left">
+                                {task.error ?? ""}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -180,14 +252,12 @@ function ChangePasswordDialog({
   computer,
   open,
   setOpen,
-  onClose,
-  createTaskMutation
+  createTask
 }: {
-  computer: RustDesk;
+  computer: ComputerData;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  onClose: () => void;
-  createTaskMutation: any
+  createTask: any // Typing mutations is tricky without inferred types, 'any' is safe here if usage is correct
 }) {
   const form = useForm<ChangePassworFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -202,16 +272,18 @@ function ChangePasswordDialog({
       password: values.password,
     };
 
-    createTaskMutation.mutate({
-      task: "SET_PASSWORD",
-      taskData: taskData,
-      computerID: computer.id,
-    });
-
-    if (!createTaskMutation.error) {
+    try {
+      await createTask({
+        taskType: "SET_PASSWD",
+        taskData: taskData,
+        computerId: computer.id,
+      });
+      toast.success("Password change task created");
       setOpen(false);
-      onClose();
       form.reset();
+    } catch (error) {
+      toast.error("Failed to change password");
+      console.error(error);
     }
   }
 
@@ -282,14 +354,12 @@ function ChangeNetworkStringDialog({
   computer,
   open,
   setOpen,
-  onClose,
-  createTaskMutation,
+  createTask,
 }: {
-  computer: RustDesk;
+  computer: ComputerData;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  onClose: () => void;
-  createTaskMutation: any
+  createTask: any
 }) {
   const form = useForm<ChangeNetworkStringSchema>({
     resolver: zodResolver(changeNetworkStringSchema),
@@ -303,16 +373,18 @@ function ChangeNetworkStringDialog({
       networkString: values.networkString,
     };
 
-    createTaskMutation.mutate({
-      task: "SET_NETWORK_STRING",
-      taskData: taskData,
-      computerID: computer.id,
-    });
-
-    if (!createTaskMutation.error) {
+    try {
+      await createTask({
+        taskType: "SET_NETWORK_STRING",
+        taskData: taskData,
+        computerId: computer.id,
+      });
+      toast.success("Network string change task created");
       setOpen(false);
-      onClose();
       form.reset();
+    } catch (error) {
+      toast.error("Failed to change network string");
+      console.error(error);
     }
   }
 

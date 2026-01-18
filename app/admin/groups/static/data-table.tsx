@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -39,17 +39,18 @@ import {
 
 import { columns, type GroupRow, type GroupsTableMeta } from "./columns";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { api } from "@/trpc/react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
 import { toast } from "sonner";
-import { createSupabaseClient } from "@/lib/supabase/client";
 
 type DialogState = { mode: "create" } | { mode: "edit"; groupId: string };
 
-const formatDateTime = (isoDate: string) =>
-  new Date(isoDate).toLocaleString("cs-CZ", {
+const formatDateTime = (timestamp: number) =>
+  new Date(timestamp).toLocaleString("cs-CZ", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -66,31 +67,13 @@ const groupFormSchema = z.object({
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 export function GroupsTable() {
-  const computersQuery = api.computer.getForGroups.useQuery();
-  const { data: groups, refetch } = api.group.getTableData.useQuery(undefined, {
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
-  });
-  const createGroupMutation = api.group.create.useMutation({
-    onSuccess: () => {
-      toast.success("Group created");
-    },
-    onError: (error) => {
-      console.error(error.message);
-      toast.error(error.message);
-    },
-  });
-  const editGroupMutation = api.group.edit.useMutation({
-    onSuccess: () => {
-      toast.success("Group updated");
-      refetch();
-    },
-    onError: (error) => {
-      console.error(error.message);
-      toast.error(error.message);
-    },
-  });
+  // Convex queries - automatically reactive!
+  const computers = useQuery(api.staticGroups.getComputersForGroups);
+  const groups = useQuery(api.staticGroups.getTableData);
+
+  // Convex mutations
+  const createGroupMutation = useMutation(api.staticGroups.create);
+  const editGroupMutation = useMutation(api.staticGroups.edit);
 
   const groupRows: GroupRow[] = useMemo(() => {
     if (!groups) {
@@ -99,15 +82,17 @@ export function GroupsTable() {
     return groups.map((group) => ({
       id: group.id,
       displayName: group.displayName,
-      members: group.members,
+      members: group.members.filter(Boolean) as { id: string; name: string }[],
       memberCount: group.members.length ?? 0,
       createdAtFormatted: formatDateTime(group.createdAt),
-      updatedAtFormatted: formatDateTime(group.updatedAt),
+      updatedAtFormatted: formatDateTime(group.createdAt),
     }));
   }, [groups]);
 
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
     defaultValues: {
@@ -133,7 +118,7 @@ export function GroupsTable() {
     form.reset({
       id: group.id,
       displayName: group.displayName,
-      memberIds: [...group.members.map((c) => c.id)],
+      memberIds: [...group.members.filter(Boolean).map((c) => c?.id ?? "")],
     });
     setMemberSearch("");
     setDialogState({ mode: "edit", groupId });
@@ -149,24 +134,32 @@ export function GroupsTable() {
   };
 
   const onSubmit = async (values: GroupFormValues) => {
-    const dedupedMembers = Array.from(new Set(values.memberIds));
+    const dedupedMembers = Array.from(new Set(values.memberIds)) as Id<"computers">[];
 
-    switch (dialogState?.mode) {
-      case "create":
-        await createGroupMutation.mutateAsync({
-          name: values.displayName,
-          members: dedupedMembers,
+    try {
+      if (dialogState?.mode === "create") {
+        setIsCreating(true);
+        await createGroupMutation({
+          displayName: values.displayName,
+          memberIds: dedupedMembers,
         });
-      case "edit":
-        if (values.id) {
-          await editGroupMutation.mutateAsync({
-            id: values.id,
-            name: values.displayName,
-            members: dedupedMembers,
-          });
-        }
+        toast.success("Group created");
+      } else if (dialogState?.mode === "edit" && values.id) {
+        setIsEditing(true);
+        await editGroupMutation({
+          id: values.id as Id<"computer_groups">,
+          displayName: values.displayName,
+          memberIds: dedupedMembers,
+        });
+        toast.success("Group updated");
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "An error occurred";
+      toast.error(message);
+    } finally {
+      setIsCreating(false);
+      setIsEditing(false);
     }
-    refetch();
     closeDialog();
   };
 
@@ -177,34 +170,15 @@ export function GroupsTable() {
     meta: {
       onEdit: openEditDialog,
       onActionComplete: () => {
-        refetch();
+        // No-op - Convex is automatically reactive
       },
     } satisfies GroupsTableMeta,
   });
 
   const hasGroups = groupRows.length > 0;
-
   const isDialogOpen = dialogState !== null;
 
-  useEffect(() => {
-    const supabase = createSupabaseClient();
-    const channel = supabase
-      .channel("group-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "computer_groups" },
-        () => {
-          refetch();
-        }
-      );
-
-    channel.subscribe();
-
-    return () => {
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
+  // Convex queries are automatically reactive - no Supabase subscription needed!
 
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
@@ -292,8 +266,8 @@ export function GroupsTable() {
                 render={({ field }) => {
                   const members = field.value ?? [];
                   const filteredComputers =
-                    computersQuery.data?.filter((c) =>
-                      c.name.toLowerCase().includes(memberSearch.toLowerCase())
+                    computers?.filter((c: { id: string; name: string }) =>
+                      c.name?.toLowerCase().includes(memberSearch.toLowerCase())
                     ) ?? [];
 
                   return (

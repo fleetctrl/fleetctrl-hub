@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "./profile-form";
 import { PasswordForm } from "./password-form";
 import PageWrapper from "@/components/page-wrapper";
@@ -9,15 +8,7 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 
-export default async function Account() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
-  const userMetadata = (user?.user_metadata ?? {}) as Record<
-    string,
-    string | undefined
-  >;
-
+export default function Account() {
   return (
     <PageWrapper
       siteHeader={
@@ -32,10 +23,7 @@ export default async function Account() {
     >
       <div className="flex flex-col items-center">
         <div className="w-full space-y-6 px-4 pb-10">
-          <ProfileForm
-            firstName={userMetadata.firstname ?? ""}
-            lastName={userMetadata.lastname ?? ""}
-          />
+          <ProfileForm />
           <PasswordForm />
         </div>
       </div>
