@@ -8,8 +8,8 @@
  * @module
  */
 
+import type * as adapter from "../adapter.js";
 import type * as auth from "../auth.js";
-import type * as functions from "../functions.js";
 
 import type {
   ApiFromModules,
@@ -19,8 +19,8 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  adapter: typeof adapter;
   auth: typeof auth;
-  functions: typeof functions;
 }> = anyApi as any;
 
 /**

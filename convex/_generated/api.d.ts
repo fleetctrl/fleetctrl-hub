@@ -80,7 +80,7 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: {
-    functions: {
+    adapter: {
       create: FunctionReference<
         "mutation",
         "internal",

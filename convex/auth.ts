@@ -7,7 +7,7 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import authConfig from "./auth.config";
 
-const siteUrl = process.env.SITE_URL!;
+const siteUrl = process.env.SITE_URL ?? process.env.CONVEX_SITE_URL!;
 
 import authSchema from "./betterAuth/schema";
 
