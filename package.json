@@ -54,6 +54,7 @@
     "zod": "^4.0.15"
   },
   "devDependencies": {
+    "@better-auth/cli": "^1.4.17",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
