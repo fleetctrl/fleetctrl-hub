@@ -27,6 +27,7 @@ export const authComponent = createClient<DataModel, typeof authSchema>(componen
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
     return {
         baseURL: getSiteUrl(),
+        basePath: "/auth",
         database: authComponent.adapter(ctx),
         // Configure simple, non-verified email/password
         emailAndPassword: {

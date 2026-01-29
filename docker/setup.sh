@@ -60,13 +60,21 @@ echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
 
 # 5. Set Environment Variables on Convex Backend
 echo "Setting Convex environment variables..."
-docker compose exec convex-cli npx convex env set SITE_URL "$SITE_URL" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY"
+BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-fleetctrl_secret_123456}
+ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+
+docker compose exec convex-cli npx convex env set \
+  SITE_URL "$SITE_URL" \
+  BETTER_AUTH_SECRET "$BETTER_AUTH_SECRET" \
+  ALLOW_REGISTRATION "$ALLOW_REGISTRATION" \
+  --url "http://convex:3210" \
+  --admin-key "$ADMIN_KEY"
 # Note: CONVEX_SITE_URL is a built-in that Convex sets automatically
 
 # 6. Deploy Schema
 echo "Deploying Convex Schema and Functions..."
 # We run the deployment from the convex-cli container which has the source code and dev dependencies
-docker compose exec convex-cli npx convex deploy --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" --yes
+docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes
 
 echo "---------------------------------------------------"
 echo "Setup Complete!"

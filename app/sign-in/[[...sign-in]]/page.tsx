@@ -86,6 +86,10 @@ export default function SignInPage() {
                     setIsSubmitting(false);
                     return;
                 }
+
+                // Redirect after successful sign up
+                router.push("/admin");
+                return;
             } else {
                 const result = await authClient.signIn.email({
                     email: data.email,
@@ -97,9 +101,11 @@ export default function SignInPage() {
                     setIsSubmitting(false);
                     return;
                 }
-            }
 
-            // Redirect will happen via useEffect when session updates
+                // Redirect after successful sign in
+                router.push("/admin");
+                return;
+            }
         } catch {
             setError(
                 step === "signIn"

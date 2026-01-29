@@ -399,6 +399,7 @@ protectedApi.patch("/computer/rustdesk-sync", async (c) => {
 });
 
 // Mount protected routes
+// Use Hono's app.route to mount protectedApi at the root
 app.route("/", protectedApi);
 
 /**
@@ -415,20 +416,29 @@ app.get("/client/version", async (c) => {
 
 const http = httpRouter();
 
-// 1. Register BetterAuth Routes (handles /api/auth/*)
+// 1. Register BetterAuth Routes (handles /auth/* by default)
 authComponent.registerRoutes(http, createAuth);
 
-// 2. Register Hono App (Catch-all for everything else)
+// 2. Register Hono App (Catch-all for everything else, except /auth/*)
 // We register for each method to ensure full coverage
 const methods = ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"];
+
+// Create handler that skips auth routes (handled by Better Auth above)
+const honoHandler = httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    // Skip /auth/* routes - they are handled by Better Auth
+    if (url.pathname.startsWith("/auth")) {
+        // Return 404 - should not reach here if Better Auth is configured correctly
+        return new Response("Not Found", { status: 404 });
+    }
+    return app.fetch(request, { ctx });
+});
 
 methods.forEach((method) => {
     http.route({
         pathPrefix: "/",
         method: method as any,
-        handler: httpAction(async (ctx, request) => {
-            return app.fetch(request, { ctx });
-        }),
+        handler: honoHandler,
     });
 });
 

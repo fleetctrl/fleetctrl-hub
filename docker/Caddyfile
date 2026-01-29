@@ -3,13 +3,40 @@
 }
 
 localhost {
-    handle_path /api* {
+    # Convex sync endpoint (WebSocket) - port 3210
+    handle /api/sync* {
+        uri strip_prefix /api
         reverse_proxy convex:3210
     }
+    
+    # Convex API actions and queries - port 3210
+    handle /api/query* {
+        uri strip_prefix /api
+        reverse_proxy convex:3210
+    }
+    
+    handle /api/mutation* {
+        uri strip_prefix /api
+        reverse_proxy convex:3210
+    }
+    
+    handle /api/action* {
+        uri strip_prefix /api
+        reverse_proxy convex:3210
+    }
+
+    # Route HTTP actions (auth, etc.) to Convex site proxy (port 3211)
+    handle /api* {
+        uri strip_prefix /api
+        reverse_proxy convex:3211
+    }
+
+    # Main domain for the Hub (Next.js)
     reverse_proxy hub:3000
 }
 
-# Convex Admin Dashboard - access at https://convex.localhost
 convex.localhost {
+    # Subdomain for Convex Dashboard
     reverse_proxy convex-dashboard:6791
 }
+
