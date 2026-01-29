@@ -1,0 +1,15 @@
+{
+    local_certs
+}
+
+localhost {
+    handle_path /api* {
+        reverse_proxy convex:3210
+    }
+    reverse_proxy hub:3000
+}
+
+# Convex Admin Dashboard - access at https://convex.localhost
+convex.localhost {
+    reverse_proxy convex-dashboard:6791
+}
