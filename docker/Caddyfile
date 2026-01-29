@@ -3,25 +3,34 @@
 }
 
 localhost {
-    # Convex sync endpoint (WebSocket) - port 3210
-    handle /api/sync* {
+    # Fix for double /api prefix (e.g. /api/api/1.x/sync, /api/api/mutation)
+    # This happens because NEXT_PUBLIC_CONVEX_URL includes /api
+    handle /api/api* {
         uri strip_prefix /api
+        reverse_proxy convex:3210
+    }
+
+    # Convex sync endpoint (WebSocket) - port 3210
+    # Backend expects /api prefix, so do NOT strip it
+    handle /api/sync* {
         reverse_proxy convex:3210
     }
     
     # Convex API actions and queries - port 3210
     handle /api/query* {
-        uri strip_prefix /api
         reverse_proxy convex:3210
     }
     
     handle /api/mutation* {
-        uri strip_prefix /api
         reverse_proxy convex:3210
     }
     
     handle /api/action* {
-        uri strip_prefix /api
+        reverse_proxy convex:3210
+    }
+    
+    # Storage upload/download
+    handle /api/storage* {
         reverse_proxy convex:3210
     }
 
