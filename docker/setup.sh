@@ -52,6 +52,11 @@ SITE_URL=${SITE_URL_INPUT:-https://localhost}
 # Derive Convex URL (Site URL + /api)
 NEXT_PUBLIC_CONVEX_URL="${SITE_URL}/api"
 
+# Ask for Data Directory
+echo -e "\n${YELLOW}💾 Storage Configuration${NC}"
+read -p "$(echo -e ${BOLD}"  Enter Convex Data Directory [convex-data]: "${NC})" CONVEX_DATA_DIR_INPUT
+CONVEX_DATA_DIR=${CONVEX_DATA_DIR_INPUT:-convex-data}
+
 # Ask for rebuild
 read -p "$(echo -e ${BOLD}"  Rebuild Docker images? if you changed NEXT_PUBLIC_* env vars [y/N]: "${NC})" REBUILD_INPUT
 if [[ "$REBUILD_INPUT" =~ ^[Yy]$ ]]; then
@@ -65,6 +70,7 @@ sed -i "s|^SITE_URL=.*|SITE_URL=$SITE_URL|" .env
 sed -i "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL|" .env
 sed -i "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
 sed -i "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
+sed -i "s|^CONVEX_DATA_DIR=.*|CONVEX_DATA_DIR=$CONVEX_DATA_DIR|" .env
 
 # Extract domain from SITE_URL for Caddy (strip protocol and trailing path)
 CADDY_DOMAIN=$(echo "$SITE_URL" | sed -E 's|^https?://||' | sed 's|/.*||')
@@ -180,5 +186,6 @@ if [[ "$BEHIND_PROXY" == "true" ]]; then
 else
   echo -e "${BOLD}  HTTPS Port:    ${NC} ${YELLOW}${PROXY_HTTPS_PORT}${NC}"
 fi
+echo -e "${BOLD}  Data Dir:      ${NC} ${YELLOW}${CONVEX_DATA_DIR}${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
 echo -e "${PURPLE}Enjoy building with Fleetctrl!${NC}\n"
