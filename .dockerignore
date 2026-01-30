@@ -1,13 +1,27 @@
-.next
+# Dependencies
 node_modules
-package-lock.json
-npm-debug.log
-pnpm-debug.log
-*.env*
-backups
-migration_backups
-/supabase/scripts
-/supabase/volumes
-volumes
-api/api
-api/.gocache
+.pnp
+.pnp.js
+
+# Next.js build output
+.next
+out
+
+# Docker related
+docker/caddy_data
+docker/caddy_config
+docker/convex-data
+docker/Caddyfile
+docker/.env
+
+# Git
+.git
+.gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+docs

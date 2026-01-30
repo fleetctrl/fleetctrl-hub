@@ -1,12 +1,14 @@
 {
-    # Caddy will automatically get Let's Encrypt certificates for public domains
-    # For internal/dev environments, it will fall back to self-signed certs
+    # Disable automatic HTTPS when behind external reverse proxy
+    auto_https off
+    # Trust proxy headers from private networks
+    servers {
+        trusted_proxies static private_ranges
+    }
 }
 
-{$CADDY_DOMAIN} {
-    # Use self-signed certs for internal/dev environments
-    # Comment out this line for production with valid public DNS
-    tls internal
+:80 {
+    # No TLS - external reverse proxy handles HTTPS
     
     # Fix for double /api prefix (e.g. /api/api/1.x/sync, /api/api/mutation)
     # This happens because NEXT_PUBLIC_CONVEX_URL includes /api
@@ -45,12 +47,12 @@
         reverse_proxy convex:3211
     }
 
+    # Convex Dashboard subdomain
+    @convex host convex.{$CADDY_DOMAIN}
+    handle @convex {
+        reverse_proxy convex-dashboard:6791
+    }
+
     # Main domain for the Hub (Next.js)
     reverse_proxy hub:3000
-}
-
-convex.{$CADDY_DOMAIN} {
-    tls internal
-    # Subdomain for Convex Dashboard
-    reverse_proxy convex-dashboard:6791
 }

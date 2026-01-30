@@ -53,7 +53,7 @@ SITE_URL=${SITE_URL_INPUT:-https://localhost}
 NEXT_PUBLIC_CONVEX_URL="${SITE_URL}/api"
 
 # Ask for rebuild
-read -p "$(echo -e ${BOLD}"  Rebuild Docker images? [y/N]: "${NC})" REBUILD_INPUT
+read -p "$(echo -e ${BOLD}"  Rebuild Docker images? if you changed NEXT_PUBLIC_* env vars [y/N]: "${NC})" REBUILD_INPUT
 if [[ "$REBUILD_INPUT" =~ ^[Yy]$ ]]; then
   REBUILD_FLAG="--build"
 else
@@ -70,29 +70,49 @@ sed -i "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
 CADDY_DOMAIN=$(echo "$SITE_URL" | sed -E 's|^https?://||' | sed 's|/.*||')
 sed -i "s/^CADDY_DOMAIN=.*/CADDY_DOMAIN=$CADDY_DOMAIN/" .env
 
-# Ask if domain is public (for Let's Encrypt) or internal (self-signed certs)
-echo -e "${YELLOW}🔒 SSL Configuration${NC}"
-echo -e "  ${BOLD}Is your domain publicly accessible?${NC}"
-echo -e "  ${CYAN}Yes${NC} = Use Let's Encrypt (requires public DNS pointing to this server)"
-echo -e "  ${CYAN}No${NC}  = Use self-signed certificates (for internal/dev environments)"
-read -p "$(echo -e ${BOLD}"  Is domain public? [y/N]: "${NC})" PUBLIC_DOMAIN_INPUT
+# Ask if running behind external reverse proxy
+echo -e "${YELLOW}🔄 Reverse Proxy Configuration${NC}"
+echo -e "  ${BOLD}Are you running behind an external reverse proxy?${NC}"
+echo -e "  ${CYAN}Yes${NC} = External proxy (e.g., Nginx Proxy Manager, Traefik) handles HTTPS"
+echo -e "  ${CYAN}No${NC}  = Caddy handles HTTPS directly"
+read -p "$(echo -e ${BOLD}"  Behind reverse proxy? [y/N]: "${NC})" BEHIND_PROXY_INPUT
 
-if [[ "$PUBLIC_DOMAIN_INPUT" =~ ^[Yy]$ ]]; then
-  TLS_INTERNAL="false"
-  echo -e "  ${GREEN}✓ Using Let's Encrypt certificates${NC}"
+if [[ "$BEHIND_PROXY_INPUT" =~ ^[Yy]$ ]]; then
+  BEHIND_PROXY="true"
+  echo -e "  ${GREEN}✓ Configured for external reverse proxy (HTTP only)${NC}"
+  # Copy proxy Caddyfile
+  cp Caddyfile.proxy Caddyfile
 else
-  TLS_INTERNAL="true"
-  echo -e "  ${GREEN}✓ Using self-signed certificates${NC}"
+  BEHIND_PROXY="false"
+  # Copy standalone Caddyfile
+  cp Caddyfile.standalone Caddyfile
+  
+  # Ask if domain is public (for Let's Encrypt) or internal (self-signed certs)
+  echo -e "\n${YELLOW}🔒 SSL Configuration${NC}"
+  echo -e "  ${BOLD}Is your domain publicly accessible?${NC}"
+  echo -e "  ${CYAN}Yes${NC} = Use Let's Encrypt (requires public DNS pointing to this server)"
+  echo -e "  ${CYAN}No${NC}  = Use self-signed certificates (for internal/dev environments)"
+  read -p "$(echo -e ${BOLD}"  Is domain public? [y/N]: "${NC})" PUBLIC_DOMAIN_INPUT
+
+  if [[ "$PUBLIC_DOMAIN_INPUT" =~ ^[Yy]$ ]]; then
+    TLS_INTERNAL="false"
+    echo -e "  ${GREEN}✓ Using Let's Encrypt certificates${NC}"
+    # Disable tls internal (comment out)
+    sed -i 's/^[[:space:]]*tls internal/    # tls internal/' Caddyfile
+  else
+    TLS_INTERNAL="true"
+    echo -e "  ${GREEN}✓ Using self-signed certificates${NC}"
+    # Enable tls internal (uncomment if commented)
+    sed -i 's/^[[:space:]]*#[[:space:]]*tls internal/    tls internal/' Caddyfile
+  fi
+  sed -i "s/^TLS_INTERNAL=.*/TLS_INTERNAL=$TLS_INTERNAL/" .env
 fi
-sed -i "s/^TLS_INTERNAL=.*/TLS_INTERNAL=$TLS_INTERNAL/" .env
 
-# Update Caddyfile TLS configuration
-if [[ "$TLS_INTERNAL" == "true" ]]; then
-  # Enable tls internal (uncomment if commented)
-  sed -i 's/^[[:space:]]*#[[:space:]]*tls internal/    tls internal/' Caddyfile
+# Update BEHIND_PROXY in .env
+if grep -q "^BEHIND_PROXY=" .env; then
+  sed -i "s/^BEHIND_PROXY=.*/BEHIND_PROXY=$BEHIND_PROXY/" .env
 else
-  # Disable tls internal (comment out)
-  sed -i 's/^[[:space:]]*tls internal/    # tls internal/' Caddyfile
+  echo "BEHIND_PROXY=$BEHIND_PROXY" >> .env
 fi
 
 # Generate random BETTER_AUTH_SECRET if it's the default
@@ -155,6 +175,10 @@ echo -e "${CYAN}═════════════════════�
 echo -e "${BOLD}  Hub Dashboard: ${NC} ${CYAN}${SITE_URL}${NC}"
 echo -e "${BOLD}  Convex API:    ${NC} ${CYAN}${NEXT_PUBLIC_CONVEX_URL}${NC}"
 echo -e "${BOLD}  HTTP Port:     ${NC} ${YELLOW}${PROXY_HTTP_PORT}${NC}"
-echo -e "${BOLD}  HTTPS Port:    ${NC} ${YELLOW}${PROXY_HTTPS_PORT}${NC}"
+if [[ "$BEHIND_PROXY" == "true" ]]; then
+  echo -e "${BOLD}  Mode:          ${NC} ${YELLOW}Behind reverse proxy${NC}"
+else
+  echo -e "${BOLD}  HTTPS Port:    ${NC} ${YELLOW}${PROXY_HTTPS_PORT}${NC}"
+fi
 echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
 echo -e "${PURPLE}Enjoy building with Fleetctrl!${NC}\n"
