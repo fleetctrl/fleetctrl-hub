@@ -1,8 +1,13 @@
 {
-    local_certs
+    # Caddy will automatically get Let's Encrypt certificates for public domains
+    # For internal/dev environments, it will fall back to self-signed certs
 }
 
-localhost {
+{$CADDY_DOMAIN} {
+    # Use self-signed certs for internal/dev environments
+    # Comment out this line for production with valid public DNS
+    tls internal
+    
     # Fix for double /api prefix (e.g. /api/api/1.x/sync, /api/api/mutation)
     # This happens because NEXT_PUBLIC_CONVEX_URL includes /api
     handle /api/api* {
@@ -44,7 +49,8 @@ localhost {
     reverse_proxy hub:3000
 }
 
-convex.localhost {
+convex.{$CADDY_DOMAIN} {
+    tls internal
     # Subdomain for Convex Dashboard
     reverse_proxy convex-dashboard:6791
 }

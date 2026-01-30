@@ -66,6 +66,35 @@ sed -i "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_
 sed -i "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
 sed -i "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
 
+# Extract domain from SITE_URL for Caddy (strip protocol and trailing path)
+CADDY_DOMAIN=$(echo "$SITE_URL" | sed -E 's|^https?://||' | sed 's|/.*||')
+sed -i "s/^CADDY_DOMAIN=.*/CADDY_DOMAIN=$CADDY_DOMAIN/" .env
+
+# Ask if domain is public (for Let's Encrypt) or internal (self-signed certs)
+echo -e "${YELLOW}🔒 SSL Configuration${NC}"
+echo -e "  ${BOLD}Is your domain publicly accessible?${NC}"
+echo -e "  ${CYAN}Yes${NC} = Use Let's Encrypt (requires public DNS pointing to this server)"
+echo -e "  ${CYAN}No${NC}  = Use self-signed certificates (for internal/dev environments)"
+read -p "$(echo -e ${BOLD}"  Is domain public? [y/N]: "${NC})" PUBLIC_DOMAIN_INPUT
+
+if [[ "$PUBLIC_DOMAIN_INPUT" =~ ^[Yy]$ ]]; then
+  TLS_INTERNAL="false"
+  echo -e "  ${GREEN}✓ Using Let's Encrypt certificates${NC}"
+else
+  TLS_INTERNAL="true"
+  echo -e "  ${GREEN}✓ Using self-signed certificates${NC}"
+fi
+sed -i "s/^TLS_INTERNAL=.*/TLS_INTERNAL=$TLS_INTERNAL/" .env
+
+# Update Caddyfile TLS configuration
+if [[ "$TLS_INTERNAL" == "true" ]]; then
+  # Enable tls internal (uncomment if commented)
+  sed -i 's/^[[:space:]]*#[[:space:]]*tls internal/    tls internal/' Caddyfile
+else
+  # Disable tls internal (comment out)
+  sed -i 's/^[[:space:]]*tls internal/    # tls internal/' Caddyfile
+fi
+
 # Generate random BETTER_AUTH_SECRET if it's the default
 DEFAULT_SECRET="fleetctrl_secret_123456"
 if grep -q "^BETTER_AUTH_SECRET=$DEFAULT_SECRET" .env; then
