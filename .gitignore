@@ -27,7 +27,7 @@
 
 # production
 /build
-/public
+
 /backups
 /migration_backups
 /volumes
