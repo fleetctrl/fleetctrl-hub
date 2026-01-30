@@ -64,6 +64,19 @@ This script will:
     - **Convex API**: [https://localhost/api](https://localhost/api)
     - **Convex Admin**: [https://convex.localhost](https://convex.localhost)
 
+## Update
+
+Run the update script to update the environment, generate necessary keys, and deploy the Convex schema automatically.
+
+```bash
+./update.sh
+```
+
+This script will:
+1. Pull the latest changes from the repository.
+2. Start all services.
+3. Deploy the Convex schema and functions from the local source code to the containerized backend.
+
 ## Configuration
 
 - **Hub**: Configured in `docker-compose.yml`. Use `.env` to adjust variables.
