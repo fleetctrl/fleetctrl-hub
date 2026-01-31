@@ -75,9 +75,11 @@ echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
 # 6. Set Environment Variables on Convex Backend
 echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
 BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+JWT_SECRET=${JWT_SECRET}
+API_URL=${API_URL:-${SITE_URL}/api}
 ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
 
-for var in "SITE_URL=$SITE_URL" "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" "ALLOW_REGISTRATION=$ALLOW_REGISTRATION"; do
+for var in "SITE_URL=$SITE_URL" "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" "JWT_SECRET=$JWT_SECRET" "API_URL=$API_URL" "ALLOW_REGISTRATION=$ALLOW_REGISTRATION"; do
   docker compose exec convex-cli npx convex env set "$var" \
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" > /dev/null

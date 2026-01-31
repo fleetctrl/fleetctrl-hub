@@ -68,7 +68,12 @@ fi
 # Update values in .env
 sed -i "s|^SITE_URL=.*|SITE_URL=$SITE_URL|" .env
 sed -i "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL|" .env
-sed -i "s|^API_URL=.*|API_URL=${SITE_URL}/api|" .env
+# Add API_URL if not present, otherwise update it
+if grep -q "^API_URL=" .env; then
+  sed -i "s|^API_URL=.*|API_URL=${SITE_URL}/api|" .env
+else
+  echo "API_URL=${SITE_URL}/api" >> .env
+fi
 sed -i "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
 sed -i "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
 sed -i "s|^CONVEX_DATA_DIR=.*|CONVEX_DATA_DIR=$CONVEX_DATA_DIR|" .env
