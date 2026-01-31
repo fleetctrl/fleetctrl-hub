@@ -4,10 +4,11 @@
  * Handles app and release queries for computers.
  */
 
-import { query, action, internalQuery } from "./_generated/server";
+import { query, action, internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { checkAdmin } from "./lib/auth";
 
 // ========================================
 // Public Queries
@@ -16,28 +17,24 @@ import { Id } from "./_generated/dataModel";
 /**
  * Get apps assigned to a computer through group memberships.
  */
-export const getAssigned = query({
-    args: { computerId: v.string() },
+export const getAssigned = internalQuery({
+    args: { computerId: v.id("computers") },
     handler: async (ctx, { computerId }) => {
         // 1. Get static group memberships
         const staticMemberships = await ctx.db
             .query("computer_group_members")
-            .withIndex("by_computer_id")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
             .collect();
 
-        const staticGroupIds = staticMemberships
-            .filter((m) => m.computer_id.toString() === computerId)
-            .map((m) => m.group_id);
+        const staticGroupIds = staticMemberships.map((m) => m.group_id);
 
         // 2. Get dynamic group memberships
         const dynamicMemberships = await ctx.db
             .query("dynamic_group_members")
-            .withIndex("by_computer_id")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
             .collect();
 
-        const dynamicGroupIds = dynamicMemberships
-            .filter((m) => m.computer_id.toString() === computerId)
-            .map((m) => m.group_id);
+        const dynamicGroupIds = dynamicMemberships.map((m) => m.group_id);
 
         if (staticGroupIds.length === 0 && dynamicGroupIds.length === 0) {
             return [];
@@ -170,10 +167,12 @@ export const getAssigned = query({
 // Actions (for storage URL generation)
 // ========================================
 
+import { internalAction } from "./_generated/server";
+
 /**
  * Get download URL for a release binary.
  */
-export const getDownloadUrl = action({
+export const getDownloadUrl = internalAction({
     args: {
         computerId: v.string(),
         releaseId: v.string(),
@@ -209,7 +208,7 @@ export const getDownloadUrl = action({
 /**
  * Get download URL for a requirement binary.
  */
-export const getRequirementDownloadUrl = action({
+export const getRequirementDownloadUrl = internalAction({
     args: {
         computerId: v.string(),
         requirementId: v.string(),
@@ -274,6 +273,7 @@ import { mutation } from "./_generated/server";
  */
 export const getTableData = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const apps = await ctx.db.query("apps").collect();
 
         return Promise.all(
@@ -338,6 +338,7 @@ export const getTableData = query({
 export const getById = query({
     args: { id: v.id("apps") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         const app = await ctx.db.get(id);
         if (!app) return null;
 
@@ -372,6 +373,7 @@ export const getById = query({
 export const remove = mutation({
     args: { id: v.id("apps") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         // Delete releases first
         const releases = await ctx.db
             .query("releases")
@@ -432,6 +434,7 @@ export const update = mutation({
         }),
     },
     handler: async (ctx, { id, data }) => {
+        await checkAdmin(ctx);
         const updates: Record<string, unknown> = {};
         if (data.display_name !== undefined) updates.display_name = data.display_name;
         if (data.description !== undefined) updates.description = data.description;
@@ -451,6 +454,7 @@ export const update = mutation({
 export const getReleases = query({
     args: { appId: v.id("apps") },
     handler: async (ctx, { appId }) => {
+        await checkAdmin(ctx);
         const releases = await ctx.db
             .query("releases")
             .withIndex("by_app_id", (q) => q.eq("app_id", appId))
@@ -538,6 +542,7 @@ export const getReleases = query({
 export const deleteRelease = mutation({
     args: { id: v.id("releases") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         // Delete release assignments
         const staticAssignments = await ctx.db
             .query("computer_group_releases")
@@ -580,6 +585,7 @@ export const deleteRelease = mutation({
 export const generateUploadUrl = mutation({
     args: {},
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         return await ctx.storage.generateUploadUrl();
     },
 });
@@ -647,6 +653,7 @@ export const create = mutation({
         }),
     },
     handler: async (ctx, args) => {
+        await checkAdmin(ctx);
         // 1. Create App
         const appId = await ctx.db.insert("apps", {
             display_name: args.appInfo.name,
@@ -787,6 +794,7 @@ export const createRelease = mutation({
         ...releaseArgs,
     },
     handler: async (ctx, args) => {
+        await checkAdmin(ctx);
         // 1. Create Release
         const releaseId = await ctx.db.insert("releases", {
             app_id: args.appId,
@@ -878,6 +886,7 @@ export const updateRelease = mutation({
         data: v.object(releaseArgs),
     },
     handler: async (ctx, { id, data }) => {
+        await checkAdmin(ctx);
         // 1. Update Release
         await ctx.db.patch(id, {
             version: data.version || "latest",

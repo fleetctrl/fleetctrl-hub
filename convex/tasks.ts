@@ -4,8 +4,9 @@
  * Handles task management for computers.
  */
 
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { checkAdmin } from "./lib/auth";
 
 // ========================================
 // Public Queries
@@ -14,27 +15,16 @@ import { v } from "convex/values";
 /**
  * Get pending tasks for a computer.
  */
-export const getPending = query({
-    args: { computerId: v.string() },
+export const getPending = internalQuery({
+    args: { computerId: v.id("computers") },
     handler: async (ctx, { computerId }) => {
-        // Find computer by ID string
         const tasks = await ctx.db
             .query("tasks")
-            .filter((q) =>
-                q.and(
-                    q.eq(q.field("status"), "PENDING"),
-                    // We need to compare the computer_id - but it's stored as Id<"computers">
-                    // For now, we'll collect and filter
-                )
-            )
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
+            .filter((q) => q.eq(q.field("status"), "PENDING"))
             .collect();
 
-        // Filter by computerId (comparing string representation)
-        const filtered = tasks.filter(
-            (t) => t.computer_id.toString() === computerId
-        );
-
-        return filtered.map((task) => ({
+        return tasks.map((task) => ({
             id: task._id,
             created_at: task._creationTime,
             status: task.status,
@@ -50,6 +40,7 @@ export const getPending = query({
 export const getByComputer = query({
     args: { computerId: v.id("computers") },
     handler: async (ctx, { computerId }) => {
+        await checkAdmin(ctx);
         const tasks = await ctx.db
             .query("tasks")
             .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
@@ -75,10 +66,10 @@ export const getByComputer = query({
 /**
  * Update task status.
  */
-export const updateStatus = mutation({
+export const updateStatus = internalMutation({
     args: {
-        taskId: v.string(),
-        computerId: v.string(),
+        taskId: v.id("tasks"),
+        computerId: v.id("computers"),
         status: v.string(),
         error: v.optional(v.union(v.string(), v.null())),
     },
@@ -90,12 +81,9 @@ export const updateStatus = mutation({
         }
 
         // Find the task - we need to validate it belongs to this computer
-        const allTasks = await ctx.db.query("tasks").collect();
-        const task = allTasks.find(
-            (t) => t._id.toString() === taskId && t.computer_id.toString() === computerId
-        );
+        const task = await ctx.db.get(taskId);
 
-        if (!task) {
+        if (!task || task.computer_id !== computerId) {
             throw new Error("Task not found or access denied");
         }
 
@@ -130,6 +118,7 @@ export const create = mutation({
         taskData: v.optional(v.any()),
     },
     handler: async (ctx, { computerId, taskType, taskData }) => {
+        await checkAdmin(ctx);
         const id = await ctx.db.insert("tasks", {
             computer_id: computerId,
             task_type: taskType,

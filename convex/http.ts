@@ -87,7 +87,7 @@ const dpopAuth = createMiddleware<Env>(async (c, next) => {
 
         // Check JTI for replay
         try {
-            await c.env.ctx.runMutation(api.lib.jtiStore.checkAndStore, {
+            await c.env.ctx.runMutation(internal.lib.jtiStore.checkAndStore, {
                 jti: dpopResult.jti,
             });
         } catch {
@@ -129,7 +129,7 @@ const dpopAuth = createMiddleware<Env>(async (c, next) => {
         if (clientVersion) {
             try {
                 // Check if update is needed
-                const activeVersion = await c.env.ctx.runQuery(api.client.getActiveVersion, {});
+                const activeVersion = await c.env.ctx.runQuery(internal.client.getActiveVersion, {});
 
                 if (activeVersion && activeVersion.version !== clientVersion) {
                     // Inject update instruction as response header
@@ -281,7 +281,7 @@ app.post("/token/recover", async (c) => {
 
         // Check JTI for replay
         try {
-            await c.env.ctx.runMutation(api.lib.jtiStore.checkAndStore, {
+            await c.env.ctx.runMutation(internal.lib.jtiStore.checkAndStore, {
                 jti: dpopResult.jti,
             });
         } catch {
@@ -311,7 +311,7 @@ protectedApi.use("*", dpopAuth);
  */
 protectedApi.get("/tasks", async (c) => {
     const computerId = c.var.computerId;
-    const tasks = await c.env.ctx.runQuery(api.tasks.getPending, { computerId });
+    const tasks = await c.env.ctx.runQuery(internal.tasks.getPending, { computerId });
     return c.json({ tasks });
 });
 
@@ -325,7 +325,7 @@ protectedApi.patch("/task/:taskId", async (c) => {
         return c.json({ error: "Missing status" }, 400);
     }
 
-    await c.env.ctx.runMutation(api.tasks.updateStatus, {
+    await c.env.ctx.runMutation(internal.tasks.updateStatus, {
         taskId,
         computerId,
         status,
@@ -340,7 +340,7 @@ protectedApi.patch("/task/:taskId", async (c) => {
  */
 protectedApi.get("/apps/assigned", async (c) => {
     const computerId = c.var.computerId;
-    const apps = await c.env.ctx.runQuery(api.apps.getAssigned, { computerId });
+    const apps = await c.env.ctx.runQuery(internal.apps.getAssigned, { computerId });
     return c.json({ apps });
 });
 
@@ -348,7 +348,7 @@ protectedApi.get("/apps/download/:releaseId", async (c) => {
     const computerId = c.var.computerId;
     const releaseId = c.req.param("releaseId");
 
-    const downloadUrl = await c.env.ctx.runAction(api.apps.getDownloadUrl, {
+    const downloadUrl = await c.env.ctx.runAction(internal.apps.getDownloadUrl, {
         computerId,
         releaseId,
     });
@@ -365,7 +365,7 @@ protectedApi.get("/apps/requirement/download/:requirementId", async (c) => {
     const requirementId = c.req.param("requirementId");
 
     const downloadUrl = await c.env.ctx.runAction(
-        api.apps.getRequirementDownloadUrl,
+        internal.apps.getRequirementDownloadUrl,
         {
             computerId,
             requirementId,
@@ -388,7 +388,7 @@ protectedApi.get("/client/download/:versionId", async (c) => {
     // Note: This endpoint is technically protected in old code, but client download might generally avail?
     // Old code had withDPoP for download, so keeping it protected.
 
-    const downloadUrl = await c.env.ctx.runAction(api.client.getDownloadUrl, {
+    const downloadUrl = await c.env.ctx.runAction(internal.client.getDownloadUrl, {
         versionId,
     });
 
@@ -410,7 +410,7 @@ protectedApi.patch("/computer/rustdesk-sync", async (c) => {
         client_version: clientVersion || body.client_version,
     };
 
-    await c.env.ctx.runMutation(api.computers.rustdeskSync, {
+    await c.env.ctx.runMutation(internal.computers.rustdeskSync, {
         computerId,
         data: payload,
     });
@@ -426,7 +426,7 @@ app.route("/", protectedApi);
  * Public Client Version Check
  */
 app.get("/client/version", async (c) => {
-    const version = await c.env.ctx.runQuery(api.client.getActiveVersion, {});
+    const version = await c.env.ctx.runQuery(internal.client.getActiveVersion, {});
     return c.json(version || { version: null });
 });
 

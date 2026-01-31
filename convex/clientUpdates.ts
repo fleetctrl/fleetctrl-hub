@@ -1,9 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { checkAdmin } from "./lib/auth";
 
 export const getAll = query({
     args: {},
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         return await ctx.db.query("client_updates").collect();
     },
 });
@@ -17,6 +19,7 @@ export const create = mutation({
         notes: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        await checkAdmin(ctx);
         // Check if version already exists
         const existing = await ctx.db
             .query("client_updates")
@@ -48,6 +51,7 @@ export const create = mutation({
 export const generateUploadUrl = mutation({
     args: {},
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         return await ctx.storage.generateUploadUrl();
     },
 });
@@ -55,6 +59,7 @@ export const generateUploadUrl = mutation({
 export const setActive = mutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
+        await checkAdmin(ctx);
         const update = await ctx.db.get(args.id);
         if (!update) throw new Error("Update not found");
 
@@ -73,6 +78,7 @@ export const setActive = mutation({
 export const deactivate = mutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
+        await checkAdmin(ctx);
         await ctx.db.patch(args.id, { is_active: false });
     },
 });
@@ -80,6 +86,7 @@ export const deactivate = mutation({
 export const remove = mutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
+        await checkAdmin(ctx);
         const update = await ctx.db.get(args.id);
         if (!update) throw new Error("Update not found");
 

@@ -13,6 +13,7 @@ import {
 } from "./_generated/server";
 import { v } from "convex/values";
 import { Id, Doc } from "./_generated/dataModel";
+import { checkAdmin } from "./lib/auth";
 
 // ========================================
 // Rule Evaluation Logic
@@ -270,6 +271,7 @@ export const refreshAllDynamicGroups = internalMutation({
  */
 export const refreshAll = mutation({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const groups = await ctx.db.query("dynamic_computer_groups").collect();
         const computers = await ctx.db.query("computers").collect();
         let totalAdded = 0;
@@ -316,6 +318,7 @@ export const refreshAll = mutation({
 export const getById = query({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         const group = await ctx.db.get(id);
         if (!group) return null;
 
@@ -335,6 +338,7 @@ export const getById = query({
  */
 export const getAll = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const groups = await ctx.db.query("dynamic_computer_groups").collect();
 
         return Promise.all(
@@ -369,6 +373,7 @@ export const getAll = query({
 export const getMembers = query({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         const members = await ctx.db
             .query("dynamic_group_members")
             .withIndex("by_group_id", (q) => q.eq("group_id", id))
@@ -395,6 +400,7 @@ export const getMembers = query({
 });
 export const listDynamicGroups = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const groups = await ctx.db.query("dynamic_computer_groups").collect();
 
         return Promise.all(
@@ -424,6 +430,7 @@ export const listDynamicGroups = query({
 export const getDynamicGroupMembers = query({
     args: { groupId: v.id("dynamic_computer_groups") },
     handler: async (ctx, { groupId }) => {
+        await checkAdmin(ctx);
         const members = await ctx.db
             .query("dynamic_group_members")
             .withIndex("by_group_id", (q) => q.eq("group_id", groupId))
@@ -456,6 +463,7 @@ export const getDynamicGroupMembers = query({
 export const previewRuleMatches = query({
     args: { ruleExpression: v.any() },
     handler: async (ctx, { ruleExpression }) => {
+        await checkAdmin(ctx);
         const computers = await ctx.db.query("computers").collect();
 
         return computers
@@ -485,6 +493,7 @@ export const createDynamicGroup = mutation({
         ruleExpression: v.any(),
     },
     handler: async (ctx, { displayName, description, ruleExpression }) => {
+        await checkAdmin(ctx);
         // Check for duplicate name
         const existing = await ctx.db
             .query("dynamic_computer_groups")
@@ -520,6 +529,7 @@ export const updateDynamicGroup = mutation({
         ruleExpression: v.optional(v.any()),
     },
     handler: async (ctx, { id, displayName, description, ruleExpression }) => {
+        await checkAdmin(ctx);
         const existing = await ctx.db.get(id);
         if (!existing) {
             throw new Error("Group not found");
@@ -554,6 +564,7 @@ export const updateDynamicGroup = mutation({
 export const deleteDynamicGroup = mutation({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         // Members will be cascade-deleted by Convex
         await ctx.db.delete(id);
         return { success: true };

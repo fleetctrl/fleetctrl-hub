@@ -7,6 +7,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { arrayBufferToBase64Url } from "./lib/encoding";
+import { checkAdmin } from "./lib/auth";
 
 // ========================================
 // Public Queries
@@ -17,6 +18,7 @@ import { arrayBufferToBase64Url } from "./lib/encoding";
  */
 export const list = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const tokens = await ctx.db.query("enrollment_tokens").collect();
 
         return tokens.map((t) => ({
@@ -46,6 +48,7 @@ export const create = mutation({
         expiresAt: v.optional(v.number()),
     },
     handler: async (ctx, { name, remainingUses, expiresAt }) => {
+        await checkAdmin(ctx);
         // Generate random token
         const bytes = new Uint8Array(32);
         crypto.getRandomValues(bytes);
@@ -84,6 +87,7 @@ export const create = mutation({
 export const disable = mutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         await ctx.db.patch(id, { disabled: true });
         return { success: true };
     },
@@ -95,6 +99,7 @@ export const disable = mutation({
 export const enable = mutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         await ctx.db.patch(id, { disabled: false });
         return { success: true };
     },
@@ -106,6 +111,7 @@ export const enable = mutation({
 export const remove = mutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         await ctx.db.delete(id);
         return { success: true };
     },

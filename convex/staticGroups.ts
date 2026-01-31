@@ -6,6 +6,7 @@
 
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { checkAdmin } from "./lib/auth";
 
 // ========================================
 // Public Queries
@@ -16,6 +17,7 @@ import { v } from "convex/values";
  */
 export const list = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const groups = await ctx.db.query("computer_groups").collect();
 
         return Promise.all(
@@ -42,6 +44,7 @@ export const list = query({
  */
 export const getTableData = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const groups = await ctx.db.query("computer_groups").collect();
 
         return Promise.all(
@@ -81,6 +84,7 @@ export const getTableData = query({
 export const getMembers = query({
     args: { groupId: v.id("computer_groups") },
     handler: async (ctx, { groupId }) => {
+        await checkAdmin(ctx);
         const members = await ctx.db
             .query("computer_group_members")
             .withIndex("by_group_id", (q) => q.eq("group_id", groupId))
@@ -108,6 +112,7 @@ export const getMembers = query({
  */
 export const getAllForAssignment = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const groups = await ctx.db.query("computer_groups").collect();
 
         return groups.map((g) => ({
@@ -122,6 +127,7 @@ export const getAllForAssignment = query({
  */
 export const getComputersForGroups = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const computers = await ctx.db.query("computers").collect();
 
         return computers.map((c) => ({
@@ -147,6 +153,7 @@ export const create = mutation({
         memberIds: v.optional(v.array(v.id("computers"))),
     },
     handler: async (ctx, { displayName, description, memberIds }) => {
+        await checkAdmin(ctx);
         // Check for duplicate name
         const existing = await ctx.db
             .query("computer_groups")
@@ -187,6 +194,7 @@ export const edit = mutation({
         memberIds: v.optional(v.array(v.id("computers"))),
     },
     handler: async (ctx, { id, displayName, description, memberIds }) => {
+        await checkAdmin(ctx);
         const existing = await ctx.db.get(id);
         if (!existing) {
             throw new Error("Group not found");
@@ -244,6 +252,7 @@ export const edit = mutation({
 export const remove = mutation({
     args: { id: v.id("computer_groups") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         // Remove all members first
         const members = await ctx.db
             .query("computer_group_members")

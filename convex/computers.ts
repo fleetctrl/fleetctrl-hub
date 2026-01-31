@@ -12,6 +12,7 @@ import {
 } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { checkAdmin } from "./lib/auth";
 
 // ========================================
 // Public Queries
@@ -22,6 +23,7 @@ import { internal } from "./_generated/api";
  */
 export const list = query({
     handler: async (ctx) => {
+        await checkAdmin(ctx);
         const computers = await ctx.db.query("computers").collect();
         const now = Date.now();
         const fiveMinutesAgo = now - 5 * 60 * 1000;
@@ -59,6 +61,7 @@ export const listPaginated = query({
         sortDesc: v.optional(v.boolean()),
     },
     handler: async (ctx, { skip = 0, limit = 10, filter, sortField, sortDesc }) => {
+        await checkAdmin(ctx);
         let computers = await ctx.db.query("computers").collect();
         const now = Date.now();
         const fiveMinutesAgo = now - 5 * 60 * 1000;
@@ -154,6 +157,7 @@ export const listPaginated = query({
 export const getById = query({
     args: { id: v.id("computers") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         const computer = await ctx.db.get(id);
         if (!computer) return null;
 
@@ -181,15 +185,14 @@ export const getById = query({
 /**
  * Update computer with RustDesk sync data.
  */
-export const rustdeskSync = mutation({
+export const rustdeskSync = internalMutation({
     args: {
-        computerId: v.string(),
+        computerId: v.id("computers"),
         data: v.any(),
     },
     handler: async (ctx, { computerId, data }) => {
         // Find computer
-        const computers = await ctx.db.query("computers").collect();
-        const computer = computers.find((c) => c._id.toString() === computerId);
+        const computer = await ctx.db.get(computerId);
 
         if (!computer) {
             throw new Error("Computer not found");
@@ -252,6 +255,7 @@ export const rustdeskSync = mutation({
 export const remove = mutation({
     args: { id: v.id("computers") },
     handler: async (ctx, { id }) => {
+        await checkAdmin(ctx);
         // Delete related data first
         // Refresh tokens
         const refreshTokens = await ctx.db
