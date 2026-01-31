@@ -69,8 +69,18 @@ const dpopAuth = createMiddleware<Env>(async (c, next) => {
 
         const accessToken = authHeader.slice(7);
         const url = new URL(c.req.url);
-        // Convex request URL typically includes origin, verify matches expectations
-        const expectedUrl = url.href;
+        const apiUrl = process.env.API_URL;
+
+        // Use API_URL as base (includes /api path) and append request pathname
+        let expectedUrl: string;
+        if (apiUrl) {
+            const apiBase = apiUrl.replace(/\/$/, ""); // remove trailing slash
+            expectedUrl = `${apiBase}${url.pathname}`;
+        } else {
+            url.search = "";
+            url.hash = "";
+            expectedUrl = url.href;
+        }
 
         // Verify DPoP proof
         const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);
@@ -254,7 +264,17 @@ app.post("/token/recover", async (c) => {
         }
 
         const url = new URL(c.req.url);
-        const expectedUrl = url.href;
+        const apiUrl = process.env.API_URL;
+
+        let expectedUrl: string;
+        if (apiUrl) {
+            const apiBase = apiUrl.replace(/\/$/, "");
+            expectedUrl = `${apiBase}${url.pathname}`;
+        } else {
+            url.search = "";
+            url.hash = "";
+            expectedUrl = url.href;
+        }
 
         // Verify DPoP proof
         const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);

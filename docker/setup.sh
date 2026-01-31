@@ -68,6 +68,7 @@ fi
 # Update values in .env
 sed -i "s|^SITE_URL=.*|SITE_URL=$SITE_URL|" .env
 sed -i "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL|" .env
+sed -i "s|^API_URL=.*|API_URL=${SITE_URL}/api|" .env
 sed -i "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
 sed -i "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
 sed -i "s|^CONVEX_DATA_DIR=.*|CONVEX_DATA_DIR=$CONVEX_DATA_DIR|" .env
@@ -121,12 +122,22 @@ else
   echo "BEHIND_PROXY=$BEHIND_PROXY" >> .env
 fi
 
-# Generate random BETTER_AUTH_SECRET if it's the default
+# Generate random BETTER_AUTH_SECRET and JWT_SECRET if they are defaults or missing
 DEFAULT_SECRET="fleetctrl_secret_123456"
 if grep -q "^BETTER_AUTH_SECRET=$DEFAULT_SECRET" .env; then
   echo -e "${BLUE}▶ Generating random BETTER_AUTH_SECRET...${NC}"
-  FILES_SECRET=$(openssl rand -hex 32)
-  sed -i "s/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=$FILES_SECRET/" .env
+  BA_SECRET=$(openssl rand -hex 32)
+  sed -i "s/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=$BA_SECRET/" .env
+fi
+
+if ! grep -q "^JWT_SECRET=.." .env; then
+  echo -e "${BLUE}▶ Generating random JWT_SECRET...${NC}"
+  J_SECRET=$(openssl rand -hex 32)
+  if grep -q "^JWT_SECRET=" .env; then
+    sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$J_SECRET/" .env
+  else
+    echo "JWT_SECRET=$J_SECRET" >> .env
+  fi
 fi
 
 # Load .env variables
@@ -164,9 +175,11 @@ echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
 # 6. Set Environment Variables on Convex Backend
 echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
 BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+JWT_SECRET=${JWT_SECRET}
+API_URL=${API_URL:-${SITE_URL}/api}
 ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
 
-for var in "SITE_URL=$SITE_URL" "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" "ALLOW_REGISTRATION=$ALLOW_REGISTRATION"; do
+for var in "SITE_URL=$SITE_URL" "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" "JWT_SECRET=$JWT_SECRET" "API_URL=$API_URL" "ALLOW_REGISTRATION=$ALLOW_REGISTRATION"; do
   docker compose exec convex-cli npx convex env set "$var" \
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" > /dev/null
