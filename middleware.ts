@@ -21,8 +21,10 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute = pathname.startsWith("/admin");
 
   // Check for session cookie - BetterAuth stores session in cookies
+  // Uses __Secure- prefix when running over HTTPS
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("better-auth.session_token");
+  const sessionCookie = cookieStore.get("__Secure-better-auth.session_token")
+    || cookieStore.get("better-auth.session_token");
   const isAuthenticated = !!sessionCookie?.value;
 
   // Redirect authenticated users away from sign-in/sign-up pages

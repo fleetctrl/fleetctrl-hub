@@ -1,0 +1,56 @@
+{
+    # Caddy will automatically get Let's Encrypt certificates for public domains
+    # For internal/dev environments, it will fall back to self-signed certs
+}
+
+{$CADDY_DOMAIN} {
+    # Use self-signed certs for internal/dev environments
+    # Comment out this line for production with valid public DNS
+    tls internal
+    
+    # Fix for double /api prefix (e.g. /api/api/1.x/sync, /api/api/mutation)
+    # This happens because NEXT_PUBLIC_CONVEX_URL includes /api
+    handle /api/api* {
+        uri strip_prefix /api
+        reverse_proxy convex:3210
+    }
+
+    # Convex sync endpoint (WebSocket) - port 3210
+    # Backend expects /api prefix, so do NOT strip it
+    handle /api/sync* {
+        reverse_proxy convex:3210
+    }
+    
+    # Convex API actions and queries - port 3210
+    handle /api/query* {
+        reverse_proxy convex:3210
+    }
+    
+    handle /api/mutation* {
+        reverse_proxy convex:3210
+    }
+    
+    handle /api/action* {
+        reverse_proxy convex:3210
+    }
+    
+    # Storage upload/download
+    handle /api/storage* {
+        reverse_proxy convex:3210
+    }
+
+    # Route HTTP actions (auth, etc.) to Convex site proxy (port 3211)
+    handle /api* {
+        uri strip_prefix /api
+        reverse_proxy convex:3211
+    }
+
+    # Main domain for the Hub (Next.js)
+    reverse_proxy hub:3000
+}
+
+convex.{$CADDY_DOMAIN} {
+    tls internal
+    # Subdomain for Convex Dashboard
+    reverse_proxy convex-dashboard:6791
+}

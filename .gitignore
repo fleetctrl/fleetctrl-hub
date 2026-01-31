@@ -27,7 +27,6 @@
 
 # production
 /build
-/public
 /backups
 /migration_backups
 /volumes
@@ -45,6 +44,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*.local
 .env
+docker/Caddyfile
+docker/Caddyfile.*
+!docker/Caddyfile.standalone
+!docker/Caddyfile.proxy
 
 # vercel
 .vercel

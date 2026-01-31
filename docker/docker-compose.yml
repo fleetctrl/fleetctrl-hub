@@ -1,0 +1,89 @@
+services:
+  hub:
+    container_name: fleetctrl-hub
+    build:
+      context: ../
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL}
+        NEXT_PUBLIC_CONVEX_SITE_URL: ${NEXT_PUBLIC_CONVEX_URL}
+        NEXT_PUBLIC_SITE_URL: ${SITE_URL}
+        NEXT_PUBLIC_ALLOW_REGISTRATION: "true"
+    env_file:
+      - .env
+    environment:
+      - CONVEX_URL=${CONVEX_URL}
+      - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
+      - SITE_URL=${SITE_URL}
+    restart: unless-stopped
+    depends_on:
+      - convex
+
+  convex:
+    container_name: fleetctrl-convex
+    image: ghcr.io/get-convex/convex-backend:latest
+    environment:
+      - CONVEX_Listen=0.0.0.0:3210
+      - SITE_URL=${SITE_URL}
+      - CONVEX_SITE_URL=${NEXT_PUBLIC_CONVEX_URL}
+      # Using built-in storage for simplicity in this local version
+    volumes:
+      - ${CONVEX_DATA_DIR:-convex-data}:/var/lib/convex
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3210/version" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  convex-cli:
+    container_name: fleetctrl-convex-cli
+    build:
+      context: ../
+      dockerfile: Dockerfile
+      target: deps
+    volumes:
+      - ../convex:/app/convex
+    command: tail -f /dev/null
+    env_file:
+      - .env
+    depends_on:
+      - convex
+
+  convex-dashboard:
+    # Change this to :${REV} if you want to pin to a specific version
+    image: ghcr.io/get-convex/convex-dashboard:latest
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    environment:
+      - NEXT_PUBLIC_DEPLOYMENT_URL=${NEXT_PUBLIC_DEPLOYMENT_URL:-http://convex:${PORT:-3210}}
+      - NEXT_PUBLIC_LOAD_MONACO_INTERNALLY
+    depends_on:
+      convex:
+        condition: service_healthy
+
+  proxy:
+    container_name: fleetctrl-proxy
+    image: caddy:alpine
+    restart: unless-stopped
+    ports:
+      - "${PROXY_HTTP_PORT:-80}:80"
+      - "${PROXY_HTTPS_PORT:-443}:443"
+    env_file:
+      - .env
+    environment:
+      - CADDY_DOMAIN=${CADDY_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - hub
+      - convex
+
+volumes:
+  convex-data:
+  caddy_data:
+  caddy_config:

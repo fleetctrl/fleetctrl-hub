@@ -7,7 +7,12 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import authConfig from "./auth.config";
 
-const siteUrl = process.env.SITE_URL ?? process.env.CONVEX_SITE_URL!;
+const getSiteUrl = () => {
+    const url = process.env.SITE_URL ?? process.env.CONVEX_SITE_URL;
+    // Fallback for local self-hosted development where process.env may not be available
+    // during Convex module analysis
+    return url || "https://localhost";
+};
 
 import authSchema from "./betterAuth/schema";
 
@@ -21,7 +26,8 @@ export const authComponent = createClient<DataModel, typeof authSchema>(componen
 
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
     return {
-        baseURL: siteUrl,
+        baseURL: getSiteUrl(),
+        basePath: "/auth",
         database: authComponent.adapter(ctx),
         // Configure simple, non-verified email/password
         emailAndPassword: {
