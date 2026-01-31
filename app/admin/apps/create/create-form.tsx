@@ -687,6 +687,16 @@ function DetectionStep() {
           <div className="space-y-8 w-full mx-auto py-10">
             <DetectionListForm form={form} />
 
+            <FormField
+              control={form.control}
+              name="detection.detections"
+              render={() => (
+                <FormItem>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="flex gap-3">
               <Button variant={"ghost"} onClick={prevStep}>
                 Back

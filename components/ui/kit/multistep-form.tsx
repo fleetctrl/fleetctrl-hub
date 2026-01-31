@@ -185,6 +185,19 @@ export function useMultiStepFormContext<Schema extends z.ZodType<FieldValues>>()
 }
 
 /**
+ * @name unwrapZodSchema
+ * @description Unwrap ZodEffects to get the underlying schema
+ * @param schema
+ */
+function unwrapZodSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
+  let actualSchema = schema;
+  while (actualSchema instanceof z.ZodEffects) {
+    actualSchema = actualSchema._def.schema as z.ZodTypeAny;
+  }
+  return actualSchema;
+}
+
+/**
  * @name useMultiStepForm
  * @description Hook for multi-step forms
  * @param schema
@@ -208,8 +221,10 @@ export function useMultiStepForm<Schema extends z.ZodType<FieldValues>>(
       z.TypeOf<Schema>
     >;
 
-    if (schema instanceof z.ZodObject) {
-      const currentStepSchema = schema.shape[currentStepName] as z.ZodType;
+    const actualSchema = unwrapZodSchema(schema);
+
+    if (actualSchema instanceof z.ZodObject) {
+      const currentStepSchema = actualSchema.shape[currentStepName] as z.ZodType;
 
       // the user may not want to validate the current step
       // or the step doesn't contain any form field
@@ -220,10 +235,27 @@ export function useMultiStepForm<Schema extends z.ZodType<FieldValues>>(
       const currentStepData = form.getValues(currentStepName) ?? {};
       const result = currentStepSchema.safeParse(currentStepData);
 
-      return result.success;
+      if (!result.success) {
+        return false;
+      }
+
+      // Also check the whole schema for refinements that might affect this step
+      const allValues = form.getValues();
+      const wholeResult = schema.safeParse(allValues);
+
+      if (!wholeResult.success) {
+        const hasErrorInCurrentStep = wholeResult.error.issues.some(
+          (issue) => issue.path[0] === currentStepName
+        );
+        if (hasErrorInCurrentStep) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
-    throw new Error(`Unsupported schema type: ${schema.constructor.name}`);
+    throw new Error(`Unsupported schema type: ${actualSchema.constructor.name}`);
   }, [schema, form, stepNames, state.currentStepIndex]);
 
   const nextStep = useCallback(
@@ -239,13 +271,15 @@ export function useMultiStepForm<Schema extends z.ZodType<FieldValues>>(
           z.TypeOf<Schema>
         >;
 
-        if (schema instanceof z.ZodObject) {
-          const currentStepSchema = schema.shape[currentStepName] as z.ZodType;
+        const actualSchema = unwrapZodSchema(schema);
 
-          if (currentStepSchema) {
-            const fields = Object.keys(
-              (currentStepSchema as z.ZodObject<never>).shape
-            );
+        if (actualSchema instanceof z.ZodObject) {
+          const currentStepSchema = unwrapZodSchema(
+            actualSchema.shape[currentStepName] as z.ZodType
+          );
+
+          if (currentStepSchema instanceof z.ZodObject) {
+            const fields = Object.keys(currentStepSchema.shape);
 
             const keys = fields.map((field) => `${currentStepName}.${field}`);
 
