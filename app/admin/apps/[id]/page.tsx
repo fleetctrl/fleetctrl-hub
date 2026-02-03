@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import PageWrapper from "@/components/page-wrapper";
@@ -25,8 +25,8 @@ export default function AppDetailPage() {
     const params = useParams();
     const appId = params.id as string;
 
-    const app = useQuery(api.apps.getById, { id: appId as Id<"apps"> });
-    const releases = useQuery(api.apps.getReleases, { appId: appId as Id<"apps"> });
+    const app = useAuthQuery(api.apps.getById, { id: appId as Id<"apps"> });
+    const releases = useAuthQuery(api.apps.getReleases, { appId: appId as Id<"apps"> });
 
     const isLoading = app === undefined;
     const releasesLoading = releases === undefined;

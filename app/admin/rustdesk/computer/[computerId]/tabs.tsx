@@ -23,7 +23,8 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useQuery, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -72,14 +73,14 @@ const changeNetworkStringSchema = z.object({ networkString: z.string().min(1, { 
 type ChangeNetworkStringSchema = z.infer<typeof changeNetworkStringSchema>;
 
 // Define a type for the computer data returned by the query
-type ComputerData = NonNullable<ReturnType<typeof useQuery<typeof api.computers.getById>>>;
+type ComputerData = NonNullable<ReturnType<typeof useAuthQuery<typeof api.computers.getById>>>;
 
 export default function Tabs({ computerId }: Props) {
   const [openChangePassword, setOpenChangePassword] = useState(false);
   const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
 
-  const computer = useQuery(api.computers.getById, { id: computerId });
-  const tasks = useQuery(api.tasks.getByComputer, { computerId });
+  const computer = useAuthQuery(api.computers.getById, { id: computerId });
+  const tasks = useAuthQuery(api.tasks.getByComputer, { computerId });
   const createTask = useMutation(api.tasks.create);
 
   const isLoading = computer === undefined;

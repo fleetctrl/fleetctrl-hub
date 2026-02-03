@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/table";
 
 import { columns, type AppRow, type AppsTableMeta } from "./columns";
-import { useQuery } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 
@@ -30,8 +30,8 @@ const formatDateTime = (timestamp: number) =>
   });
 
 export function AppsTable() {
-  // Convex useQuery is automatically reactive!
-  const apps = useQuery(api.apps.getTableData);
+  // Convex auth query is automatically reactive!
+  const apps = useAuthQuery(api.apps.getTableData);
 
   const appRows: AppRow[] = useMemo(() => {
     if (!apps) {

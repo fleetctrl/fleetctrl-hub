@@ -31,7 +31,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { columns, type ClientUpdateRow, type ClientUpdatesTableMeta } from "./columns";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
@@ -50,7 +51,7 @@ export function ClientUpdatesTable() {
     const [notes, setNotes] = useState("");
 
     // Convex queries
-    const clientUpdates = useQuery(api.clientUpdates.getAll);
+    const clientUpdates = useAuthQuery(api.clientUpdates.getAll);
 
     // Convex mutations
     const generateUploadUrl = useMutation(api.clientUpdates.generateUploadUrl);

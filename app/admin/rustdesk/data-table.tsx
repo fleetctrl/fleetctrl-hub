@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { columns, RustDesk } from "./columns";
 import {
@@ -222,8 +222,8 @@ export function RustDeskTable() {
   const sortField = sorting.length > 0 ? sorting[0].id : undefined;
   const sortDesc = sorting.length > 0 ? sorting[0].desc : undefined;
 
-  // Convex useQuery is automatically reactive - no refetch needed!
-  const data = useQuery(api.computers.listPaginated, {
+  // Convex auth query is automatically reactive - no refetch needed!
+  const data = useAuthQuery(api.computers.listPaginated, {
     skip,
     limit,
     filter: filter || undefined,

@@ -25,7 +25,8 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -266,8 +267,8 @@ export function ReleaseSheet({
     onOpenChange,
 }: ReleaseSheetProps) {
     const router = useRouter();
-    const staticGroups = useQuery(api.staticGroups.list);
-    const dynamicGroups = useQuery(api.groups.getAll);
+    const staticGroups = useAuthQuery(api.staticGroups.list);
+    const dynamicGroups = useAuthQuery(api.groups.getAll);
 
     const groups: { id: string; displayName: string; type: "static" | "dynamic" }[] = [
         ...(staticGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "static" as const })),
