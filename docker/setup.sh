@@ -10,6 +10,15 @@ PURPLE='\033[0;35m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# Cross-platform in-place sed (GNU vs BSD/macOS)
+sedi() {
+  if sed --version >/dev/null 2>&1; then
+    sed -i -e "$1" "${@:2}"
+  else
+    sed -i '' -e "$1" "${@:2}"
+  fi
+}
+
 # Change directory to the script's location (docker directory)
 cd "$(dirname "$0")"
 
@@ -49,8 +58,12 @@ PROXY_HTTPS_PORT=${PORT_HTTPS_INPUT:-443}
 # Ask for Site URL
 read -p "$(echo -e ${BOLD}"  Enter Site URL [https://localhost]: "${NC})" SITE_URL_INPUT
 SITE_URL=${SITE_URL_INPUT:-https://localhost}
-# Derive Convex URL (Site URL + /api)
-NEXT_PUBLIC_CONVEX_URL="${SITE_URL}/api"
+# Derive Convex URLs
+# Convex client expects an origin without `/api` and will call `${NEXT_PUBLIC_CONVEX_URL}/api/...`.
+NEXT_PUBLIC_CONVEX_URL="${SITE_URL}"
+NEXT_PUBLIC_CONVEX_SITE_URL="${SITE_URL}"
+CONVEX_SITE_URL="${SITE_URL}"
+CONVEX_SITE_INTERNAL_URL="http://convex:3211"
 
 # Ask for Data Directory
 echo -e "\n${YELLOW}💾 Storage Configuration${NC}"
@@ -66,21 +79,39 @@ else
 fi
 
 # Update values in .env
-sed -i "s|^SITE_URL=.*|SITE_URL=$SITE_URL|" .env
-sed -i "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL|" .env
+sedi "s|^SITE_URL=.*|SITE_URL=$SITE_URL|" .env
+sedi "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL|" .env
+# Add NEXT_PUBLIC_CONVEX_SITE_URL if missing, otherwise update it
+if grep -q "^NEXT_PUBLIC_CONVEX_SITE_URL=" .env; then
+  sedi "s|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=$NEXT_PUBLIC_CONVEX_SITE_URL|" .env
+else
+  echo "NEXT_PUBLIC_CONVEX_SITE_URL=$NEXT_PUBLIC_CONVEX_SITE_URL" >> .env
+fi
+# Add CONVEX_SITE_URL if missing, otherwise update it
+if grep -q "^CONVEX_SITE_URL=" .env; then
+  sedi "s|^CONVEX_SITE_URL=.*|CONVEX_SITE_URL=$CONVEX_SITE_URL|" .env
+else
+  echo "CONVEX_SITE_URL=$CONVEX_SITE_URL" >> .env
+fi
+# Add CONVEX_SITE_INTERNAL_URL if not present, otherwise update it
+if grep -q "^CONVEX_SITE_INTERNAL_URL=" .env; then
+  sedi "s|^CONVEX_SITE_INTERNAL_URL=.*|CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL|" .env
+else
+  echo "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL" >> .env
+fi
 # Add API_URL if not present, otherwise update it
 if grep -q "^API_URL=" .env; then
-  sed -i "s|^API_URL=.*|API_URL=${SITE_URL}/api|" .env
+  sedi "s|^API_URL=.*|API_URL=${SITE_URL}/api|" .env
 else
   echo "API_URL=${SITE_URL}/api" >> .env
 fi
-sed -i "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
-sed -i "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
-sed -i "s|^CONVEX_DATA_DIR=.*|CONVEX_DATA_DIR=$CONVEX_DATA_DIR|" .env
+sedi "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
+sedi "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
+sedi "s|^CONVEX_DATA_DIR=.*|CONVEX_DATA_DIR=$CONVEX_DATA_DIR|" .env
 
 # Extract domain from SITE_URL for Caddy (strip protocol and trailing path)
 CADDY_DOMAIN=$(echo "$SITE_URL" | sed -E 's|^https?://||' | sed 's|/.*||')
-sed -i "s/^CADDY_DOMAIN=.*/CADDY_DOMAIN=$CADDY_DOMAIN/" .env
+sedi "s/^CADDY_DOMAIN=.*/CADDY_DOMAIN=$CADDY_DOMAIN/" .env
 
 # Ask if running behind external reverse proxy
 echo -e "${YELLOW}🔄 Reverse Proxy Configuration${NC}"
@@ -106,23 +137,23 @@ else
   echo -e "  ${CYAN}No${NC}  = Use self-signed certificates (for internal/dev environments)"
   read -p "$(echo -e ${BOLD}"  Is domain public? [y/N]: "${NC})" PUBLIC_DOMAIN_INPUT
 
-  if [[ "$PUBLIC_DOMAIN_INPUT" =~ ^[Yy]$ ]]; then
-    TLS_INTERNAL="false"
-    echo -e "  ${GREEN}✓ Using Let's Encrypt certificates${NC}"
-    # Disable tls internal (comment out)
-    sed -i 's/^[[:space:]]*tls internal/    # tls internal/' Caddyfile
-  else
-    TLS_INTERNAL="true"
-    echo -e "  ${GREEN}✓ Using self-signed certificates${NC}"
-    # Enable tls internal (uncomment if commented)
-    sed -i 's/^[[:space:]]*#[[:space:]]*tls internal/    tls internal/' Caddyfile
-  fi
-  sed -i "s/^TLS_INTERNAL=.*/TLS_INTERNAL=$TLS_INTERNAL/" .env
-fi
+	  if [[ "$PUBLIC_DOMAIN_INPUT" =~ ^[Yy]$ ]]; then
+	    TLS_INTERNAL="false"
+	    echo -e "  ${GREEN}✓ Using Let's Encrypt certificates${NC}"
+	    # Disable tls internal (comment out)
+	    sedi 's/^[[:space:]]*tls internal/    # tls internal/' Caddyfile
+	  else
+	    TLS_INTERNAL="true"
+	    echo -e "  ${GREEN}✓ Using self-signed certificates${NC}"
+	    # Enable tls internal (uncomment if commented)
+	    sedi 's/^[[:space:]]*#[[:space:]]*tls internal/    tls internal/' Caddyfile
+	  fi
+	  sedi "s/^TLS_INTERNAL=.*/TLS_INTERNAL=$TLS_INTERNAL/" .env
+	fi
 
 # Update BEHIND_PROXY in .env
 if grep -q "^BEHIND_PROXY=" .env; then
-  sed -i "s/^BEHIND_PROXY=.*/BEHIND_PROXY=$BEHIND_PROXY/" .env
+  sedi "s/^BEHIND_PROXY=.*/BEHIND_PROXY=$BEHIND_PROXY/" .env
 else
   echo "BEHIND_PROXY=$BEHIND_PROXY" >> .env
 fi
@@ -132,14 +163,14 @@ DEFAULT_SECRET="fleetctrl_secret_123456"
 if grep -q "^BETTER_AUTH_SECRET=$DEFAULT_SECRET" .env; then
   echo -e "${BLUE}▶ Generating random BETTER_AUTH_SECRET...${NC}"
   BA_SECRET=$(openssl rand -hex 32)
-  sed -i "s/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=$BA_SECRET/" .env
+  sedi "s/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=$BA_SECRET/" .env
 fi
 
 if ! grep -q "^JWT_SECRET=.." .env; then
   echo -e "${BLUE}▶ Generating random JWT_SECRET...${NC}"
   J_SECRET=$(openssl rand -hex 32)
   if grep -q "^JWT_SECRET=" .env; then
-    sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$J_SECRET/" .env
+    sedi "s/^JWT_SECRET=.*/JWT_SECRET=$J_SECRET/" .env
   else
     echo "JWT_SECRET=$J_SECRET" >> .env
   fi
@@ -173,7 +204,7 @@ fi
 
 # Save Admin Key to .env
 if grep -q "CONVEX_DEPLOY_KEY=" .env; then
-  sed -i "/^CONVEX_DEPLOY_KEY=/d" .env
+  sedi "/^CONVEX_DEPLOY_KEY=/d" .env
 fi
 echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
 
@@ -183,8 +214,15 @@ BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 JWT_SECRET=${JWT_SECRET}
 API_URL=${API_URL:-${SITE_URL}/api}
 ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+CONVEX_SITE_INTERNAL_URL_FOR_CONVEX=${CONVEX_SITE_INTERNAL_URL_FOR_CONVEX:-http://127.0.0.1:3211}
 
-for var in "SITE_URL=$SITE_URL" "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" "JWT_SECRET=$JWT_SECRET" "API_URL=$API_URL" "ALLOW_REGISTRATION=$ALLOW_REGISTRATION"; do
+for var in \
+  "SITE_URL=$SITE_URL" \
+  "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" \
+  "JWT_SECRET=$JWT_SECRET" \
+  "API_URL=$API_URL" \
+  "ALLOW_REGISTRATION=$ALLOW_REGISTRATION" \
+  "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL_FOR_CONVEX"; do
   docker compose exec convex-cli npx convex env set "$var" \
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" > /dev/null

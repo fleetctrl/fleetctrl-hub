@@ -7,8 +7,28 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import authConfig from "./auth.config";
 
-const getSiteUrl = () => {
-    const url = process.env.SITE_URL ?? process.env.CONVEX_SITE_URL;
+const normalizeBaseUrl = (value?: string) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return undefined;
+    return trimmed.replace(/\/+$/, "");
+};
+
+const stripApiSuffix = (value?: string) => {
+    if (!value) return undefined;
+    return value.replace(/\/api$/, "");
+};
+
+const getBaseUrl = () => {
+    // Better Auth routes are hosted on the Convex "site" server (port 3211) at
+    // paths like `/auth/*`. In the local Docker setup we mount the site server
+    // behind the proxy at `/api/*` and strip `/api` before forwarding.
+    //
+    // Because of that, Better Auth's `baseURL` must NOT include the `/api` prefix
+    // (otherwise Better Auth will treat `/auth/*` as out-of-scope and return 404).
+    const url =
+        normalizeBaseUrl(process.env.SITE_URL) ??
+        normalizeBaseUrl(stripApiSuffix(normalizeBaseUrl(process.env.CONVEX_SITE_URL))) ??
+        normalizeBaseUrl(stripApiSuffix(normalizeBaseUrl(process.env.API_URL)));
     // Fallback for local self-hosted development where process.env may not be available
     // during Convex module analysis
     return url || "https://localhost";
@@ -26,7 +46,7 @@ export const authComponent = createClient<DataModel, typeof authSchema>(componen
 
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
     return {
-        baseURL: getSiteUrl(),
+        baseURL: getBaseUrl(),
         basePath: "/auth",
         database: authComponent.adapter(ctx),
         // Configure simple, non-verified email/password
@@ -48,7 +68,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
         },
         plugins: [
             // The Convex plugin is required for Convex compatibility
-            convex({ authConfig }),
+            convex({ authConfig, options: { basePath: "/auth" } }),
         ],
     };
 };

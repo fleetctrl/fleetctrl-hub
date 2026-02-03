@@ -1,17 +1,15 @@
 {
-    # Disable automatic HTTPS when behind external reverse proxy
-    auto_https off
-    # Trust proxy headers from private networks
-    servers {
-        trusted_proxies static private_ranges
-    }
+    # Caddy will automatically get Let's Encrypt certificates for public domains
+    # For internal/dev environments, it will fall back to self-signed certs
 }
 
-:80 {
-    # No TLS - external reverse proxy handles HTTPS
+{$CADDY_DOMAIN} {
+    # Use self-signed certs for internal/dev environments
+    # Comment out this line for production with valid public DNS
+    tls internal
     
-    # Fix for double /api prefix (e.g. /api/api/1.x/sync, /api/api/mutation)
-    # This happens because NEXT_PUBLIC_CONVEX_URL includes /api
+    # Backwards-compat: if NEXT_PUBLIC_CONVEX_URL is (incorrectly) set with /api,
+    # the Convex client will call /api/api/* — strip one /api in that case.
     handle /api/api* {
         uri strip_prefix /api
         reverse_proxy convex:3210
@@ -20,6 +18,11 @@
     # Convex sync endpoint (WebSocket) - port 3210
     # Backend expects /api prefix, so do NOT strip it
     handle /api/sync* {
+        reverse_proxy convex:3210
+    }
+
+    # Convex sync endpoint (WebSocket) includes version in path: /api/<version>/sync
+    handle /api/*/sync* {
         reverse_proxy convex:3210
     }
     
@@ -41,18 +44,32 @@
         reverse_proxy convex:3210
     }
 
+    # Convex shapes endpoint (used by dashboard/clients)
+    handle /api/shapes* {
+        reverse_proxy convex:3210
+    }
+
+    # Better Auth / OIDC routes on Convex "site" server (port 3211)
+    handle /.well-known/openid-configuration {
+        reverse_proxy convex:3211
+    }
+
+    handle /auth* {
+        reverse_proxy convex:3211
+    }
+
     # Route HTTP actions (auth, etc.) to Convex site proxy (port 3211)
     handle /api* {
         uri strip_prefix /api
         reverse_proxy convex:3211
     }
 
-    # Convex Dashboard subdomain
-    @convex host convex.{$CADDY_DOMAIN}
-    handle @convex {
-        reverse_proxy convex-dashboard:6791
-    }
-
     # Main domain for the Hub (Next.js)
     reverse_proxy hub:3000
+}
+
+convex.{$CADDY_DOMAIN} {
+    tls internal
+    # Subdomain for Convex Dashboard
+    reverse_proxy convex-dashboard:6791
 }

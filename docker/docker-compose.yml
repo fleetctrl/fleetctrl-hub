@@ -6,8 +6,9 @@ services:
       dockerfile: Dockerfile
       target: runner
       args:
+        CONVEX_SITE_URL: ${CONVEX_SITE_URL}
         NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL}
-        NEXT_PUBLIC_CONVEX_SITE_URL: ${NEXT_PUBLIC_CONVEX_URL}
+        NEXT_PUBLIC_CONVEX_SITE_URL: ${NEXT_PUBLIC_CONVEX_SITE_URL}
         NEXT_PUBLIC_SITE_URL: ${SITE_URL}
         NEXT_PUBLIC_ALLOW_REGISTRATION: "true"
     env_file:
@@ -26,7 +27,9 @@ services:
     environment:
       - CONVEX_Listen=0.0.0.0:3210
       - SITE_URL=${SITE_URL}
-      - CONVEX_SITE_URL=${NEXT_PUBLIC_CONVEX_URL}
+      # Used by the backend to populate built-in UDF env vars (e.g. process.env.CONVEX_SITE_URL)
+      - CONVEX_CLOUD_ORIGIN=${SITE_URL}
+      - CONVEX_SITE_ORIGIN=${SITE_URL}
       # Using built-in storage for simplicity in this local version
     volumes:
       - ${CONVEX_DATA_DIR:-convex-data}:/var/lib/convex

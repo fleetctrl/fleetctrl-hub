@@ -34,13 +34,13 @@ if ! command -v git &> /dev/null; then
 fi
 
 # Git pull
-if [ -d .git ]; then
+if [ -d ../.git ]; then
   echo -e "${BLUE}▶ Pulling latest changes...${NC}"
-  git pull
+  (cd .. && git pull)
 fi
 
 # If no changes, exit
-if [ -z "$(git status --porcelain)" ]; then
+if [ -d ../.git ] && [ -z "$(cd .. && git status --porcelain)" ]; then
   echo -e "${GREEN}No changes detected.${NC}"
   exit 0
 fi
@@ -59,6 +59,9 @@ REBUILD_FLAG="--build"
 set -a
 source .env
 set +a
+
+ADMIN_KEY=${CONVEX_DEPLOY_KEY}
+CONVEX_SITE_INTERNAL_URL_FOR_CONVEX=${CONVEX_SITE_INTERNAL_URL_FOR_CONVEX:-http://127.0.0.1:3211}
 
 # 3. Start services
 echo -e "${BLUE}▶ Starting Docker services...${NC}"
@@ -84,6 +87,10 @@ for var in "SITE_URL=$SITE_URL" "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" "JWT_SE
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" > /dev/null
 done
+
+docker compose exec convex-cli npx convex env set "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL_FOR_CONVEX" \
+  --url "http://convex:3210" \
+  --admin-key "$ADMIN_KEY" > /dev/null
 
 # 7. Deploy Schema
 echo -e "${BLUE}▶ Deploying Convex Schema and Functions...${NC}"
