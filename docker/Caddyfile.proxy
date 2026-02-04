@@ -10,8 +10,8 @@
 :80 {
     # No TLS - external reverse proxy handles HTTPS
     
-    # Fix for double /api prefix (e.g. /api/api/1.x/sync, /api/api/mutation)
-    # This happens because NEXT_PUBLIC_CONVEX_URL includes /api
+    # Backwards-compat: if NEXT_PUBLIC_CONVEX_URL is (incorrectly) set with /api,
+    # the Convex client will call /api/api/* — strip one /api in that case.
     handle /api/api* {
         uri strip_prefix /api
         reverse_proxy convex:3210
@@ -20,6 +20,11 @@
     # Convex sync endpoint (WebSocket) - port 3210
     # Backend expects /api prefix, so do NOT strip it
     handle /api/sync* {
+        reverse_proxy convex:3210
+    }
+
+    # Convex sync endpoint (WebSocket) includes version in path: /api/<version>/sync
+    handle /api/*/sync* {
         reverse_proxy convex:3210
     }
     
@@ -39,6 +44,20 @@
     # Storage upload/download
     handle /api/storage* {
         reverse_proxy convex:3210
+    }
+
+    # Convex shapes endpoint (used by dashboard/clients)
+    handle /api/shapes* {
+        reverse_proxy convex:3210
+    }
+
+    # Better Auth / OIDC routes on Convex "site" server (port 3211)
+    handle /.well-known/openid-configuration {
+        reverse_proxy convex:3211
+    }
+
+    handle /auth* {
+        reverse_proxy convex:3211
     }
 
     # Route HTTP actions (auth, etc.) to Convex site proxy (port 3211)

@@ -39,7 +39,8 @@ import {
 
 import { columns, type GroupRow, type GroupsTableMeta } from "./columns";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { useQuery, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useForm } from "react-hook-form";
@@ -68,8 +69,8 @@ type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 export function GroupsTable() {
   // Convex queries - automatically reactive!
-  const computers = useQuery(api.staticGroups.getComputersForGroups);
-  const groups = useQuery(api.staticGroups.getTableData);
+  const computers = useAuthQuery(api.staticGroups.getComputersForGroups);
+  const groups = useAuthQuery(api.staticGroups.getTableData);
 
   // Convex mutations
   const createGroupMutation = useMutation(api.staticGroups.create);

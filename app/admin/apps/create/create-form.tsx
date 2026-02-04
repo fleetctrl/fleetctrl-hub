@@ -56,7 +56,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -1181,8 +1182,8 @@ function AssignmentStep() {
   const uninstallValues = form.watch("assignment.uninstallGroups");
   const isSubmitting = form.formState.isSubmitting;
 
-  const staticGroups = useQuery(api.staticGroups.list);
-  const dynamicGroups = useQuery(api.groups.getAll);
+  const staticGroups = useAuthQuery(api.staticGroups.list);
+  const dynamicGroups = useAuthQuery(api.groups.getAll);
 
   const groups = [
     ...(staticGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "static" as const })),

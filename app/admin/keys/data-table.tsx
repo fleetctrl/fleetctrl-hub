@@ -23,7 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import React from "react";
-import { useQuery } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { columns } from "./columns";
 import CreateNewKeyDialog from "./createNewKeyDialog";
@@ -133,11 +133,10 @@ export function DataTable<TData, TValue>({
 }
 
 export function KeysTable() {
-  // Convex useQuery is automatically reactive!
-  const data = useQuery(api.enrollmentTokens.list);
+  // Convex auth query is automatically reactive!
+  const data = useAuthQuery(api.enrollmentTokens.list);
 
   return (
     <DataTable columns={columns} data={data ?? []} />
   );
 }
-

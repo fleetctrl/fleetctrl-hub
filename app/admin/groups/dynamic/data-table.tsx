@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
     flexRender,
     getCoreRowModel,
@@ -51,7 +51,8 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { useQuery, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
+import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -90,7 +91,7 @@ type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 export function DynamicGroupsTable() {
     // Convex queries - automatically reactive!
-    const groups = useQuery(api.groups.getAll);
+    const groups = useAuthQuery(api.groups.getAll);
 
     // Convex mutations
     const createGroup = useMutation(api.groups.createDynamicGroup);
@@ -121,13 +122,6 @@ export function DynamicGroupsTable() {
     const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null);
     const [viewMembersGroupId, setViewMembersGroupId] = useState<string | null>(null);
 
-    // Query for members when dialog is open
-    const membersData = useQuery(
-        api.groups.getMembers,
-        viewMembersGroupId ? { id: viewMembersGroupId as Id<"dynamic_computer_groups"> } : "skip"
-    );
-    const membersLoading = viewMembersGroupId && membersData === undefined;
-
     const defaultRuleExpression: RuleExpressionFormValues = {
         logic: "AND",
         groups: [
@@ -150,22 +144,25 @@ export function DynamicGroupsTable() {
     // Fetch full group details when editing
     const editingGroupId =
         dialogState?.mode === "edit" ? dialogState.groupId : null;
-    const editingGroup = useQuery(
-        api.groups.getById,
-        editingGroupId ? { id: editingGroupId as Id<"dynamic_computer_groups"> } : "skip"
-    );
-
-    // Update form when editing group data loads
-    useEffect(() => {
-        if (editingGroup && dialogState?.mode === "edit") {
+    const handleEditingGroupLoaded = useCallback(
+        (editingGroup: {
+            id: Id<"dynamic_computer_groups">;
+            displayName: string;
+            description?: string | null;
+            ruleExpression: unknown;
+        }) => {
+            if (dialogState?.mode !== "edit") {
+                return;
+            }
             form.reset({
                 id: editingGroup.id,
                 displayName: editingGroup.displayName,
                 description: editingGroup.description ?? "",
                 ruleExpression: apiToFormFormat(editingGroup.ruleExpression),
             });
-        }
-    }, [editingGroup, dialogState?.mode, form]);
+        },
+        [dialogState?.mode, form]
+    );
 
     const openCreateDialog = () => {
         form.reset({
@@ -269,6 +266,12 @@ export function DynamicGroupsTable() {
 
     return (
         <div className="flex w-full flex-col gap-4 pb-10">
+            {editingGroupId ? (
+                <EditingGroupLoader
+                    groupId={editingGroupId as Id<"dynamic_computer_groups">}
+                    onLoad={handleEditingGroupLoaded}
+                />
+            ) : null}
             {/* Tab navigation */}
             <div className="flex gap-1 border-b">
                 <a
@@ -498,40 +501,9 @@ export function DynamicGroupsTable() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="max-h-[400px] overflow-y-auto">
-                        {membersLoading ? (
-                            <div className="flex items-center justify-center py-8 text-muted-foreground">
-                                Loading members...
-                            </div>
-                        ) : membersData && membersData.length > 0 ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Computer Name</TableHead>
-                                        <TableHead>OS</TableHead>
-                                        <TableHead>IP</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {membersData.map((member) => (
-                                        <TableRow key={member.computerId}>
-                                            <TableCell className="font-medium">
-                                                {member.computer?.name ?? "Unknown"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {member.computer?.os ?? "-"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {member.computer?.ip ?? "-"}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        ) : (
-                            <div className="flex items-center justify-center py-8 text-muted-foreground">
-                                No members match the group rules.
-                            </div>
-                        )}
+                        {viewMembersGroupId ? (
+                            <MembersList groupId={viewMembersGroupId as Id<"dynamic_computer_groups">} />
+                        ) : null}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setViewMembersGroupId(null)}>
@@ -542,4 +514,75 @@ export function DynamicGroupsTable() {
             </Dialog>
         </div>
     );
+}
+
+function MembersList({ groupId }: { groupId: Id<"dynamic_computer_groups"> }) {
+    const membersData = useAuthQuery(api.groups.getMembers, { id: groupId });
+    const membersLoading = membersData === undefined;
+
+    if (membersLoading) {
+        return (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+                Loading members...
+            </div>
+        );
+    }
+
+    if (!membersData || membersData.length === 0) {
+        return (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+                No members match the group rules.
+            </div>
+        );
+    }
+
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Computer Name</TableHead>
+                    <TableHead>OS</TableHead>
+                    <TableHead>IP</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {membersData.map((member) => (
+                    <TableRow key={member.computerId}>
+                        <TableCell className="font-medium">
+                            {member.computer?.name ?? "Unknown"}
+                        </TableCell>
+                        <TableCell>
+                            {member.computer?.os ?? "-"}
+                        </TableCell>
+                        <TableCell>
+                            {member.computer?.ip ?? "-"}
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    );
+}
+
+function EditingGroupLoader({
+    groupId,
+    onLoad,
+}: {
+    groupId: Id<"dynamic_computer_groups">;
+    onLoad: (group: {
+        id: Id<"dynamic_computer_groups">;
+        displayName: string;
+        description?: string | null;
+        ruleExpression: unknown;
+    }) => void;
+}) {
+    const editingGroup = useAuthQuery(api.groups.getById, { id: groupId });
+
+    useEffect(() => {
+        if (editingGroup) {
+            onLoad(editingGroup);
+        }
+    }, [editingGroup, onLoad]);
+
+    return null;
 }
