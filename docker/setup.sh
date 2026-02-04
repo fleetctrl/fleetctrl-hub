@@ -235,7 +235,7 @@ docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --ad
 echo -e "\n${GREEN}${BOLD} Setup Complete!${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}  Hub Dashboard: ${NC} ${CYAN}${SITE_URL}${NC}"
-echo -e "${BOLD}  Convex API:    ${NC} ${CYAN}${NEXT_PUBLIC_CONVEX_URL}${NC}"
+echo -e "${BOLD}  Convex API:    ${NC} ${CYAN}${NEXT_PUBLIC_CONVEX_URL}/api${NC}"
 echo -e "${BOLD}  HTTP Port:     ${NC} ${YELLOW}${PROXY_HTTP_PORT}${NC}"
 if [[ "$BEHIND_PROXY" == "true" ]]; then
   echo -e "${BOLD}  Mode:          ${NC} ${YELLOW}Behind reverse proxy${NC}"

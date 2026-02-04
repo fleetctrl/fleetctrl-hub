@@ -30,6 +30,7 @@
 /backups
 /migration_backups
 /volumes
+Caddyfile
 
 # misc
 .DS_Store
