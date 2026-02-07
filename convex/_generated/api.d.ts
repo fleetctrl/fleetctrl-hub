@@ -22,6 +22,7 @@ import type * as lib_dpop from "../lib/dpop.js";
 import type * as lib_encoding from "../lib/encoding.js";
 import type * as lib_jtiStore from "../lib/jtiStore.js";
 import type * as lib_jwt from "../lib/jwt.js";
+import type * as lib_withAuth from "../lib/withAuth.js";
 import type * as staticGroups from "../staticGroups.js";
 import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   "lib/encoding": typeof lib_encoding;
   "lib/jtiStore": typeof lib_jtiStore;
   "lib/jwt": typeof lib_jwt;
+  "lib/withAuth": typeof lib_withAuth;
   staticGroups: typeof staticGroups;
   tasks: typeof tasks;
   users: typeof users;

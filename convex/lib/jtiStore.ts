@@ -5,7 +5,7 @@
  * Stores used JTI values to prevent replay attacks.
  */
 
-import { mutation, internalMutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 
 /**
@@ -14,7 +14,7 @@ import { v } from "convex/values";
  *
  * @throws Error if JTI already exists (replay attack detected)
  */
-export const checkAndStore = mutation({
+export const checkAndStore = internalMutation({
     args: { jti: v.string() },
     handler: async (ctx, { jti }) => {
         // Check if JTI already exists

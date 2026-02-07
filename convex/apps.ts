@@ -4,7 +4,8 @@
  * Handles app and release queries for computers.
  */
 
-import { query, action, internalQuery } from "./_generated/server";
+import { internalAction, internalQuery } from "./_generated/server";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
@@ -16,7 +17,7 @@ import { Id } from "./_generated/dataModel";
 /**
  * Get apps assigned to a computer through group memberships.
  */
-export const getAssigned = query({
+export const getAssigned = internalQuery({
     args: { computerId: v.string() },
     handler: async (ctx, { computerId }) => {
         // 1. Get static group memberships
@@ -173,7 +174,7 @@ export const getAssigned = query({
 /**
  * Get download URL for a release binary.
  */
-export const getDownloadUrl = action({
+export const getDownloadUrl = internalAction({
     args: {
         computerId: v.string(),
         releaseId: v.string(),
@@ -209,7 +210,7 @@ export const getDownloadUrl = action({
 /**
  * Get download URL for a requirement binary.
  */
-export const getRequirementDownloadUrl = action({
+export const getRequirementDownloadUrl = internalAction({
     args: {
         computerId: v.string(),
         requirementId: v.string(),
@@ -267,12 +268,11 @@ export const getRequirementById = internalQuery({
 // Admin Queries
 // ========================================
 
-import { mutation } from "./_generated/server";
 
 /**
  * Get table data for admin UI.
  */
-export const getTableData = query({
+export const getTableData = withAuthQuery({
     handler: async (ctx) => {
         const apps = await ctx.db.query("apps").collect();
 
@@ -335,7 +335,7 @@ export const getTableData = query({
 /**
  * Get app by ID for admin.
  */
-export const getById = query({
+export const getById = withAuthQuery({
     args: { id: v.id("apps") },
     handler: async (ctx, { id }) => {
         const app = await ctx.db.get(id);
@@ -369,7 +369,7 @@ export const getById = query({
 /**
  * Delete an app.
  */
-export const remove = mutation({
+export const remove = withAuthMutation({
     args: { id: v.id("apps") },
     handler: async (ctx, { id }) => {
         // Delete releases first
@@ -422,7 +422,7 @@ export const remove = mutation({
 /**
  * Update app details.
  */
-export const update = mutation({
+export const update = withAuthMutation({
     args: {
         id: v.id("apps"),
         data: v.object({
@@ -448,7 +448,7 @@ export const update = mutation({
 /**
  * Get releases for an app.
  */
-export const getReleases = query({
+export const getReleases = withAuthQuery({
     args: { appId: v.id("apps") },
     handler: async (ctx, { appId }) => {
         const releases = await ctx.db
@@ -535,7 +535,7 @@ export const getReleases = query({
 /**
  * Delete a release.
  */
-export const deleteRelease = mutation({
+export const deleteRelease = withAuthMutation({
     args: { id: v.id("releases") },
     handler: async (ctx, { id }) => {
         // Delete release assignments
@@ -577,7 +577,7 @@ export const deleteRelease = mutation({
 /**
  * Generate an upload URL for app binaries.
  */
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = withAuthMutation({
     args: {},
     handler: async (ctx) => {
         return await ctx.storage.generateUploadUrl();
@@ -587,7 +587,7 @@ export const generateUploadUrl = mutation({
 /**
  * Create a new application and its initial release.
  */
-export const create = mutation({
+export const create = withAuthMutation({
     args: {
         appInfo: v.object({
             name: v.string(),
@@ -781,7 +781,7 @@ const releaseArgs = {
     }),
 };
 
-export const createRelease = mutation({
+export const createRelease = withAuthMutation({
     args: {
         appId: v.id("apps"),
         ...releaseArgs,
@@ -872,7 +872,7 @@ export const createRelease = mutation({
     },
 });
 
-export const updateRelease = mutation({
+export const updateRelease = withAuthMutation({
     args: {
         id: v.id("releases"),
         data: v.object(releaseArgs),

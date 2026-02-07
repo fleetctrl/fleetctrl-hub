@@ -4,7 +4,8 @@
  * Handles task management for computers.
  */
 
-import { mutation, query, internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 
 // ========================================
@@ -14,7 +15,7 @@ import { v } from "convex/values";
 /**
  * Get pending tasks for a computer.
  */
-export const getPending = query({
+export const getPending = internalQuery({
     args: { computerId: v.string() },
     handler: async (ctx, { computerId }) => {
         // Find computer by ID string
@@ -47,7 +48,7 @@ export const getPending = query({
 /**
  * Get all tasks for a computer.
  */
-export const getByComputer = query({
+export const getByComputer = withAuthQuery({
     args: { computerId: v.id("computers") },
     handler: async (ctx, { computerId }) => {
         const tasks = await ctx.db
@@ -75,7 +76,7 @@ export const getByComputer = query({
 /**
  * Update task status.
  */
-export const updateStatus = mutation({
+export const updateStatus = internalMutation({
     args: {
         taskId: v.string(),
         computerId: v.string(),
@@ -123,7 +124,7 @@ export const updateStatus = mutation({
 /**
  * Create a new task.
  */
-export const create = mutation({
+export const create = withAuthMutation({
     args: {
         computerId: v.id("computers"),
         taskType: v.union(v.literal("SET_PASSWD"), v.literal("SET_NETWORK_STRING")),

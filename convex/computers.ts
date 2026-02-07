@@ -4,12 +4,8 @@
  * Handles computer CRUD operations.
  */
 
-import {
-    query,
-    mutation,
-    internalMutation,
-    internalQuery,
-} from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
@@ -20,7 +16,7 @@ import { internal } from "./_generated/api";
 /**
  * List all computers (simple version).
  */
-export const list = query({
+export const list = withAuthQuery({
     handler: async (ctx) => {
         const computers = await ctx.db.query("computers").collect();
         const now = Date.now();
@@ -50,7 +46,7 @@ export const list = query({
  * Paginated list for admin table.
  * Supports filtering by login_user and sorting.
  */
-export const listPaginated = query({
+export const listPaginated = withAuthQuery({
     args: {
         skip: v.optional(v.number()),
         limit: v.optional(v.number()),
@@ -151,7 +147,7 @@ export const listPaginated = query({
 /**
  * Get a computer by ID.
  */
-export const getById = query({
+export const getById = withAuthQuery({
     args: { id: v.id("computers") },
     handler: async (ctx, { id }) => {
         const computer = await ctx.db.get(id);
@@ -181,7 +177,7 @@ export const getById = query({
 /**
  * Update computer with RustDesk sync data.
  */
-export const rustdeskSync = mutation({
+export const rustdeskSync = internalMutation({
     args: {
         computerId: v.string(),
         data: v.any(),
@@ -249,7 +245,7 @@ export const rustdeskSync = mutation({
 /**
  * Delete a computer.
  */
-export const remove = mutation({
+export const remove = withAuthMutation({
     args: { id: v.id("computers") },
     handler: async (ctx, { id }) => {
         // Delete related data first

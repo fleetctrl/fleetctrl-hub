@@ -4,8 +4,9 @@
  * Handles enrollment token (keys) management for admin.
  */
 
-import { mutation, query } from "./_generated/server";
+
 import { v } from "convex/values";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { arrayBufferToBase64Url } from "./lib/encoding";
 
 // ========================================
@@ -15,7 +16,7 @@ import { arrayBufferToBase64Url } from "./lib/encoding";
 /**
  * List all enrollment tokens.
  */
-export const list = query({
+export const list = withAuthQuery({
     handler: async (ctx) => {
         const tokens = await ctx.db.query("enrollment_tokens").collect();
 
@@ -39,7 +40,7 @@ export const list = query({
 /**
  * Create a new enrollment token.
  */
-export const create = mutation({
+export const create = withAuthMutation({
     args: {
         name: v.optional(v.string()),
         remainingUses: v.number(), // -1 = unlimited
@@ -81,7 +82,7 @@ export const create = mutation({
 /**
  * Disable an enrollment token.
  */
-export const disable = mutation({
+export const disable = withAuthMutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
         await ctx.db.patch(id, { disabled: true });
@@ -92,7 +93,7 @@ export const disable = mutation({
 /**
  * Enable an enrollment token.
  */
-export const enable = mutation({
+export const enable = withAuthMutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
         await ctx.db.patch(id, { disabled: false });
@@ -103,7 +104,7 @@ export const enable = mutation({
 /**
  * Delete an enrollment token.
  */
-export const remove = mutation({
+export const remove = withAuthMutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
         await ctx.db.delete(id);

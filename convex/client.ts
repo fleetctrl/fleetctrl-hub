@@ -4,7 +4,8 @@
  * Handles client update version queries and downloads.
  */
 
-import { query, action, internalQuery } from "./_generated/server";
+import { internalAction, internalQuery } from "./_generated/server";
+import { withAuthQuery } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
@@ -16,7 +17,7 @@ import { Id } from "./_generated/dataModel";
 /**
  * Get the currently active client version.
  */
-export const getActiveVersion = query({
+export const getActiveVersion = internalQuery({
     args: {},
     handler: async (ctx) => {
         const activeVersion = await ctx.db
@@ -39,7 +40,7 @@ export const getActiveVersion = query({
 /**
  * Get all client versions.
  */
-export const list = query({
+export const list = withAuthQuery({
     handler: async (ctx) => {
         const versions = await ctx.db.query("client_updates").collect();
 
@@ -62,7 +63,7 @@ export const list = query({
 /**
  * Get download URL for a client version.
  */
-export const getDownloadUrl = action({
+export const getDownloadUrl = internalAction({
     args: { versionId: v.string() },
     handler: async (ctx, { versionId }): Promise<string | null> => {
         // 1. Get version

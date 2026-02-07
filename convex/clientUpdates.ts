@@ -1,14 +1,15 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 
-export const getAll = query({
+
+export const getAll = withAuthQuery({
     args: {},
     handler: async (ctx) => {
         return await ctx.db.query("client_updates").collect();
     },
 });
 
-export const create = mutation({
+export const create = withAuthMutation({
     args: {
         version: v.string(),
         storageId: v.id("_storage"),
@@ -45,14 +46,14 @@ export const create = mutation({
     },
 });
 
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = withAuthMutation({
     args: {},
     handler: async (ctx) => {
         return await ctx.storage.generateUploadUrl();
     },
 });
 
-export const setActive = mutation({
+export const setActive = withAuthMutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
         const update = await ctx.db.get(args.id);
@@ -70,14 +71,14 @@ export const setActive = mutation({
     },
 });
 
-export const deactivate = mutation({
+export const deactivate = withAuthMutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
         await ctx.db.patch(args.id, { is_active: false });
     },
 });
 
-export const remove = mutation({
+export const remove = withAuthMutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
         const update = await ctx.db.get(args.id);
