@@ -77,6 +77,14 @@ This script will:
 2. Start all services.
 3. Deploy the Convex schema and functions from the local source code to the containerized backend.
 
+## Convex Push
+
+Use this when you only need to deploy Convex schema and functions without running the full update or setup.
+
+```bash
+./convex-push.sh
+```
+
 ## Configuration
 
 - **Hub**: Configured in `docker-compose.yml`. Use `.env` to adjust variables.
