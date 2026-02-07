@@ -30,6 +30,20 @@ type Env = {
 };
 
 const app = new Hono<Env>();
+const installStateStatuses = new Set([
+    "PENDING",
+    "INSTALLING",
+    "INSTALLED",
+    "ERROR",
+    "UNINSTALLED",
+] as const);
+
+type InstallStateStatus =
+    | "PENDING"
+    | "INSTALLING"
+    | "INSTALLED"
+    | "ERROR"
+    | "UNINSTALLED";
 
 // ========================================
 // Middleware
@@ -377,6 +391,34 @@ protectedApi.get("/apps/requirement/download/:requirementId", async (c) => {
     }
 
     return c.redirect(downloadUrl as string, 307);
+});
+
+protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
+    const computerId = c.var.computerId;
+    const releaseId = c.req.param("releaseId");
+    const body = await c.req.json();
+    const { status, installed_at, last_seen_at } = body as {
+        status?: string;
+        installed_at?: number;
+        last_seen_at?: number;
+    };
+
+    if (!status) {
+        return c.json({ error: "Missing status" }, 400);
+    }
+    if (!installStateStatuses.has(status as InstallStateStatus)) {
+        return c.json({ error: "Invalid status" }, 400);
+    }
+
+    await c.env.ctx.runMutation(internal.apps.updateInstallState, {
+        computerId,
+        releaseId,
+        status: status as InstallStateStatus,
+        installedAt: installed_at,
+        lastSeenAt: last_seen_at,
+    });
+
+    return c.json({ status: "ok" });
 });
 
 /**

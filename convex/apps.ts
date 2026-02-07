@@ -4,7 +4,7 @@
  * Handles app and release queries for computers.
  */
 
-import { internalAction, internalQuery } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -179,7 +179,7 @@ export const getDownloadUrl = internalAction({
         computerId: v.string(),
         releaseId: v.string(),
     },
-    handler: async (ctx, { computerId, releaseId }): Promise<string | null> => {
+    handler: async (ctx, { releaseId }): Promise<string | null> => {
         // 1. Verify assignment (simplified - in production, check group membership)
         const release = await ctx.runQuery(internal.apps.getReleaseById, {
             releaseId,
@@ -264,9 +264,82 @@ export const getRequirementById = internalQuery({
     },
 });
 
+export const updateInstallState = internalMutation({
+    args: {
+        computerId: v.string(),
+        releaseId: v.string(),
+        status: v.union(
+            v.literal("PENDING"),
+            v.literal("INSTALLING"),
+            v.literal("INSTALLED"),
+            v.literal("ERROR"),
+            v.literal("UNINSTALLED")
+        ),
+        installedAt: v.optional(v.number()),
+        lastSeenAt: v.optional(v.number()),
+    },
+    handler: async (ctx, { computerId, releaseId, status, installedAt, lastSeenAt }) => {
+        const computer = await ctx.db.get(computerId as Id<"computers">);
+        if (!computer) throw new Error("Computer not found");
+
+        const release = await ctx.db.get(releaseId as Id<"releases">);
+        if (!release) throw new Error("Release not found");
+
+        const existing = await ctx.db
+            .query("computer_release_installs")
+            .withIndex("by_computer_release", (q) =>
+                q.eq("computer_id", computer._id).eq("release_id", release._id)
+            )
+            .first();
+
+        const now = Date.now();
+        const nextInstalledAt =
+            status === "INSTALLED"
+                ? installedAt ?? existing?.installed_at ?? now
+                : installedAt ?? existing?.installed_at;
+
+        const updatePayload = {
+            status,
+            status_updated_at: now,
+            last_seen_at: lastSeenAt ?? now,
+            ...(nextInstalledAt !== undefined
+                ? { installed_at: nextInstalledAt }
+                : {}),
+        };
+
+        if (existing) {
+            await ctx.db.patch(existing._id, updatePayload);
+        } else {
+            await ctx.db.insert("computer_release_installs", {
+                computer_id: computer._id,
+                release_id: release._id,
+                ...updatePayload,
+            });
+        }
+
+        return { success: true };
+    },
+});
+
 // ========================================
 // Admin Queries
 // ========================================
+
+const INSTALL_STATUSES = [
+    "PENDING",
+    "INSTALLING",
+    "INSTALLED",
+    "ERROR",
+    "UNINSTALLED",
+] as const;
+
+type InstallStatus = (typeof INSTALL_STATUSES)[number];
+
+const createStatusSummary = () =>
+    INSTALL_STATUSES.reduce(
+        (acc, status) => ({ ...acc, [status]: 0 }),
+        {} as Record<InstallStatus, number>
+    );
 
 
 /**
@@ -314,6 +387,20 @@ export const getTableData = withAuthQuery({
                     }
                 }
 
+                const installedComputerIds = new Set<string>();
+                for (const release of releases) {
+                    const installs = await ctx.db
+                        .query("computer_release_installs")
+                        .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
+                        .collect();
+
+                    for (const install of installs) {
+                        if (install.status === "INSTALLED") {
+                            installedComputerIds.add(install.computer_id.toString());
+                        }
+                    }
+                }
+
                 // Deduplicate groups
                 const uniqueGroups = Array.from(
                     new Map(groups.map((g) => [g.id, g])).values()
@@ -326,6 +413,7 @@ export const getTableData = withAuthQuery({
                     updatedAt: app._creationTime,
                     groups: uniqueGroups,
                     groupsCount: uniqueGroups.length,
+                    installedCount: installedComputerIds.size,
                 };
             })
         );
@@ -529,6 +617,101 @@ export const getReleases = withAuthQuery({
                 };
             })
         );
+    },
+});
+
+/**
+ * Get install status per device for all releases of a given app.
+ */
+export const getDeviceInstallStatus = withAuthQuery({
+    args: { appId: v.id("apps") },
+    handler: async (ctx, { appId }) => {
+        const releases = await ctx.db
+            .query("releases")
+            .withIndex("by_app_id", (q) => q.eq("app_id", appId))
+            .collect();
+
+        const statusSummary = createStatusSummary();
+
+        if (releases.length === 0) {
+            return {
+                total: 0,
+                byStatus: statusSummary,
+                items: [] as Array<{
+                    id: string;
+                    computerId: string;
+                    computerName: string;
+                    releaseId: string;
+                    releaseVersion: string;
+                    status: InstallStatus;
+                    installedAt?: number;
+                    lastSeenAt?: number;
+                    statusUpdatedAt?: number;
+                }>,
+            };
+        }
+
+        const releaseMap = new Map(releases.map((release) => [release._id.toString(), release]));
+        const releaseInstalls = await Promise.all(
+            releases.map((release) =>
+                ctx.db
+                    .query("computer_release_installs")
+                    .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
+                    .collect()
+            )
+        );
+
+        const installs = releaseInstalls.flat();
+        const computerIds = Array.from(
+            new Set(installs.map((install) => install.computer_id.toString()))
+        );
+
+        const computers = await Promise.all(
+            computerIds.map((computerId) =>
+                ctx.db.get(computerId as Id<"computers">)
+            )
+        );
+
+        const computersById = new Map(
+            computers
+                .filter((computer): computer is NonNullable<typeof computer> => !!computer)
+                .map((computer) => [computer._id.toString(), computer])
+        );
+
+        const items = installs
+            .map((install) => {
+                const release = releaseMap.get(install.release_id.toString());
+                if (!release) return null;
+
+                const computer = computersById.get(install.computer_id.toString());
+                return {
+                    id: install._id.toString(),
+                    computerId: install.computer_id.toString(),
+                    computerName: computer?.name ?? "Unknown computer",
+                    releaseId: release._id.toString(),
+                    releaseVersion: release.version || "latest",
+                    status: install.status as InstallStatus,
+                    installedAt: install.installed_at,
+                    lastSeenAt: install.last_seen_at,
+                    statusUpdatedAt: install.status_updated_at,
+                };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
+            .sort((a, b) => {
+                const aTs = a.statusUpdatedAt ?? a.lastSeenAt ?? 0;
+                const bTs = b.statusUpdatedAt ?? b.lastSeenAt ?? 0;
+                return bTs - aTs;
+            });
+
+        for (const item of items) {
+            statusSummary[item.status] += 1;
+        }
+
+        return {
+            total: items.length,
+            byStatus: statusSummary,
+            items,
+        };
     },
 });
 

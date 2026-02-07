@@ -14,6 +14,7 @@ export type AppRow = {
     name: string;
   }[];
   groupsCount: number;
+  installedCount: number;
   createdAtFormatted: string;
   updatedAtFormatted: string;
 };
@@ -63,6 +64,11 @@ export const columns: ColumnDef<AppRow>[] = [
         </div>
       );
     },
+  },
+  {
+    accessorKey: "installedCount",
+    header: "Installed devices",
+    cell: ({ row }) => row.original.installedCount,
   },
   {
     accessorKey: "updatedAtFormatted",
