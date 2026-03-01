@@ -1,3 +1,4 @@
+name: fleetctrl
 services:
   hub:
     container_name: fleetctrl-hub
