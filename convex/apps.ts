@@ -92,6 +92,7 @@ export const getAssigned = internalQuery({
         const wingetReleases = await ctx.db.query("winget_releases").collect();
         const detectionRules = await ctx.db.query("detection_rules").collect();
         const requirements = await ctx.db.query("release_requirements").collect();
+        const release_scripts = await ctx.db.query("release_scripts").collect();
 
         // 9. Build response
         const result = apps.map((app) => {
@@ -158,6 +159,9 @@ export const getAssigned = internalQuery({
                             run_as_system: r.run_as_system,
                             hash: r.hash,
                         })),
+                        scripts: release_scripts.filter(
+                            (s) => s.release_id.toString() === release._id.toString()
+                        ),
                     };
                 }),
             };
@@ -234,6 +238,33 @@ export const getRequirementDownloadUrl = internalAction({
     },
 });
 
+/**
+ * Get download URL for a pre/post script binary.
+ */
+export const getScriptDownloadUrl = internalAction({
+    args: {
+        computerId: v.string(),
+        scriptId: v.string(),
+    },
+    handler: async (ctx, { scriptId }): Promise<string | null> => {
+        // 1. Get script
+        const script = await ctx.runQuery(internal.apps.getScriptById, {
+            scriptId,
+        });
+
+        if (!script || !script.storage_id) {
+            return null;
+        }
+
+        // 2. Generate signed URL
+        const url = await ctx.storage.getUrl(
+            script.storage_id as Id<"_storage">
+        );
+
+        return url;
+    },
+});
+
 // ========================================
 // Internal Queries (for actions)
 // ========================================
@@ -261,6 +292,14 @@ export const getRequirementById = internalQuery({
     handler: async (ctx, { requirementId }) => {
         const requirements = await ctx.db.query("release_requirements").collect();
         return requirements.find((r) => r._id.toString() === requirementId) || null;
+    },
+});
+
+export const getScriptById = internalQuery({
+    args: { scriptId: v.string() },
+    handler: async (ctx, { scriptId }) => {
+        const scripts = await ctx.db.query("release_scripts").collect();
+        return scripts.find((s) => s._id.toString() === scriptId) || null;
     },
 });
 
@@ -599,6 +638,11 @@ export const getReleases = withAuthQuery({
                     .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
                     .collect();
 
+                const release_scripts = await ctx.db
+                    .query("release_scripts")
+                    .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
+                    .collect();
+
                 return {
                     id: release._id,
                     version: release.version,
@@ -614,6 +658,7 @@ export const getReleases = withAuthQuery({
                     win32_releases,
                     winget_releases,
                     release_requirements,
+                    release_scripts,
                 };
             })
         );
@@ -950,6 +995,30 @@ const releaseArgs = {
         timeout: v.optional(v.number()),
         runAsSystem: v.optional(v.boolean()),
     }), v.null())),
+    preScript: v.optional(v.union(v.object({
+        scriptBinary: v.optional(v.object({
+            storageId: v.id("_storage"),
+            name: v.string(),
+            size: v.number(),
+            hash: v.string(),
+            type: v.string(),
+        })),
+        timeout: v.optional(v.number()),
+        runAsSystem: v.optional(v.boolean()),
+        engine: v.union(v.literal("powershell")),
+    }), v.null())),
+    postScript: v.optional(v.union(v.object({
+        scriptBinary: v.optional(v.object({
+            storageId: v.id("_storage"),
+            name: v.string(),
+            size: v.number(),
+            hash: v.string(),
+            type: v.string(),
+        })),
+        timeout: v.optional(v.number()),
+        runAsSystem: v.optional(v.boolean()),
+        engine: v.union(v.literal("powershell")),
+    }), v.null())),
     assignments: v.object({
         installGroups: v.array(v.object({
             groupId: v.string(),
@@ -1027,7 +1096,36 @@ export const createRelease = withAuthMutation({
             });
         }
 
-        // 5. Assignments
+        // 5. Pre/Post Scripts
+        if (args.preScript && args.preScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "pre",
+                engine: args.preScript.engine || "powershell",
+                timeout_seconds: args.preScript.timeout || 60,
+                run_as_system: args.preScript.runAsSystem || false,
+                script_name: args.preScript.scriptBinary.name,
+                storage_id: args.preScript.scriptBinary.storageId,
+                hash: args.preScript.scriptBinary.hash,
+                byte_size: args.preScript.scriptBinary.size,
+            });
+        }
+
+        if (args.postScript && args.postScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "post",
+                engine: args.postScript.engine || "powershell",
+                timeout_seconds: args.postScript.timeout || 60,
+                run_as_system: args.postScript.runAsSystem || false,
+                script_name: args.postScript.scriptBinary.name,
+                storage_id: args.postScript.scriptBinary.storageId,
+                hash: args.postScript.scriptBinary.hash,
+                byte_size: args.postScript.scriptBinary.size,
+            });
+        }
+
+        // 6. Assignments
         const handleAssignment = async (groups: typeof args.assignments.installGroups, action: "install" | "uninstall") => {
             for (const g of groups) {
                 if (g.groupType === "static") {
@@ -1083,6 +1181,10 @@ export const updateRelease = withAuthMutation({
         // Detections
         const dets = await ctx.db.query("detection_rules").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
         for (const d of dets) await ctx.db.delete(d._id);
+
+        // Scripts
+        const scripts = await ctx.db.query("release_scripts").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
+        for (const s of scripts) await ctx.db.delete(s._id);
 
         // Assignments
         const groupRels = await ctx.db.query("computer_group_releases").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
@@ -1145,7 +1247,36 @@ export const updateRelease = withAuthMutation({
             });
         }
 
-        // 6. Re-create Assignments
+        // 6. Re-create Pre/Post Scripts
+        if (data.preScript && data.preScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: id,
+                phase: "pre",
+                engine: data.preScript.engine || "powershell",
+                timeout_seconds: data.preScript.timeout || 60,
+                run_as_system: data.preScript.runAsSystem || false,
+                script_name: data.preScript.scriptBinary.name,
+                storage_id: data.preScript.scriptBinary.storageId,
+                hash: data.preScript.scriptBinary.hash,
+                byte_size: data.preScript.scriptBinary.size,
+            });
+        }
+
+        if (data.postScript && data.postScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: id,
+                phase: "post",
+                engine: data.postScript.engine || "powershell",
+                timeout_seconds: data.postScript.timeout || 60,
+                run_as_system: data.postScript.runAsSystem || false,
+                script_name: data.postScript.scriptBinary.name,
+                storage_id: data.postScript.scriptBinary.storageId,
+                hash: data.postScript.scriptBinary.hash,
+                byte_size: data.postScript.scriptBinary.size,
+            });
+        }
+
+        // 7. Re-create Assignments
         const handleAssignment = async (groups: typeof data.assignments.installGroups, action: "install" | "uninstall") => {
             for (const g of groups) {
                 if (g.groupType === "static") {

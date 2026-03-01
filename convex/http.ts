@@ -393,6 +393,25 @@ protectedApi.get("/apps/requirement/download/:requirementId", async (c) => {
     return c.redirect(downloadUrl as string, 307);
 });
 
+protectedApi.get("/apps/script/download/:scriptId", async (c) => {
+    const computerId = c.var.computerId;
+    const scriptId = c.req.param("scriptId");
+
+    const downloadUrl = await c.env.ctx.runAction(
+        internal.apps.getScriptDownloadUrl,
+        {
+            computerId,
+            scriptId,
+        }
+    );
+
+    if (!downloadUrl) {
+        return c.json({ error: "Script not found or access denied" }, 404);
+    }
+
+    return c.redirect(downloadUrl as string, 307);
+});
+
 protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
     const computerId = c.var.computerId;
     const releaseId = c.req.param("releaseId");

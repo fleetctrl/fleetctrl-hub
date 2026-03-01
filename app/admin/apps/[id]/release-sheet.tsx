@@ -77,6 +77,18 @@ const createFormSchema = (isAutoUpdate: boolean) => z.object({
         runAsSystem: z.boolean(),
         requirementScriptBinary: storedFileReferenceSchema.optional(),
     }).optional(),
+    preScript: z.object({
+        timeout: z.number(),
+        runAsSystem: z.boolean(),
+        engine: z.enum(["powershell"]),
+        scriptBinary: storedFileReferenceSchema.optional(),
+    }).optional(),
+    postScript: z.object({
+        timeout: z.number(),
+        runAsSystem: z.boolean(),
+        engine: z.enum(["powershell"]),
+        scriptBinary: storedFileReferenceSchema.optional(),
+    }).optional(),
 });
 
 type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
@@ -118,6 +130,16 @@ interface EditReleaseSheetProps {
         }[];
         winget_releases?: {
             winget_id: string;
+        }[];
+        release_scripts?: {
+            phase: "pre" | "post";
+            engine: "cmd" | "powershell";
+            timeout_seconds: number;
+            run_as_system: boolean;
+            script_name: string;
+            storage_id?: string;
+            byte_size?: number;
+            hash: string;
         }[];
     } | null;
     open: boolean;
@@ -255,7 +277,37 @@ const mapReleaseToFormValues = (release: any) => {
         } : {
             timeout: 60,
             runAsSystem: false,
-        }
+        },
+        preScript: release.release_scripts?.find((s: any) => s.phase === "pre") ? (() => {
+            const script = release.release_scripts.find((s: any) => s.phase === "pre");
+            return {
+                timeout: script.timeout_seconds,
+                runAsSystem: script.run_as_system,
+                engine: script.engine,
+                scriptBinary: script.storage_id ? {
+                    storageId: script.storage_id,
+                    name: script.script_name || "pre-install.ps1",
+                    size: script.byte_size || 0,
+                    hash: script.hash,
+                    type: "text/plain",
+                } : undefined,
+            };
+        })() : undefined,
+        postScript: release.release_scripts?.find((s: any) => s.phase === "post") ? (() => {
+            const script = release.release_scripts.find((s: any) => s.phase === "post");
+            return {
+                timeout: script.timeout_seconds,
+                runAsSystem: script.run_as_system,
+                engine: script.engine,
+                scriptBinary: script.storage_id ? {
+                    storageId: script.storage_id,
+                    name: script.script_name || "post-install.ps1",
+                    size: script.byte_size || 0,
+                    hash: script.hash,
+                    type: "text/plain",
+                } : undefined,
+            };
+        })() : undefined,
     };
 };
 
@@ -329,6 +381,8 @@ export function ReleaseSheet({
 
     const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
     const [isUploadingBinary, setIsUploadingBinary] = useState(false);
+    const [isUploadingPreScript, setIsUploadingPreScript] = useState(false);
+    const [isUploadingPostScript, setIsUploadingPostScript] = useState(false);
     const [isDetectionSheetOpen, setIsDetectionSheetOpen] = useState(false);
     const [editingDetectionIndex, setEditingDetectionIndex] = useState<number | null>(null);
 
@@ -379,6 +433,24 @@ export function ReleaseSheet({
                     requirementScriptBinary: {
                         ...values.requirements.requirementScriptBinary,
                         storageId: values.requirements.requirementScriptBinary.storageId as Id<"_storage">
+                    }
+                }
+                : null,
+            preScript: values.preScript?.scriptBinary
+                ? {
+                    ...values.preScript,
+                    scriptBinary: {
+                        ...values.preScript.scriptBinary,
+                        storageId: values.preScript.scriptBinary.storageId as Id<"_storage">
+                    }
+                }
+                : null,
+            postScript: values.postScript?.scriptBinary
+                ? {
+                    ...values.postScript,
+                    scriptBinary: {
+                        ...values.postScript.scriptBinary,
+                        storageId: values.postScript.scriptBinary.storageId as Id<"_storage">
                     }
                 }
                 : null,
@@ -770,6 +842,184 @@ export function ReleaseSheet({
                                             </FormItem>
                                         )}
                                     />
+                                </div>
+
+                                <div className="border-t pt-6 mt-6">
+                                    <h3 className="font-medium text-lg mb-4">Pre-Install Script</h3>
+                                    <FormField
+                                        control={form.control}
+                                        name="preScript.scriptBinary"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <div className="flex items-center justify-between">
+                                                    <FormLabel>Script File</FormLabel>
+                                                    {field.value && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                            onClick={() => {
+                                                                field.onChange(undefined);
+                                                                toast.success("Pre-Install script removed from form. Save changes to persist.");
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-1" />
+                                                            Remove Script
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                                <Dropzone
+                                                    src={toDropzonePreview(field.value)}
+                                                    accept={{ "text/plain": [".ps1"] }}
+                                                    maxFiles={1}
+                                                    maxSize={1024 * 1024 * 20}
+                                                    disabled={isUploadingPreScript}
+                                                    onDrop={(files) => {
+                                                        const file = files.at(0);
+                                                        if (!file) return;
+                                                        setIsUploadingPreScript(true);
+                                                        void (async () => {
+                                                            try {
+                                                                const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                                                                field.onChange(uploaded);
+                                                                toast.success("Pre-Install script uploaded");
+                                                            } catch (err: unknown) {
+                                                                const message = err instanceof Error ? err.message : "Unknown error";
+                                                                toast.error(`Failed to upload pre-install script: ${message}`);
+                                                                console.error(err);
+                                                            } finally {
+                                                                setIsUploadingPreScript(false);
+                                                            }
+                                                        })();
+                                                    }}
+                                                >
+                                                    <DropzoneEmptyState />
+                                                    <DropzoneContent />
+                                                </Dropzone>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="space-y-4 mt-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="preScript.timeout"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Timeout (s)</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="preScript.runAsSystem"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel>Run as System</FormLabel>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="border-t pt-6 mt-6">
+                                    <h3 className="font-medium text-lg mb-4">Post-Install Script</h3>
+                                    <FormField
+                                        control={form.control}
+                                        name="postScript.scriptBinary"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <div className="flex items-center justify-between">
+                                                    <FormLabel>Script File</FormLabel>
+                                                    {field.value && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                            onClick={() => {
+                                                                field.onChange(undefined);
+                                                                toast.success("Post-Install script removed from form. Save changes to persist.");
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-1" />
+                                                            Remove Script
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                                <Dropzone
+                                                    src={toDropzonePreview(field.value)}
+                                                    accept={{ "text/plain": [".ps1"] }}
+                                                    maxFiles={1}
+                                                    maxSize={1024 * 1024 * 20}
+                                                    disabled={isUploadingPostScript}
+                                                    onDrop={(files) => {
+                                                        const file = files.at(0);
+                                                        if (!file) return;
+                                                        setIsUploadingPostScript(true);
+                                                        void (async () => {
+                                                            try {
+                                                                const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                                                                field.onChange(uploaded);
+                                                                toast.success("Post-Install script uploaded");
+                                                            } catch (err: unknown) {
+                                                                const message = err instanceof Error ? err.message : "Unknown error";
+                                                                toast.error(`Failed to upload post-install script: ${message}`);
+                                                                console.error(err);
+                                                            } finally {
+                                                                setIsUploadingPostScript(false);
+                                                            }
+                                                        })();
+                                                    }}
+                                                >
+                                                    <DropzoneEmptyState />
+                                                    <DropzoneContent />
+                                                </Dropzone>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="space-y-4 mt-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="postScript.timeout"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Timeout (s)</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="postScript.runAsSystem"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel>Run as System</FormLabel>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
                                 </div>
                             </TabsContent>
 
