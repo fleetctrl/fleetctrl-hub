@@ -187,6 +187,7 @@ export function CreateForm() {
         } : undefined,
         preScript: data.preScript ? {
           ...data.preScript,
+          engine: "powershell" as const,
           scriptBinary: data.preScript.scriptBinary ? {
             ...data.preScript.scriptBinary,
             storageId: data.preScript.scriptBinary.storageId as Id<"_storage">,
@@ -195,6 +196,7 @@ export function CreateForm() {
         } : undefined,
         postScript: data.postScript ? {
           ...data.postScript,
+          engine: "powershell" as const,
           scriptBinary: data.postScript.scriptBinary ? {
             ...data.postScript.scriptBinary,
             storageId: data.postScript.scriptBinary.storageId as Id<"_storage">,

@@ -861,6 +861,30 @@ export const create = withAuthMutation({
                 registryTypeValue: v.optional(v.string()),
             })),
         }),
+        preScript: v.optional(v.union(v.object({
+            scriptBinary: v.optional(v.object({
+                storageId: v.id("_storage"),
+                name: v.string(),
+                size: v.number(),
+                hash: v.string(),
+                type: v.string(),
+            })),
+            timeout: v.optional(v.number()),
+            runAsSystem: v.optional(v.boolean()),
+            engine: v.union(v.literal("powershell")),
+        }), v.null())),
+        postScript: v.optional(v.union(v.object({
+            scriptBinary: v.optional(v.object({
+                storageId: v.id("_storage"),
+                name: v.string(),
+                size: v.number(),
+                hash: v.string(),
+                type: v.string(),
+            })),
+            timeout: v.optional(v.number()),
+            runAsSystem: v.optional(v.boolean()),
+            engine: v.union(v.literal("powershell")),
+        }), v.null())),
         assignment: v.object({
             installGroups: v.array(v.object({
                 groupId: v.string(),
@@ -937,6 +961,35 @@ export const create = withAuthMutation({
                     "path": isFile ? d.path : d.registryKey,
                     "value": isFile ? d.fileTypeValue : d.registryTypeValue,
                 },
+            });
+        }
+
+        // 6. Create Pre/Post Scripts
+        if (args.preScript && args.preScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "pre",
+                engine: args.preScript.engine || "powershell",
+                timeout_seconds: args.preScript.timeout || 60,
+                run_as_system: args.preScript.runAsSystem || false,
+                script_name: args.preScript.scriptBinary.name,
+                storage_id: args.preScript.scriptBinary.storageId,
+                hash: args.preScript.scriptBinary.hash,
+                byte_size: args.preScript.scriptBinary.size,
+            });
+        }
+
+        if (args.postScript && args.postScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "post",
+                engine: args.postScript.engine || "powershell",
+                timeout_seconds: args.postScript.timeout || 60,
+                run_as_system: args.postScript.runAsSystem || false,
+                script_name: args.postScript.scriptBinary.name,
+                storage_id: args.postScript.scriptBinary.storageId,
+                hash: args.postScript.scriptBinary.hash,
+                byte_size: args.postScript.scriptBinary.size,
             });
         }
 

@@ -283,7 +283,7 @@ const mapReleaseToFormValues = (release: any) => {
             return {
                 timeout: script.timeout_seconds,
                 runAsSystem: script.run_as_system,
-                engine: script.engine,
+                engine: script.engine as "powershell",
                 scriptBinary: script.storage_id ? {
                     storageId: script.storage_id,
                     name: script.script_name || "pre-install.ps1",
@@ -292,13 +292,13 @@ const mapReleaseToFormValues = (release: any) => {
                     type: "text/plain",
                 } : undefined,
             };
-        })() : undefined,
+        })() : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
         postScript: release.release_scripts?.find((s: any) => s.phase === "post") ? (() => {
             const script = release.release_scripts.find((s: any) => s.phase === "post");
             return {
                 timeout: script.timeout_seconds,
                 runAsSystem: script.run_as_system,
-                engine: script.engine,
+                engine: script.engine as "powershell",
                 scriptBinary: script.storage_id ? {
                     storageId: script.storage_id,
                     name: script.script_name || "post-install.ps1",
@@ -307,7 +307,7 @@ const mapReleaseToFormValues = (release: any) => {
                     type: "text/plain",
                 } : undefined,
             };
-        })() : undefined,
+        })() : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
     };
 };
 
@@ -347,6 +347,16 @@ export function ReleaseSheet({
             requirements: {
                 timeout: 60,
                 runAsSystem: false,
+            },
+            preScript: {
+                timeout: 60,
+                runAsSystem: false,
+                engine: "powershell",
+            },
+            postScript: {
+                timeout: 60,
+                runAsSystem: false,
+                engine: "powershell",
             },
         },
     });
@@ -410,6 +420,16 @@ export function ReleaseSheet({
                 requirements: {
                     timeout: 60,
                     runAsSystem: false,
+                },
+                preScript: {
+                    timeout: 60,
+                    runAsSystem: false,
+                    engine: "powershell",
+                },
+                postScript: {
+                    timeout: 60,
+                    runAsSystem: false,
+                    engine: "powershell",
                 },
             });
         }
@@ -508,6 +528,16 @@ export function ReleaseSheet({
                     requirements: {
                         timeout: 60,
                         runAsSystem: false,
+                    },
+                    preScript: {
+                        timeout: 60,
+                        runAsSystem: false,
+                        engine: "powershell",
+                    },
+                    postScript: {
+                        timeout: 60,
+                        runAsSystem: false,
+                        engine: "powershell",
                     },
                 });
             }
