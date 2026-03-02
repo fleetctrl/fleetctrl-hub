@@ -180,11 +180,13 @@ export default defineSchema({
     release_scripts: defineTable({
         release_id: v.id("releases"),
         phase: v.union(v.literal("pre"), v.literal("post")),
-        engine: v.union(v.literal("cmd"), v.literal("powershell")),
+        engine: v.union(v.literal("powershell")),
         timeout_seconds: v.number(),
         run_as_system: v.boolean(),
+        script_name: v.string(),
         storage_id: v.optional(v.id("_storage")),
         hash: v.string(),
+        byte_size: v.optional(v.number()),
     }).index("by_release_id", ["release_id"]),
 
     // ========================================

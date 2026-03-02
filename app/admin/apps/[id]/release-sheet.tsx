@@ -77,6 +77,18 @@ const createFormSchema = (isAutoUpdate: boolean) => z.object({
         runAsSystem: z.boolean(),
         requirementScriptBinary: storedFileReferenceSchema.optional(),
     }).optional(),
+    preScript: z.object({
+        timeout: z.number(),
+        runAsSystem: z.boolean(),
+        engine: z.enum(["powershell"]),
+        scriptBinary: storedFileReferenceSchema.optional(),
+    }).optional(),
+    postScript: z.object({
+        timeout: z.number(),
+        runAsSystem: z.boolean(),
+        engine: z.enum(["powershell"]),
+        scriptBinary: storedFileReferenceSchema.optional(),
+    }).optional(),
 });
 
 type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
@@ -118,6 +130,16 @@ interface EditReleaseSheetProps {
         }[];
         winget_releases?: {
             winget_id: string;
+        }[];
+        release_scripts?: {
+            phase: "pre" | "post";
+            engine: "cmd" | "powershell";
+            timeout_seconds: number;
+            run_as_system: boolean;
+            script_name: string;
+            storage_id?: string;
+            byte_size?: number;
+            hash: string;
         }[];
     } | null;
     open: boolean;
@@ -255,7 +277,37 @@ const mapReleaseToFormValues = (release: any) => {
         } : {
             timeout: 60,
             runAsSystem: false,
-        }
+        },
+        preScript: release.release_scripts?.find((s: any) => s.phase === "pre") ? (() => {
+            const script = release.release_scripts.find((s: any) => s.phase === "pre");
+            return {
+                timeout: script.timeout_seconds,
+                runAsSystem: script.run_as_system,
+                engine: script.engine as "powershell",
+                scriptBinary: script.storage_id ? {
+                    storageId: script.storage_id,
+                    name: script.script_name || "pre-install.ps1",
+                    size: script.byte_size || 0,
+                    hash: script.hash,
+                    type: "text/plain",
+                } : undefined,
+            };
+        })() : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
+        postScript: release.release_scripts?.find((s: any) => s.phase === "post") ? (() => {
+            const script = release.release_scripts.find((s: any) => s.phase === "post");
+            return {
+                timeout: script.timeout_seconds,
+                runAsSystem: script.run_as_system,
+                engine: script.engine as "powershell",
+                scriptBinary: script.storage_id ? {
+                    storageId: script.storage_id,
+                    name: script.script_name || "post-install.ps1",
+                    size: script.byte_size || 0,
+                    hash: script.hash,
+                    type: "text/plain",
+                } : undefined,
+            };
+        })() : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
     };
 };
 
@@ -296,6 +348,16 @@ export function ReleaseSheet({
                 timeout: 60,
                 runAsSystem: false,
             },
+            preScript: {
+                timeout: 60,
+                runAsSystem: false,
+                engine: "powershell",
+            },
+            postScript: {
+                timeout: 60,
+                runAsSystem: false,
+                engine: "powershell",
+            },
         },
     });
 
@@ -329,6 +391,8 @@ export function ReleaseSheet({
 
     const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
     const [isUploadingBinary, setIsUploadingBinary] = useState(false);
+    const [isUploadingPreScript, setIsUploadingPreScript] = useState(false);
+    const [isUploadingPostScript, setIsUploadingPostScript] = useState(false);
     const [isDetectionSheetOpen, setIsDetectionSheetOpen] = useState(false);
     const [editingDetectionIndex, setEditingDetectionIndex] = useState<number | null>(null);
 
@@ -357,6 +421,16 @@ export function ReleaseSheet({
                     timeout: 60,
                     runAsSystem: false,
                 },
+                preScript: {
+                    timeout: 60,
+                    runAsSystem: false,
+                    engine: "powershell",
+                },
+                postScript: {
+                    timeout: 60,
+                    runAsSystem: false,
+                    engine: "powershell",
+                },
             });
         }
     }, [release, form]);
@@ -379,6 +453,24 @@ export function ReleaseSheet({
                     requirementScriptBinary: {
                         ...values.requirements.requirementScriptBinary,
                         storageId: values.requirements.requirementScriptBinary.storageId as Id<"_storage">
+                    }
+                }
+                : null,
+            preScript: values.preScript?.scriptBinary
+                ? {
+                    ...values.preScript,
+                    scriptBinary: {
+                        ...values.preScript.scriptBinary,
+                        storageId: values.preScript.scriptBinary.storageId as Id<"_storage">
+                    }
+                }
+                : null,
+            postScript: values.postScript?.scriptBinary
+                ? {
+                    ...values.postScript,
+                    scriptBinary: {
+                        ...values.postScript.scriptBinary,
+                        storageId: values.postScript.scriptBinary.storageId as Id<"_storage">
                     }
                 }
                 : null,
@@ -437,6 +529,16 @@ export function ReleaseSheet({
                         timeout: 60,
                         runAsSystem: false,
                     },
+                    preScript: {
+                        timeout: 60,
+                        runAsSystem: false,
+                        engine: "powershell",
+                    },
+                    postScript: {
+                        timeout: 60,
+                        runAsSystem: false,
+                        engine: "powershell",
+                    },
                 });
             }
         }
@@ -484,8 +586,8 @@ export function ReleaseSheet({
 
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
-            <SheetContent className="overflow-y-auto max-h-screen sm:max-w-[500px]">
-                <SheetHeader>
+            <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-[500px]">
+                <SheetHeader className="px-6 pt-6 pb-4 shrink-0">
                     <SheetTitle>{isEdit ? "Edit Release" : "Create Release"}</SheetTitle>
                     <SheetDescription>
                         {isEdit ? "Modify release details and assignments." : "Add a new release to this application."}
@@ -495,510 +597,703 @@ export function ReleaseSheet({
                     <form
                         id="release-form"
                         onSubmit={form.handleSubmit(onSubmit)}
-                        className="space-y-4 px-4 pt-4"
+                        className="flex flex-col flex-1 min-h-0"
                     >
-                        <Tabs defaultValue="details" className="w-full">
-                            <TabsList className={cn("grid w-full", watchedType === "winget" ? "grid-cols-3" : "grid-cols-4")}>
-                                <TabsTrigger value="details">Details</TabsTrigger>
-                                <TabsTrigger value="requirements">Requirements</TabsTrigger>
-                                {watchedType !== "winget" && <TabsTrigger value="detections">Detections</TabsTrigger>}
-                                <TabsTrigger value="assignments">Assignments</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="details" className="space-y-4 py-4">
-                                <FormField
-                                    control={form.control}
-                                    name="type"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Release Type</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select type" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="winget">Winget</SelectItem>
-                                                    <SelectItem value="win32">Win32</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                        <Tabs defaultValue="details" className="flex flex-col flex-1 w-full min-h-0">
+                            <div className="px-6 pb-4 shrink-0 bg-background z-10 border-b">
+                                <TabsList className={cn("grid w-full", watchedType === "winget" ? "grid-cols-3" : "grid-cols-4")}>
+                                    <TabsTrigger value="details">Details</TabsTrigger>
+                                    <TabsTrigger value="requirements">Requirements</TabsTrigger>
+                                    {watchedType !== "winget" && <TabsTrigger value="detections">Detections</TabsTrigger>}
+                                    <TabsTrigger value="assignments">Assignments</TabsTrigger>
+                                </TabsList>
+                            </div>
 
-                                <FormField
-                                    control={form.control}
-                                    name="wingetId"
-                                    render={({ field }) => (
-                                        <FormItem className={cn({ hidden: watchedType !== "winget" })}>
-                                            <FormLabel>Winget ID</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="e.g. Mozilla.Firefox" {...field} />
-                                            </FormControl>
-                                            <FormDescription>
-                                                The package identifier from winget repository.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                            <div className="flex-1 relative overflow-hidden">
+                                <div className="pointer-events-none absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-background to-transparent z-10" />
 
-                                <FormField
-                                    control={form.control}
-                                    name="installBinary"
-                                    render={({ field }) => (
-                                        <FormItem className={cn({ hidden: watchedType !== "win32" })}>
-                                            <FormLabel>Install Binary</FormLabel>
-                                            <Dropzone
-                                                src={toDropzonePreview(field.value)}
-                                                accept={{ "application/zip": [".zip"] }}
-                                                maxFiles={1}
-                                                maxSize={1024 * 1024 * 5000}
-                                                minSize={1024}
-                                                disabled={isUploadingBinary}
-                                                onDrop={(files) => {
-                                                    const file = files.at(0);
-                                                    if (!file) return;
-                                                    setIsUploadingBinary(true);
-                                                    void (async () => {
-                                                        try {
-                                                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
-                                                            field.onChange(uploaded);
-                                                            toast.success("Installer uploaded");
-                                                        } catch (err: unknown) {
-                                                            const message = err instanceof Error ? err.message : "Unknown error";
-                                                            toast.error(`Failed to upload installer: ${message}`);
-                                                            console.error(err);
-                                                        } finally {
-                                                            setIsUploadingBinary(false);
-                                                        }
-                                                    })();
-                                                }}
-                                            >
-                                                <DropzoneEmptyState />
-                                                <DropzoneContent />
-                                            </Dropzone>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="h-full overflow-y-auto px-6 py-6 pb-12">
+                                    <TabsContent value="details" className="space-y-4 m-0">
+                                        <FormField
+                                            control={form.control}
+                                            name="type"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Release Type</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select type" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="winget">Winget</SelectItem>
+                                                            <SelectItem value="win32">Win32</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
 
-                                <FormField
-                                    control={form.control}
-                                    name="installScript"
-                                    render={({ field }) => (
-                                        <FormItem className={cn({ hidden: watchedType !== "win32" })}>
-                                            <FormLabel>Install Script</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="msiexec /i app.msi /qn" {...field} />
-                                            </FormControl>
-                                            <FormDescription>
-                                                Command to install the application.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="uninstallScript"
-                                    render={({ field }) => (
-                                        <FormItem className={cn({ hidden: watchedType !== "win32" })}>
-                                            <FormLabel>Uninstall Script</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="msiexec /x {GUID} /qn" {...field} />
-                                            </FormControl>
-                                            <FormDescription>
-                                                Command to uninstall the application.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {!isAutoUpdate && (
-                                    <FormField
-                                        control={form.control}
-                                        name="version"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Version</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="1.0.0" {...field} />
-                                                </FormControl>
-                                                <FormDescription>
-                                                    Use specific version number.
-                                                </FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                )}
-                                {!isAutoUpdate && watchedType !== "winget" && (
-                                    <FormField
-                                        control={form.control}
-                                        name="uninstall_previous"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel>Uninstall Previous</FormLabel>
+                                        <FormField
+                                            control={form.control}
+                                            name="wingetId"
+                                            render={({ field }) => (
+                                                <FormItem className={cn({ hidden: watchedType !== "winget" })}>
+                                                    <FormLabel>Winget ID</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="e.g. Mozilla.Firefox" {...field} />
+                                                    </FormControl>
                                                     <FormDescription>
-                                                        Uninstall previous version first.
+                                                        The package identifier from winget repository.
                                                     </FormDescription>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                )}
-                                <FormField
-                                    control={form.control}
-                                    name="disabled"
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                            <div className="space-y-0.5">
-                                                <FormLabel>Disabled</FormLabel>
-                                                <FormDescription>
-                                                    Prevent installation.
-                                                </FormDescription>
-                                            </div>
-                                            <FormControl>
-                                                <Switch
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                            </TabsContent>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
 
-                            <TabsContent value="requirements" className="space-y-6 py-4">
-                                <FormField
-                                    control={form.control}
-                                    name="requirements.requirementScriptBinary"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <div className="flex items-center justify-between">
-                                                <FormLabel>Requirement Script</FormLabel>
-                                                {field.value && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                        onClick={() => {
-                                                            field.onChange(undefined);
-                                                            toast.success("Requirement script removed from form. Save changes to persist.");
+                                        <FormField
+                                            control={form.control}
+                                            name="disabled"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel>Disabled</FormLabel>
+                                                        <FormDescription>
+                                                            Prevent installation.
+                                                        </FormDescription>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        <div className="border-t pt-6 mt-6">
+                                            <h3 className="font-medium text-lg mb-4">Pre-Install Script</h3>
+                                            <FormField
+                                                control={form.control}
+                                                name="preScript.scriptBinary"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <div className="flex items-center justify-between">
+                                                            <FormLabel>Script File</FormLabel>
+                                                            {field.value && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => {
+                                                                        field.onChange(undefined);
+                                                                        toast.success("Pre-Install script removed from form. Save changes to persist.");
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 mr-1" />
+                                                                    Remove Script
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                        <Dropzone
+                                                            src={toDropzonePreview(field.value)}
+                                                            accept={{ "text/plain": [".ps1"] }}
+                                                            maxFiles={1}
+                                                            maxSize={1024 * 1024 * 20}
+                                                            disabled={isUploadingPreScript}
+                                                            onDrop={(files) => {
+                                                                const file = files.at(0);
+                                                                if (!file) return;
+                                                                setIsUploadingPreScript(true);
+                                                                void (async () => {
+                                                                    try {
+                                                                        const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                                                                        field.onChange(uploaded);
+                                                                        toast.success("Pre-Install script uploaded");
+                                                                    } catch (err: unknown) {
+                                                                        const message = err instanceof Error ? err.message : "Unknown error";
+                                                                        toast.error(`Failed to upload pre-install script: ${message}`);
+                                                                        console.error(err);
+                                                                    } finally {
+                                                                        setIsUploadingPreScript(false);
+                                                                    }
+                                                                })();
+                                                            }}
+                                                        >
+                                                            <DropzoneEmptyState />
+                                                            <DropzoneContent />
+                                                        </Dropzone>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className="space-y-4 mt-4">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="preScript.timeout"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Timeout (s)</FormLabel>
+                                                            <FormControl>
+                                                                <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="preScript.runAsSystem"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                            <div className="space-y-0.5">
+                                                                <FormLabel>Run as System</FormLabel>
+                                                            </div>
+                                                            <FormControl>
+                                                                <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="border-t pt-6 mt-6">
+                                            <h3 className="font-medium text-lg mb-4">Post-Install Script</h3>
+                                            <FormField
+                                                control={form.control}
+                                                name="postScript.scriptBinary"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <div className="flex items-center justify-between">
+                                                            <FormLabel>Script File</FormLabel>
+                                                            {field.value && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => {
+                                                                        field.onChange(undefined);
+                                                                        toast.success("Post-Install script removed from form. Save changes to persist.");
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 mr-1" />
+                                                                    Remove Script
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                        <Dropzone
+                                                            src={toDropzonePreview(field.value)}
+                                                            accept={{ "text/plain": [".ps1"] }}
+                                                            maxFiles={1}
+                                                            maxSize={1024 * 1024 * 20}
+                                                            disabled={isUploadingPostScript}
+                                                            onDrop={(files) => {
+                                                                const file = files.at(0);
+                                                                if (!file) return;
+                                                                setIsUploadingPostScript(true);
+                                                                void (async () => {
+                                                                    try {
+                                                                        const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                                                                        field.onChange(uploaded);
+                                                                        toast.success("Post-Install script uploaded");
+                                                                    } catch (err: unknown) {
+                                                                        const message = err instanceof Error ? err.message : "Unknown error";
+                                                                        toast.error(`Failed to upload post-install script: ${message}`);
+                                                                        console.error(err);
+                                                                    } finally {
+                                                                        setIsUploadingPostScript(false);
+                                                                    }
+                                                                })();
+                                                            }}
+                                                        >
+                                                            <DropzoneEmptyState />
+                                                            <DropzoneContent />
+                                                        </Dropzone>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className="space-y-4 mt-4">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="postScript.timeout"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Timeout (s)</FormLabel>
+                                                            <FormControl>
+                                                                <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="postScript.runAsSystem"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                            <div className="space-y-0.5">
+                                                                <FormLabel>Run as System</FormLabel>
+                                                            </div>
+                                                            <FormControl>
+                                                                <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="border-t pt-6 mt-6">
+                                            <h3 className="font-medium text-lg mb-4">Installation</h3>
+                                        </div>
+                                        <FormField
+                                            control={form.control}
+                                            name="installBinary"
+                                            render={({ field }) => (
+                                                <FormItem className={cn({ hidden: watchedType !== "win32" })}>
+                                                    <FormLabel>Install Binary</FormLabel>
+                                                    <Dropzone
+                                                        src={toDropzonePreview(field.value)}
+                                                        accept={{ "application/zip": [".zip"] }}
+                                                        maxFiles={1}
+                                                        maxSize={1024 * 1024 * 5000}
+                                                        minSize={1024}
+                                                        disabled={isUploadingBinary}
+                                                        onDrop={(files) => {
+                                                            const file = files.at(0);
+                                                            if (!file) return;
+                                                            setIsUploadingBinary(true);
+                                                            void (async () => {
+                                                                try {
+                                                                    const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                                                                    field.onChange(uploaded);
+                                                                    toast.success("Installer uploaded");
+                                                                } catch (err: unknown) {
+                                                                    const message = err instanceof Error ? err.message : "Unknown error";
+                                                                    toast.error(`Failed to upload installer: ${message}`);
+                                                                    console.error(err);
+                                                                } finally {
+                                                                    setIsUploadingBinary(false);
+                                                                }
+                                                            })();
                                                         }}
                                                     >
-                                                        <Trash2 className="h-4 w-4 mr-1" />
-                                                        Remove Script
-                                                    </Button>
+                                                        <DropzoneEmptyState />
+                                                        <DropzoneContent />
+                                                    </Dropzone>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        <FormField
+                                            control={form.control}
+                                            name="installScript"
+                                            render={({ field }) => (
+                                                <FormItem className={cn({ hidden: watchedType !== "win32" })}>
+                                                    <FormLabel>Install Script</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="msiexec /i app.msi /qn" {...field} />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Command to install the application.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        <FormField
+                                            control={form.control}
+                                            name="uninstallScript"
+                                            render={({ field }) => (
+                                                <FormItem className={cn({ hidden: watchedType !== "win32" })}>
+                                                    <FormLabel>Uninstall Script</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="msiexec /x {GUID} /qn" {...field} />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Command to uninstall the application.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {!isAutoUpdate && (
+                                            <FormField
+                                                control={form.control}
+                                                name="version"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Version</FormLabel>
+                                                        <FormControl>
+                                                            <Input placeholder="1.0.0" {...field} />
+                                                        </FormControl>
+                                                        <FormDescription>
+                                                            Use specific version number.
+                                                        </FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
+                                        {!isAutoUpdate && watchedType !== "winget" && (
+                                            <FormField
+                                                control={form.control}
+                                                name="uninstall_previous"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                        <div className="space-y-0.5">
+                                                            <FormLabel>Uninstall Previous</FormLabel>
+                                                            <FormDescription>
+                                                                Uninstall previous version first.
+                                                            </FormDescription>
+                                                        </div>
+                                                        <FormControl>
+                                                            <Switch
+                                                                checked={field.value}
+                                                                onCheckedChange={field.onChange}
+                                                            />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
+                                    </TabsContent>
+
+                                    <TabsContent value="requirements" className="space-y-6 m-0">
+                                        <FormField
+                                            control={form.control}
+                                            name="requirements.requirementScriptBinary"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <div className="flex items-center justify-between">
+                                                        <FormLabel>Requirement Script</FormLabel>
+                                                        {field.value && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                onClick={() => {
+                                                                    field.onChange(undefined);
+                                                                    toast.success("Requirement script removed from form. Save changes to persist.");
+                                                                }}
+                                                            >
+                                                                <Trash2 className="h-4 w-4 mr-1" />
+                                                                Remove Script
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    <Dropzone
+                                                        src={toDropzonePreview(field.value)}
+                                                        accept={{ "text/plain": [".ps1"] }}
+                                                        maxFiles={1}
+                                                        maxSize={1024 * 1024 * 20}
+                                                        disabled={isUploadingRequirement}
+                                                        onDrop={(files) => {
+                                                            const file = files.at(0);
+                                                            if (!file) return;
+                                                            setIsUploadingRequirement(true);
+                                                            void (async () => {
+                                                                try {
+                                                                    const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                                                                    field.onChange(uploaded);
+                                                                    toast.success("Requirement script uploaded");
+                                                                } catch (err: unknown) {
+                                                                    const message = err instanceof Error ? err.message : "Unknown error";
+                                                                    toast.error(`Failed to upload requirement script: ${message}`);
+                                                                    console.error(err);
+                                                                } finally {
+                                                                    setIsUploadingRequirement(false);
+                                                                }
+                                                            })();
+                                                        }}
+                                                    >
+                                                        <DropzoneEmptyState />
+                                                        <DropzoneContent />
+                                                    </Dropzone>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        <div className="space-y-4">
+                                            <FormField
+                                                control={form.control}
+                                                name="requirements.timeout"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Timeout (s)</FormLabel>
+                                                        <FormControl>
+                                                            <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+
+                                            <FormField
+                                                control={form.control}
+                                                name="requirements.runAsSystem"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                        <div className="space-y-0.5">
+                                                            <FormLabel>Run as System</FormLabel>
+                                                        </div>
+                                                        <FormControl>
+                                                            <Switch
+                                                                checked={field.value}
+                                                                onCheckedChange={field.onChange}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
+
+                                    </TabsContent>
+
+                                    <TabsContent value="detections" className="space-y-6 m-0">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Detection Rules</h3>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setEditingDetectionIndex(null);
+                                                        popupForm.reset(DEFAULT_DETECTION_VALUES);
+                                                        setIsDetectionSheetOpen(true);
+                                                    }}
+                                                >
+                                                    <Plus className="h-4 w-4 mr-1" /> Add
+                                                </Button>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                {detectionsFields.map((field, index) => (
+                                                    <Card key={field.id} className="border-border/60">
+                                                        <CardContent className="p-3 flex items-center justify-between">
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Badge variant="outline" className="capitalize">{field.type}</Badge>
+                                                                    <span className="font-medium text-sm truncate block">
+                                                                        {field.type === "file" ? field.path : field.registryKey}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-xs text-muted-foreground mt-1 truncate">
+                                                                    {field.type === "file" ? field.fileType : field.registryType}
+                                                                    {field.fileTypeValue || field.registryTypeValue ? `: ${field.fileTypeValue || field.registryTypeValue}` : ""}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 shrink-0 ml-2">
+                                                                <Button type="button" variant="ghost" size="icon" onClick={() => handleEditDetection(index)}>
+                                                                    <Pencil className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button type="button" variant="ghost" size="icon" onClick={() => removeDetection(index)}>
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                                {detectionsFields.length === 0 && (
+                                                    <div className="text-sm text-muted-foreground text-center py-6 border rounded-md border-dashed">
+                                                        No detection rules.
+                                                    </div>
                                                 )}
                                             </div>
-                                            <Dropzone
-                                                src={toDropzonePreview(field.value)}
-                                                accept={{ "text/plain": [".ps1"] }}
-                                                maxFiles={1}
-                                                maxSize={1024 * 1024 * 20}
-                                                disabled={isUploadingRequirement}
-                                                onDrop={(files) => {
-                                                    const file = files.at(0);
-                                                    if (!file) return;
-                                                    setIsUploadingRequirement(true);
-                                                    void (async () => {
-                                                        try {
-                                                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
-                                                            field.onChange(uploaded);
-                                                            toast.success("Requirement script uploaded");
-                                                        } catch (err: unknown) {
-                                                            const message = err instanceof Error ? err.message : "Unknown error";
-                                                            toast.error(`Failed to upload requirement script: ${message}`);
-                                                            console.error(err);
-                                                        } finally {
-                                                            setIsUploadingRequirement(false);
-                                                        }
-                                                    })();
-                                                }}
-                                            >
-                                                <DropzoneEmptyState />
-                                                <DropzoneContent />
-                                            </Dropzone>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="space-y-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="requirements.timeout"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Timeout (s)</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="requirements.runAsSystem"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel>Run as System</FormLabel>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </TabsContent>
-
-                            <TabsContent value="detections" className="space-y-6 py-4">
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Detection Rules</h3>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                                setEditingDetectionIndex(null);
-                                                popupForm.reset(DEFAULT_DETECTION_VALUES);
-                                                setIsDetectionSheetOpen(true);
-                                            }}
-                                        >
-                                            <Plus className="h-4 w-4 mr-1" /> Add
-                                        </Button>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        {detectionsFields.map((field, index) => (
-                                            <Card key={field.id} className="border-border/60">
-                                                <CardContent className="p-3 flex items-center justify-between">
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="outline" className="capitalize">{field.type}</Badge>
-                                                            <span className="font-medium text-sm truncate block">
-                                                                {field.type === "file" ? field.path : field.registryKey}
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-xs text-muted-foreground mt-1 truncate">
-                                                            {field.type === "file" ? field.fileType : field.registryType}
-                                                            {field.fileTypeValue || field.registryTypeValue ? `: ${field.fileTypeValue || field.registryTypeValue}` : ""}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 shrink-0 ml-2">
-                                                        <Button type="button" variant="ghost" size="icon" onClick={() => handleEditDetection(index)}>
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeDetection(index)}>
-                                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                                        </Button>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        ))}
-                                        {detectionsFields.length === 0 && (
-                                            <div className="text-sm text-muted-foreground text-center py-6 border rounded-md border-dashed">
-                                                No detection rules.
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </TabsContent>
-                            <TabsContent value="assignments" className="space-y-6 py-4">
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Install Assignments</h3>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => appendInstall({ groupId: "", groupType: "static", mode: "include" })}
-                                        >
-                                            <Plus className="h-4 w-4 mr-1" /> Add
-                                        </Button>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        {installFields.map((field, index) => (
-                                            <div key={field.id} className="flex gap-2 items-center">
-                                                <FormField
-                                                    control={form.control}
-                                                    name={`assignments.installGroups.${index}.groupId`}
-                                                    render={({ field }) => (
-                                                        <FormItem className="flex-1">
-                                                            <Select
-                                                                onValueChange={(val) => {
-                                                                    field.onChange(val);
-                                                                    const g = groups?.find((x) => x.id === val);
-                                                                    if (g) {
-                                                                        form.setValue(`assignments.installGroups.${index}.groupType`, g.type);
-                                                                    }
-                                                                }}
-                                                                value={field.value}
-                                                            >
-                                                                <FormControl>
-                                                                    <SelectTrigger>
-                                                                        <SelectValue placeholder="Select group" />
-                                                                    </SelectTrigger>
-                                                                </FormControl>
-                                                                <SelectContent>
-                                                                    {groups?.map((g) => (
-                                                                        <SelectItem key={g.id} value={g.id}>
-                                                                            <span className="flex items-center gap-2">
-                                                                                {g.displayName}
-                                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${g.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                                                                                    {g.type}
-                                                                                </span>
-                                                                            </span>
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name={`assignments.installGroups.${index}.mode`}
-                                                    render={({ field }) => (
-                                                        <FormItem className="w-24">
-                                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                                <FormControl>
-                                                                    <SelectTrigger>
-                                                                        <SelectValue />
-                                                                    </SelectTrigger>
-                                                                </FormControl>
-                                                                <SelectContent>
-                                                                    <SelectItem value="include">Include</SelectItem>
-                                                                    <SelectItem value="exclude">Exclude</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <Button type="button" variant="ghost" size="icon" onClick={() => removeInstall(index)} className="shrink-0">
-                                                    <X className="h-4 w-4" />
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent value="assignments" className="space-y-6 m-0">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Install Assignments</h3>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => appendInstall({ groupId: "", groupType: "static", mode: "include" })}
+                                                >
+                                                    <Plus className="h-4 w-4 mr-1" /> Add
                                                 </Button>
                                             </div>
-                                        ))}
-                                        {installFields.length === 0 && (
-                                            <div className="text-sm text-muted-foreground text-center py-2 border rounded-md border-dashed">
-                                                No install assignments.
+
+                                            <div className="space-y-2">
+                                                {installFields.map((field, index) => (
+                                                    <div key={field.id} className="flex gap-2 items-center">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`assignments.installGroups.${index}.groupId`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="flex-1">
+                                                                    <Select
+                                                                        onValueChange={(val) => {
+                                                                            field.onChange(val);
+                                                                            const g = groups?.find((x) => x.id === val);
+                                                                            if (g) {
+                                                                                form.setValue(`assignments.installGroups.${index}.groupType`, g.type);
+                                                                            }
+                                                                        }}
+                                                                        value={field.value}
+                                                                    >
+                                                                        <FormControl>
+                                                                            <SelectTrigger>
+                                                                                <SelectValue placeholder="Select group" />
+                                                                            </SelectTrigger>
+                                                                        </FormControl>
+                                                                        <SelectContent>
+                                                                            {groups?.map((g) => (
+                                                                                <SelectItem key={g.id} value={g.id}>
+                                                                                    <span className="flex items-center gap-2">
+                                                                                        {g.displayName}
+                                                                                        <span className={`text-xs px-1.5 py-0.5 rounded ${g.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                                                            {g.type}
+                                                                                        </span>
+                                                                                    </span>
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`assignments.installGroups.${index}.mode`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="w-24">
+                                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                                        <FormControl>
+                                                                            <SelectTrigger>
+                                                                                <SelectValue />
+                                                                            </SelectTrigger>
+                                                                        </FormControl>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="include">Include</SelectItem>
+                                                                            <SelectItem value="exclude">Exclude</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeInstall(index)} className="shrink-0">
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                {installFields.length === 0 && (
+                                                    <div className="text-sm text-muted-foreground text-center py-2 border rounded-md border-dashed">
+                                                        No install assignments.
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                </div>
+                                        </div>
 
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Uninstall Assignments</h3>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => appendUninstall({ groupId: "", groupType: "static", mode: "include" })}
-                                        >
-                                            <Plus className="h-4 w-4 mr-1" /> Add
-                                        </Button>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        {uninstallFields.map((field, index) => (
-                                            <div key={field.id} className="flex gap-2 items-center">
-                                                <FormField
-                                                    control={form.control}
-                                                    name={`assignments.uninstallGroups.${index}.groupId`}
-                                                    render={({ field }) => (
-                                                        <FormItem className="flex-1">
-                                                            <Select
-                                                                onValueChange={(val) => {
-                                                                    field.onChange(val);
-                                                                    const g = groups?.find((x) => x.id === val);
-                                                                    if (g) {
-                                                                        form.setValue(`assignments.uninstallGroups.${index}.groupType`, g.type);
-                                                                    }
-                                                                }}
-                                                                value={field.value}
-                                                            >
-                                                                <FormControl>
-                                                                    <SelectTrigger>
-                                                                        <SelectValue placeholder="Select group" />
-                                                                    </SelectTrigger>
-                                                                </FormControl>
-                                                                <SelectContent>
-                                                                    {groups?.map((g) => (
-                                                                        <SelectItem key={g.id} value={g.id}>
-                                                                            <span className="flex items-center gap-2">
-                                                                                {g.displayName}
-                                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${g.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                                                                                    {g.type}
-                                                                                </span>
-                                                                            </span>
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name={`assignments.uninstallGroups.${index}.mode`}
-                                                    render={({ field }) => (
-                                                        <FormItem className="w-24">
-                                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                                <FormControl>
-                                                                    <SelectTrigger>
-                                                                        <SelectValue />
-                                                                    </SelectTrigger>
-                                                                </FormControl>
-                                                                <SelectContent>
-                                                                    <SelectItem value="include">Include</SelectItem>
-                                                                    <SelectItem value="exclude">Exclude</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <Button type="button" variant="ghost" size="icon" onClick={() => removeUninstall(index)} className="shrink-0">
-                                                    <X className="h-4 w-4" />
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Uninstall Assignments</h3>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => appendUninstall({ groupId: "", groupType: "static", mode: "include" })}
+                                                >
+                                                    <Plus className="h-4 w-4 mr-1" /> Add
                                                 </Button>
                                             </div>
-                                        ))}
-                                        {uninstallFields.length === 0 && (
-                                            <div className="text-sm text-muted-foreground text-center py-2 border rounded-md border-dashed">
-                                                No uninstall assignments.
+
+                                            <div className="space-y-2">
+                                                {uninstallFields.map((field, index) => (
+                                                    <div key={field.id} className="flex gap-2 items-center">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`assignments.uninstallGroups.${index}.groupId`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="flex-1">
+                                                                    <Select
+                                                                        onValueChange={(val) => {
+                                                                            field.onChange(val);
+                                                                            const g = groups?.find((x) => x.id === val);
+                                                                            if (g) {
+                                                                                form.setValue(`assignments.uninstallGroups.${index}.groupType`, g.type);
+                                                                            }
+                                                                        }}
+                                                                        value={field.value}
+                                                                    >
+                                                                        <FormControl>
+                                                                            <SelectTrigger>
+                                                                                <SelectValue placeholder="Select group" />
+                                                                            </SelectTrigger>
+                                                                        </FormControl>
+                                                                        <SelectContent>
+                                                                            {groups?.map((g) => (
+                                                                                <SelectItem key={g.id} value={g.id}>
+                                                                                    <span className="flex items-center gap-2">
+                                                                                        {g.displayName}
+                                                                                        <span className={`text-xs px-1.5 py-0.5 rounded ${g.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                                                            {g.type}
+                                                                                        </span>
+                                                                                    </span>
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`assignments.uninstallGroups.${index}.mode`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="w-24">
+                                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                                        <FormControl>
+                                                                            <SelectTrigger>
+                                                                                <SelectValue />
+                                                                            </SelectTrigger>
+                                                                        </FormControl>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="include">Include</SelectItem>
+                                                                            <SelectItem value="exclude">Exclude</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeUninstall(index)} className="shrink-0">
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                {uninstallFields.length === 0 && (
+                                                    <div className="text-sm text-muted-foreground text-center py-2 border rounded-md border-dashed">
+                                                        No uninstall assignments.
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    </TabsContent>
                                 </div>
-                            </TabsContent>
+                                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-background to-transparent z-10" />
+                            </div>
                         </Tabs>
                     </form>
                 </Form>
-                <SheetFooter>
+                <SheetFooter className="px-6 py-4 shrink-0 border-t bg-background z-10">
                     <Button
                         type="submit"
                         form="release-form"
