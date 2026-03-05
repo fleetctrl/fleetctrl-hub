@@ -4,8 +4,9 @@
  * Handles static computer group management.
  */
 
-import { mutation, query } from "./_generated/server";
+
 import { v } from "convex/values";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 
 // ========================================
 // Public Queries
@@ -14,7 +15,7 @@ import { v } from "convex/values";
 /**
  * Get all static groups with member counts.
  */
-export const list = query({
+export const list = withAuthQuery({
     handler: async (ctx) => {
         const groups = await ctx.db.query("computer_groups").collect();
 
@@ -40,7 +41,7 @@ export const list = query({
 /**
  * Get table data for admin UI.
  */
-export const getTableData = query({
+export const getTableData = withAuthQuery({
     handler: async (ctx) => {
         const groups = await ctx.db.query("computer_groups").collect();
 
@@ -78,7 +79,7 @@ export const getTableData = query({
 /**
  * Get members of a static group.
  */
-export const getMembers = query({
+export const getMembers = withAuthQuery({
     args: { groupId: v.id("computer_groups") },
     handler: async (ctx, { groupId }) => {
         const members = await ctx.db
@@ -106,7 +107,7 @@ export const getMembers = query({
 /**
  * Get all static groups for assignment dropdowns.
  */
-export const getAllForAssignment = query({
+export const getAllForAssignment = withAuthQuery({
     handler: async (ctx) => {
         const groups = await ctx.db.query("computer_groups").collect();
 
@@ -120,7 +121,7 @@ export const getAllForAssignment = query({
 /**
  * Get computers for group assignment.
  */
-export const getComputersForGroups = query({
+export const getComputersForGroups = withAuthQuery({
     handler: async (ctx) => {
         const computers = await ctx.db.query("computers").collect();
 
@@ -140,7 +141,7 @@ export const getComputersForGroups = query({
 /**
  * Create a new static group.
  */
-export const create = mutation({
+export const create = withAuthMutation({
     args: {
         displayName: v.string(),
         description: v.optional(v.string()),
@@ -179,7 +180,7 @@ export const create = mutation({
 /**
  * Update a static group.
  */
-export const edit = mutation({
+export const edit = withAuthMutation({
     args: {
         id: v.id("computer_groups"),
         displayName: v.optional(v.string()),
@@ -241,7 +242,7 @@ export const edit = mutation({
 /**
  * Delete a static group.
  */
-export const remove = mutation({
+export const remove = withAuthMutation({
     args: { id: v.id("computer_groups") },
     handler: async (ctx, { id }) => {
         // Remove all members first

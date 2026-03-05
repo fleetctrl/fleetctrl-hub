@@ -4,7 +4,8 @@
  * Handles app and release queries for computers.
  */
 
-import { query, action, internalQuery } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
@@ -16,7 +17,7 @@ import { Id } from "./_generated/dataModel";
 /**
  * Get apps assigned to a computer through group memberships.
  */
-export const getAssigned = query({
+export const getAssigned = internalQuery({
     args: { computerId: v.string() },
     handler: async (ctx, { computerId }) => {
         // 1. Get static group memberships
@@ -91,6 +92,7 @@ export const getAssigned = query({
         const wingetReleases = await ctx.db.query("winget_releases").collect();
         const detectionRules = await ctx.db.query("detection_rules").collect();
         const requirements = await ctx.db.query("release_requirements").collect();
+        const release_scripts = await ctx.db.query("release_scripts").collect();
 
         // 9. Build response
         const result = apps.map((app) => {
@@ -157,6 +159,9 @@ export const getAssigned = query({
                             run_as_system: r.run_as_system,
                             hash: r.hash,
                         })),
+                        scripts: release_scripts.filter(
+                            (s) => s.release_id.toString() === release._id.toString()
+                        ),
                     };
                 }),
             };
@@ -173,12 +178,12 @@ export const getAssigned = query({
 /**
  * Get download URL for a release binary.
  */
-export const getDownloadUrl = action({
+export const getDownloadUrl = internalAction({
     args: {
         computerId: v.string(),
         releaseId: v.string(),
     },
-    handler: async (ctx, { computerId, releaseId }): Promise<string | null> => {
+    handler: async (ctx, { releaseId }): Promise<string | null> => {
         // 1. Verify assignment (simplified - in production, check group membership)
         const release = await ctx.runQuery(internal.apps.getReleaseById, {
             releaseId,
@@ -209,7 +214,7 @@ export const getDownloadUrl = action({
 /**
  * Get download URL for a requirement binary.
  */
-export const getRequirementDownloadUrl = action({
+export const getRequirementDownloadUrl = internalAction({
     args: {
         computerId: v.string(),
         requirementId: v.string(),
@@ -227,6 +232,33 @@ export const getRequirementDownloadUrl = action({
         // 2. Generate signed URL
         const url = await ctx.storage.getUrl(
             requirement.storage_id as Id<"_storage">
+        );
+
+        return url;
+    },
+});
+
+/**
+ * Get download URL for a pre/post script binary.
+ */
+export const getScriptDownloadUrl = internalAction({
+    args: {
+        computerId: v.string(),
+        scriptId: v.string(),
+    },
+    handler: async (ctx, { scriptId }): Promise<string | null> => {
+        // 1. Get script
+        const script = await ctx.runQuery(internal.apps.getScriptById, {
+            scriptId,
+        });
+
+        if (!script || !script.storage_id) {
+            return null;
+        }
+
+        // 2. Generate signed URL
+        const url = await ctx.storage.getUrl(
+            script.storage_id as Id<"_storage">
         );
 
         return url;
@@ -263,16 +295,96 @@ export const getRequirementById = internalQuery({
     },
 });
 
+export const getScriptById = internalQuery({
+    args: { scriptId: v.string() },
+    handler: async (ctx, { scriptId }) => {
+        const scripts = await ctx.db.query("release_scripts").collect();
+        return scripts.find((s) => s._id.toString() === scriptId) || null;
+    },
+});
+
+export const updateInstallState = internalMutation({
+    args: {
+        computerId: v.string(),
+        releaseId: v.string(),
+        status: v.union(
+            v.literal("PENDING"),
+            v.literal("INSTALLING"),
+            v.literal("INSTALLED"),
+            v.literal("ERROR"),
+            v.literal("UNINSTALLED")
+        ),
+        installedAt: v.optional(v.number()),
+        lastSeenAt: v.optional(v.number()),
+    },
+    handler: async (ctx, { computerId, releaseId, status, installedAt, lastSeenAt }) => {
+        const computer = await ctx.db.get(computerId as Id<"computers">);
+        if (!computer) throw new Error("Computer not found");
+
+        const release = await ctx.db.get(releaseId as Id<"releases">);
+        if (!release) throw new Error("Release not found");
+
+        const existing = await ctx.db
+            .query("computer_release_installs")
+            .withIndex("by_computer_release", (q) =>
+                q.eq("computer_id", computer._id).eq("release_id", release._id)
+            )
+            .first();
+
+        const now = Date.now();
+        const nextInstalledAt =
+            status === "INSTALLED"
+                ? installedAt ?? existing?.installed_at ?? now
+                : installedAt ?? existing?.installed_at;
+
+        const updatePayload = {
+            status,
+            status_updated_at: now,
+            last_seen_at: lastSeenAt ?? now,
+            ...(nextInstalledAt !== undefined
+                ? { installed_at: nextInstalledAt }
+                : {}),
+        };
+
+        if (existing) {
+            await ctx.db.patch(existing._id, updatePayload);
+        } else {
+            await ctx.db.insert("computer_release_installs", {
+                computer_id: computer._id,
+                release_id: release._id,
+                ...updatePayload,
+            });
+        }
+
+        return { success: true };
+    },
+});
+
 // ========================================
 // Admin Queries
 // ========================================
 
-import { mutation } from "./_generated/server";
+const INSTALL_STATUSES = [
+    "PENDING",
+    "INSTALLING",
+    "INSTALLED",
+    "ERROR",
+    "UNINSTALLED",
+] as const;
+
+type InstallStatus = (typeof INSTALL_STATUSES)[number];
+
+const createStatusSummary = () =>
+    INSTALL_STATUSES.reduce(
+        (acc, status) => ({ ...acc, [status]: 0 }),
+        {} as Record<InstallStatus, number>
+    );
+
 
 /**
  * Get table data for admin UI.
  */
-export const getTableData = query({
+export const getTableData = withAuthQuery({
     handler: async (ctx) => {
         const apps = await ctx.db.query("apps").collect();
 
@@ -314,6 +426,20 @@ export const getTableData = query({
                     }
                 }
 
+                const installedComputerIds = new Set<string>();
+                for (const release of releases) {
+                    const installs = await ctx.db
+                        .query("computer_release_installs")
+                        .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
+                        .collect();
+
+                    for (const install of installs) {
+                        if (install.status === "INSTALLED") {
+                            installedComputerIds.add(install.computer_id.toString());
+                        }
+                    }
+                }
+
                 // Deduplicate groups
                 const uniqueGroups = Array.from(
                     new Map(groups.map((g) => [g.id, g])).values()
@@ -326,6 +452,7 @@ export const getTableData = query({
                     updatedAt: app._creationTime,
                     groups: uniqueGroups,
                     groupsCount: uniqueGroups.length,
+                    installedCount: installedComputerIds.size,
                 };
             })
         );
@@ -335,7 +462,7 @@ export const getTableData = query({
 /**
  * Get app by ID for admin.
  */
-export const getById = query({
+export const getById = withAuthQuery({
     args: { id: v.id("apps") },
     handler: async (ctx, { id }) => {
         const app = await ctx.db.get(id);
@@ -369,7 +496,7 @@ export const getById = query({
 /**
  * Delete an app.
  */
-export const remove = mutation({
+export const remove = withAuthMutation({
     args: { id: v.id("apps") },
     handler: async (ctx, { id }) => {
         // Delete releases first
@@ -422,7 +549,7 @@ export const remove = mutation({
 /**
  * Update app details.
  */
-export const update = mutation({
+export const update = withAuthMutation({
     args: {
         id: v.id("apps"),
         data: v.object({
@@ -448,7 +575,7 @@ export const update = mutation({
 /**
  * Get releases for an app.
  */
-export const getReleases = query({
+export const getReleases = withAuthQuery({
     args: { appId: v.id("apps") },
     handler: async (ctx, { appId }) => {
         const releases = await ctx.db
@@ -511,6 +638,11 @@ export const getReleases = query({
                     .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
                     .collect();
 
+                const release_scripts = await ctx.db
+                    .query("release_scripts")
+                    .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
+                    .collect();
+
                 return {
                     id: release._id,
                     version: release.version,
@@ -526,6 +658,7 @@ export const getReleases = query({
                     win32_releases,
                     winget_releases,
                     release_requirements,
+                    release_scripts,
                 };
             })
         );
@@ -533,9 +666,104 @@ export const getReleases = query({
 });
 
 /**
+ * Get install status per device for all releases of a given app.
+ */
+export const getDeviceInstallStatus = withAuthQuery({
+    args: { appId: v.id("apps") },
+    handler: async (ctx, { appId }) => {
+        const releases = await ctx.db
+            .query("releases")
+            .withIndex("by_app_id", (q) => q.eq("app_id", appId))
+            .collect();
+
+        const statusSummary = createStatusSummary();
+
+        if (releases.length === 0) {
+            return {
+                total: 0,
+                byStatus: statusSummary,
+                items: [] as Array<{
+                    id: string;
+                    computerId: string;
+                    computerName: string;
+                    releaseId: string;
+                    releaseVersion: string;
+                    status: InstallStatus;
+                    installedAt?: number;
+                    lastSeenAt?: number;
+                    statusUpdatedAt?: number;
+                }>,
+            };
+        }
+
+        const releaseMap = new Map(releases.map((release) => [release._id.toString(), release]));
+        const releaseInstalls = await Promise.all(
+            releases.map((release) =>
+                ctx.db
+                    .query("computer_release_installs")
+                    .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
+                    .collect()
+            )
+        );
+
+        const installs = releaseInstalls.flat();
+        const computerIds = Array.from(
+            new Set(installs.map((install) => install.computer_id.toString()))
+        );
+
+        const computers = await Promise.all(
+            computerIds.map((computerId) =>
+                ctx.db.get(computerId as Id<"computers">)
+            )
+        );
+
+        const computersById = new Map(
+            computers
+                .filter((computer): computer is NonNullable<typeof computer> => !!computer)
+                .map((computer) => [computer._id.toString(), computer])
+        );
+
+        const items = installs
+            .map((install) => {
+                const release = releaseMap.get(install.release_id.toString());
+                if (!release) return null;
+
+                const computer = computersById.get(install.computer_id.toString());
+                return {
+                    id: install._id.toString(),
+                    computerId: install.computer_id.toString(),
+                    computerName: computer?.name ?? "Unknown computer",
+                    releaseId: release._id.toString(),
+                    releaseVersion: release.version || "latest",
+                    status: install.status as InstallStatus,
+                    installedAt: install.installed_at,
+                    lastSeenAt: install.last_seen_at,
+                    statusUpdatedAt: install.status_updated_at,
+                };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
+            .sort((a, b) => {
+                const aTs = a.statusUpdatedAt ?? a.lastSeenAt ?? 0;
+                const bTs = b.statusUpdatedAt ?? b.lastSeenAt ?? 0;
+                return bTs - aTs;
+            });
+
+        for (const item of items) {
+            statusSummary[item.status] += 1;
+        }
+
+        return {
+            total: items.length,
+            byStatus: statusSummary,
+            items,
+        };
+    },
+});
+
+/**
  * Delete a release.
  */
-export const deleteRelease = mutation({
+export const deleteRelease = withAuthMutation({
     args: { id: v.id("releases") },
     handler: async (ctx, { id }) => {
         // Delete release assignments
@@ -577,7 +805,7 @@ export const deleteRelease = mutation({
 /**
  * Generate an upload URL for app binaries.
  */
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = withAuthMutation({
     args: {},
     handler: async (ctx) => {
         return await ctx.storage.generateUploadUrl();
@@ -587,7 +815,7 @@ export const generateUploadUrl = mutation({
 /**
  * Create a new application and its initial release.
  */
-export const create = mutation({
+export const create = withAuthMutation({
     args: {
         appInfo: v.object({
             name: v.string(),
@@ -633,6 +861,30 @@ export const create = mutation({
                 registryTypeValue: v.optional(v.string()),
             })),
         }),
+        preScript: v.optional(v.union(v.object({
+            scriptBinary: v.optional(v.object({
+                storageId: v.id("_storage"),
+                name: v.string(),
+                size: v.number(),
+                hash: v.string(),
+                type: v.string(),
+            })),
+            timeout: v.optional(v.number()),
+            runAsSystem: v.optional(v.boolean()),
+            engine: v.union(v.literal("powershell")),
+        }), v.null())),
+        postScript: v.optional(v.union(v.object({
+            scriptBinary: v.optional(v.object({
+                storageId: v.id("_storage"),
+                name: v.string(),
+                size: v.number(),
+                hash: v.string(),
+                type: v.string(),
+            })),
+            timeout: v.optional(v.number()),
+            runAsSystem: v.optional(v.boolean()),
+            engine: v.union(v.literal("powershell")),
+        }), v.null())),
         assignment: v.object({
             installGroups: v.array(v.object({
                 groupId: v.string(),
@@ -712,6 +964,35 @@ export const create = mutation({
             });
         }
 
+        // 6. Create Pre/Post Scripts
+        if (args.preScript && args.preScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "pre",
+                engine: args.preScript.engine || "powershell",
+                timeout_seconds: args.preScript.timeout || 60,
+                run_as_system: args.preScript.runAsSystem || false,
+                script_name: args.preScript.scriptBinary.name,
+                storage_id: args.preScript.scriptBinary.storageId,
+                hash: args.preScript.scriptBinary.hash,
+                byte_size: args.preScript.scriptBinary.size,
+            });
+        }
+
+        if (args.postScript && args.postScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "post",
+                engine: args.postScript.engine || "powershell",
+                timeout_seconds: args.postScript.timeout || 60,
+                run_as_system: args.postScript.runAsSystem || false,
+                script_name: args.postScript.scriptBinary.name,
+                storage_id: args.postScript.scriptBinary.storageId,
+                hash: args.postScript.scriptBinary.hash,
+                byte_size: args.postScript.scriptBinary.size,
+            });
+        }
+
         // 6. Assignments
         const handleAssignment = async (groups: typeof args.assignment.installGroups, action: "install" | "uninstall") => {
             for (const g of groups) {
@@ -767,6 +1048,30 @@ const releaseArgs = {
         timeout: v.optional(v.number()),
         runAsSystem: v.optional(v.boolean()),
     }), v.null())),
+    preScript: v.optional(v.union(v.object({
+        scriptBinary: v.optional(v.object({
+            storageId: v.id("_storage"),
+            name: v.string(),
+            size: v.number(),
+            hash: v.string(),
+            type: v.string(),
+        })),
+        timeout: v.optional(v.number()),
+        runAsSystem: v.optional(v.boolean()),
+        engine: v.union(v.literal("powershell")),
+    }), v.null())),
+    postScript: v.optional(v.union(v.object({
+        scriptBinary: v.optional(v.object({
+            storageId: v.id("_storage"),
+            name: v.string(),
+            size: v.number(),
+            hash: v.string(),
+            type: v.string(),
+        })),
+        timeout: v.optional(v.number()),
+        runAsSystem: v.optional(v.boolean()),
+        engine: v.union(v.literal("powershell")),
+    }), v.null())),
     assignments: v.object({
         installGroups: v.array(v.object({
             groupId: v.string(),
@@ -781,7 +1086,7 @@ const releaseArgs = {
     }),
 };
 
-export const createRelease = mutation({
+export const createRelease = withAuthMutation({
     args: {
         appId: v.id("apps"),
         ...releaseArgs,
@@ -844,7 +1149,36 @@ export const createRelease = mutation({
             });
         }
 
-        // 5. Assignments
+        // 5. Pre/Post Scripts
+        if (args.preScript && args.preScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "pre",
+                engine: args.preScript.engine || "powershell",
+                timeout_seconds: args.preScript.timeout || 60,
+                run_as_system: args.preScript.runAsSystem || false,
+                script_name: args.preScript.scriptBinary.name,
+                storage_id: args.preScript.scriptBinary.storageId,
+                hash: args.preScript.scriptBinary.hash,
+                byte_size: args.preScript.scriptBinary.size,
+            });
+        }
+
+        if (args.postScript && args.postScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: releaseId,
+                phase: "post",
+                engine: args.postScript.engine || "powershell",
+                timeout_seconds: args.postScript.timeout || 60,
+                run_as_system: args.postScript.runAsSystem || false,
+                script_name: args.postScript.scriptBinary.name,
+                storage_id: args.postScript.scriptBinary.storageId,
+                hash: args.postScript.scriptBinary.hash,
+                byte_size: args.postScript.scriptBinary.size,
+            });
+        }
+
+        // 6. Assignments
         const handleAssignment = async (groups: typeof args.assignments.installGroups, action: "install" | "uninstall") => {
             for (const g of groups) {
                 if (g.groupType === "static") {
@@ -872,7 +1206,7 @@ export const createRelease = mutation({
     },
 });
 
-export const updateRelease = mutation({
+export const updateRelease = withAuthMutation({
     args: {
         id: v.id("releases"),
         data: v.object(releaseArgs),
@@ -900,6 +1234,10 @@ export const updateRelease = mutation({
         // Detections
         const dets = await ctx.db.query("detection_rules").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
         for (const d of dets) await ctx.db.delete(d._id);
+
+        // Scripts
+        const scripts = await ctx.db.query("release_scripts").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
+        for (const s of scripts) await ctx.db.delete(s._id);
 
         // Assignments
         const groupRels = await ctx.db.query("computer_group_releases").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
@@ -962,7 +1300,36 @@ export const updateRelease = mutation({
             });
         }
 
-        // 6. Re-create Assignments
+        // 6. Re-create Pre/Post Scripts
+        if (data.preScript && data.preScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: id,
+                phase: "pre",
+                engine: data.preScript.engine || "powershell",
+                timeout_seconds: data.preScript.timeout || 60,
+                run_as_system: data.preScript.runAsSystem || false,
+                script_name: data.preScript.scriptBinary.name,
+                storage_id: data.preScript.scriptBinary.storageId,
+                hash: data.preScript.scriptBinary.hash,
+                byte_size: data.preScript.scriptBinary.size,
+            });
+        }
+
+        if (data.postScript && data.postScript.scriptBinary) {
+            await ctx.db.insert("release_scripts", {
+                release_id: id,
+                phase: "post",
+                engine: data.postScript.engine || "powershell",
+                timeout_seconds: data.postScript.timeout || 60,
+                run_as_system: data.postScript.runAsSystem || false,
+                script_name: data.postScript.scriptBinary.name,
+                storage_id: data.postScript.scriptBinary.storageId,
+                hash: data.postScript.scriptBinary.hash,
+                byte_size: data.postScript.scriptBinary.size,
+            });
+        }
+
+        // 7. Re-create Assignments
         const handleAssignment = async (groups: typeof data.assignments.installGroups, action: "install" | "uninstall") => {
             for (const g of groups) {
                 if (g.groupType === "static") {

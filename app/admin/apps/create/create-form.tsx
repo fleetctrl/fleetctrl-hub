@@ -135,6 +135,18 @@ export function CreateForm() {
         requirementScriptBinary: undefined,
         runAsSystem: false,
       },
+      preScript: {
+        scriptBinary: undefined,
+        runAsSystem: false,
+        timeout: 60,
+        engine: "powershell",
+      },
+      postScript: {
+        scriptBinary: undefined,
+        runAsSystem: false,
+        timeout: 60,
+        engine: "powershell",
+      },
       detection: {
         detections: [],
       },
@@ -171,6 +183,24 @@ export function CreateForm() {
             ...data.requirement.requirementScriptBinary,
             storageId: data.requirement.requirementScriptBinary.storageId as Id<"_storage">,
             type: data.requirement.requirementScriptBinary.type ?? "application/octet-stream"
+          } : undefined
+        } : undefined,
+        preScript: data.preScript ? {
+          ...data.preScript,
+          engine: "powershell" as const,
+          scriptBinary: data.preScript.scriptBinary ? {
+            ...data.preScript.scriptBinary,
+            storageId: data.preScript.scriptBinary.storageId as Id<"_storage">,
+            type: data.preScript.scriptBinary.type ?? "application/octet-stream"
+          } : undefined
+        } : undefined,
+        postScript: data.postScript ? {
+          ...data.postScript,
+          engine: "powershell" as const,
+          scriptBinary: data.postScript.scriptBinary ? {
+            ...data.postScript.scriptBinary,
+            storageId: data.postScript.scriptBinary.storageId as Id<"_storage">,
+            type: data.postScript.scriptBinary.type ?? "application/octet-stream"
           } : undefined
         } : undefined
       };
@@ -575,6 +605,8 @@ function ReleaseStep() {
 function RequirementStep() {
   const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
   const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
+  const [isUploadingPreScript, setIsUploadingPreScript] = useState(false);
+  const [isUploadingPostScript, setIsUploadingPostScript] = useState(false);
   const generateUploadUrl = useMutation(api.apps.generateUploadUrl);
   return (
     <Item variant="outline">
@@ -660,6 +692,184 @@ function RequirementStep() {
                 )}
               />
             )}
+
+            <div className="border-t pt-6 mt-6">
+              <h3 className="font-medium text-lg mb-4">Pre-Install Script</h3>
+              <FormField
+                control={form.control}
+                name="preScript.scriptBinary"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between">
+                      <FormLabel>Script File</FormLabel>
+                      {field.value && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            field.onChange(undefined);
+                            toast.success("Pre-Install script removed");
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Remove Script
+                        </Button>
+                      )}
+                    </div>
+                    <Dropzone
+                      src={toDropzonePreview(field.value)}
+                      accept={{ "text/plain": [".ps1"] }}
+                      maxFiles={1}
+                      maxSize={1024 * 1024 * 20}
+                      disabled={isUploadingPreScript}
+                      onDrop={(files) => {
+                        const file = files.at(0);
+                        if (!file) return;
+                        setIsUploadingPreScript(true);
+                        void (async () => {
+                          try {
+                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                            field.onChange(uploaded);
+                            toast.success("Pre-Install script uploaded");
+                          } catch (err: unknown) {
+                            const message = err instanceof Error ? err.message : "Unknown error";
+                            toast.error(`Failed to upload pre-install script: ${message}`);
+                            console.error(err);
+                          } finally {
+                            setIsUploadingPreScript(false);
+                          }
+                        })();
+                      }}
+                    >
+                      <DropzoneEmptyState />
+                      <DropzoneContent />
+                    </Dropzone>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="space-y-4 mt-4">
+                <FormField
+                  control={form.control}
+                  name="preScript.timeout"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Timeout (s)</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="preScript.runAsSystem"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="space-y-0.5">
+                        <FormLabel>Run as System</FormLabel>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-6 mt-6">
+              <h3 className="font-medium text-lg mb-4">Post-Install Script</h3>
+              <FormField
+                control={form.control}
+                name="postScript.scriptBinary"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between">
+                      <FormLabel>Script File</FormLabel>
+                      {field.value && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            field.onChange(undefined);
+                            toast.success("Post-Install script removed");
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Remove Script
+                        </Button>
+                      )}
+                    </div>
+                    <Dropzone
+                      src={toDropzonePreview(field.value)}
+                      accept={{ "text/plain": [".ps1"] }}
+                      maxFiles={1}
+                      maxSize={1024 * 1024 * 20}
+                      disabled={isUploadingPostScript}
+                      onDrop={(files) => {
+                        const file = files.at(0);
+                        if (!file) return;
+                        setIsUploadingPostScript(true);
+                        void (async () => {
+                          try {
+                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                            field.onChange(uploaded);
+                            toast.success("Post-Install script uploaded");
+                          } catch (err: unknown) {
+                            const message = err instanceof Error ? err.message : "Unknown error";
+                            toast.error(`Failed to upload post-install script: ${message}`);
+                            console.error(err);
+                          } finally {
+                            setIsUploadingPostScript(false);
+                          }
+                        })();
+                      }}
+                    >
+                      <DropzoneEmptyState />
+                      <DropzoneContent />
+                    </Dropzone>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="space-y-4 mt-4">
+                <FormField
+                  control={form.control}
+                  name="postScript.timeout"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Timeout (s)</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="postScript.runAsSystem"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="space-y-0.5">
+                        <FormLabel>Run as System</FormLabel>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
 
             <div className="flex gap-3">
               <Button variant={"ghost"} onClick={prevStep}>

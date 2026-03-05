@@ -6,9 +6,7 @@
  */
 
 import {
-    action,
-    mutation,
-    query,
+    internalAction,
     internalMutation,
     internalQuery,
 } from "./_generated/server";
@@ -29,7 +27,7 @@ import {
 /**
  * Check if a computer is enrolled by fingerprint.
  */
-export const isEnrolled = query({
+export const isEnrolled = internalQuery({
     args: { fingerprint: v.string() },
     handler: async (ctx, { fingerprint }) => {
         const computer = await ctx.db
@@ -219,7 +217,7 @@ export const cleanupExpiredTokens = internalMutation({
 /**
  * Enroll a new computer or re-enroll an existing one.
  */
-export const enroll = action({
+export const enroll = internalAction({
     args: {
         enrollmentToken: v.string(),
         name: v.string(),
@@ -322,7 +320,7 @@ export const enroll = action({
 /**
  * Refresh access token using a valid refresh token.
  */
-export const refreshTokens = action({
+export const refreshTokens = internalAction({
     args: { refreshToken: v.string() },
     handler: async (ctx, { refreshToken }) => {
         const tokenHash = await hashToken(refreshToken);
@@ -403,7 +401,7 @@ export const refreshTokens = action({
  * Recover tokens using DPoP proof (for lost refresh tokens).
  * The JKT from the DPoP proof is used to identify the device.
  */
-export const recover = action({
+export const recover = internalAction({
     args: { jkt: v.string() },
     handler: async (ctx, { jkt }) => {
         // 1. Find computer by JKT

@@ -185,6 +185,22 @@ export const createAppSchema = z.object({
       }
     })
     .optional(),
+  preScript: z
+    .object({
+      scriptBinary: storedFileReferenceSchema.optional(),
+      timeout: z.number().optional(),
+      runAsSystem: z.boolean().optional(),
+      engine: z.enum(["powershell"]).optional(),
+    })
+    .optional(),
+  postScript: z
+    .object({
+      scriptBinary: storedFileReferenceSchema.optional(),
+      timeout: z.number().optional(),
+      runAsSystem: z.boolean().optional(),
+      engine: z.enum(["powershell"]).optional(),
+    })
+    .optional(),
   detection: z.object({
     detections: z.array(detectionItemSchema),
   }),

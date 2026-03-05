@@ -15,6 +15,28 @@ This directory contains a fully local setup for the Fleetctrl Hub, including a s
 
 ## Usage
 
+### Local Dev Mode (No Rebuild on Code Change)
+
+Use the dev override compose file to run Next.js in watch mode with source mounted from your host.
+
+```bash
+cd docker
+./dev.sh up
+```
+
+Notes:
+- `hub` runs `pnpm dev` inside the container (hot reload enabled).
+- Source code is mounted via bind volume, so code changes are reflected immediately.
+- Open the app via proxy at `https://localhost` (or your configured `SITE_URL`).
+- First start may take longer because dependencies are installed into the `hub-node-modules` volume.
+
+Useful commands:
+- `./dev.sh up --build` rebuild image layers if needed.
+- `./dev.sh up --sync-convex` also sync env variables to Convex and deploy functions/schema.
+- `./dev.sh sync-convex` run Convex env sync + deploy without restarting the whole stack.
+- `./dev.sh logs hub` follow app logs.
+- `./dev.sh down` stop the dev stack.
+
 ### Automated Setup (Recommended)
 
 Run the setup script to initialize the environment, generate necessary keys, and deploy the Convex schema automatically.
@@ -77,6 +99,14 @@ This script will:
 2. Start all services.
 3. Deploy the Convex schema and functions from the local source code to the containerized backend.
 
+## Convex Push
+
+Use this when you only need to deploy Convex schema and functions without running the full update or setup.
+
+```bash
+./convex-push.sh
+```
+
 ## Configuration
 
 - **Hub**: Configured in `docker-compose.yml`. Use `.env` to adjust variables.
@@ -91,7 +121,15 @@ This script will:
   docker compose build
   docker compose up -d
   ```
+  For local development without rebuilding on each code change, use:
+  ```bash
+  ./dev.sh up
+  ```
+  For env/schema sync to Convex during dev:
+  ```bash
+  ./dev.sh up --sync-convex
+  ```
   And potentially re-run deployment if schema changed:
   ```bash
-  docker compose exec convex-cli npx convex deploy ...
+  ./dev.sh sync-convex
   ```

@@ -180,11 +180,13 @@ export default defineSchema({
     release_scripts: defineTable({
         release_id: v.id("releases"),
         phase: v.union(v.literal("pre"), v.literal("post")),
-        engine: v.union(v.literal("cmd"), v.literal("powershell")),
+        engine: v.union(v.literal("powershell")),
         timeout_seconds: v.number(),
         run_as_system: v.boolean(),
+        script_name: v.string(),
         storage_id: v.optional(v.id("_storage")),
         hash: v.string(),
+        byte_size: v.optional(v.number()),
     }).index("by_release_id", ["release_id"]),
 
     // ========================================
@@ -211,6 +213,28 @@ export default defineSchema({
     })
         .index("by_group_id", ["group_id"])
         .index("by_release_id", ["release_id"]),
+
+    // ========================================
+    // RELEASE INSTALL STATE (per computer)
+    // ========================================
+
+    computer_release_installs: defineTable({
+        computer_id: v.id("computers"),
+        release_id: v.id("releases"),
+        status: v.union(
+            v.literal("PENDING"),
+            v.literal("INSTALLING"),
+            v.literal("INSTALLED"),
+            v.literal("ERROR"),
+            v.literal("UNINSTALLED")
+        ),
+        installed_at: v.optional(v.number()),
+        last_seen_at: v.optional(v.number()),
+        status_updated_at: v.optional(v.number()),
+    })
+        .index("by_computer_id", ["computer_id"])
+        .index("by_release_id", ["release_id"])
+        .index("by_computer_release", ["computer_id", "release_id"]),
 
     // ========================================
     // CLIENT UPDATES

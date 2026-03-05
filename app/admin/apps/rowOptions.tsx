@@ -70,9 +70,6 @@ export default function RowOptions({
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/admin/apps/${appId}/deployments`}>Deployments</Link>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <AlertDialog>
           <AlertDialogTrigger asChild>

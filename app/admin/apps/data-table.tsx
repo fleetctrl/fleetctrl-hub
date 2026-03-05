@@ -42,6 +42,7 @@ export function AppsTable() {
       displayName: app.displayName,
       groups: app.groups,
       groupsCount: app.groupsCount,
+      installedCount: app.installedCount ?? 0,
       createdAtFormatted: formatDateTime(app.createdAt),
       updatedAtFormatted: formatDateTime(app.updatedAt),
     }));

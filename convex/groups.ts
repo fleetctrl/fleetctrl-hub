@@ -5,12 +5,8 @@
  * Replaces SQL triggers for dynamic group membership evaluation.
  */
 
-import {
-    mutation,
-    query,
-    internalMutation,
-    internalQuery,
-} from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { Id, Doc } from "./_generated/dataModel";
 
@@ -268,7 +264,7 @@ export const refreshAllDynamicGroups = internalMutation({
  * Public mutation to refresh all dynamic groups.
  * Called from admin UI.
  */
-export const refreshAll = mutation({
+export const refreshAll = withAuthMutation({
     handler: async (ctx) => {
         const groups = await ctx.db.query("dynamic_computer_groups").collect();
         const computers = await ctx.db.query("computers").collect();
@@ -313,7 +309,7 @@ export const refreshAll = mutation({
 /**
  * Get a single dynamic group by ID.
  */
-export const getById = query({
+export const getById = withAuthQuery({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
         const group = await ctx.db.get(id);
@@ -333,7 +329,7 @@ export const getById = query({
 /**
  * Get all dynamic groups - alias for listDynamicGroups for frontend compatibility.
  */
-export const getAll = query({
+export const getAll = withAuthQuery({
     handler: async (ctx) => {
         const groups = await ctx.db.query("dynamic_computer_groups").collect();
 
@@ -366,7 +362,7 @@ export const getAll = query({
 /**
  * Get members for admin UI.
  */
-export const getMembers = query({
+export const getMembers = withAuthQuery({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
         const members = await ctx.db
@@ -393,7 +389,7 @@ export const getMembers = query({
         );
     },
 });
-export const listDynamicGroups = query({
+export const listDynamicGroups = withAuthQuery({
     handler: async (ctx) => {
         const groups = await ctx.db.query("dynamic_computer_groups").collect();
 
@@ -421,7 +417,7 @@ export const listDynamicGroups = query({
 /**
  * Get members of a dynamic group.
  */
-export const getDynamicGroupMembers = query({
+export const getDynamicGroupMembers = withAuthQuery({
     args: { groupId: v.id("dynamic_computer_groups") },
     handler: async (ctx, { groupId }) => {
         const members = await ctx.db
@@ -453,7 +449,7 @@ export const getDynamicGroupMembers = query({
 /**
  * Preview which computers would match a rule expression.
  */
-export const previewRuleMatches = query({
+export const previewRuleMatches = withAuthQuery({
     args: { ruleExpression: v.any() },
     handler: async (ctx, { ruleExpression }) => {
         const computers = await ctx.db.query("computers").collect();
@@ -478,7 +474,7 @@ export const previewRuleMatches = query({
 /**
  * Create a new dynamic group.
  */
-export const createDynamicGroup = mutation({
+export const createDynamicGroup = withAuthMutation({
     args: {
         displayName: v.string(),
         description: v.optional(v.string()),
@@ -512,7 +508,7 @@ export const createDynamicGroup = mutation({
 /**
  * Update a dynamic group.
  */
-export const updateDynamicGroup = mutation({
+export const updateDynamicGroup = withAuthMutation({
     args: {
         id: v.id("dynamic_computer_groups"),
         displayName: v.optional(v.string()),
@@ -551,7 +547,7 @@ export const updateDynamicGroup = mutation({
 /**
  * Delete a dynamic group.
  */
-export const deleteDynamicGroup = mutation({
+export const deleteDynamicGroup = withAuthMutation({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
         // Members will be cascade-deleted by Convex

@@ -181,16 +181,17 @@ set -a
 source .env
 set +a
 
-# 3. Start services
-echo -e "${BLUE}▶ Starting Docker services...${NC}"
-docker compose up -d $REBUILD_FLAG
+# 3. Start Convex first
+echo -e "${BLUE}▶ Starting Convex backend...${NC}"
+docker compose up -d convex $REBUILD_FLAG
 
 # 4. Wait for Convex to be ready
 echo -e "${BLUE}▶ Waiting for Convex backend...${NC}"
 until [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" == "healthy" ]; do
-  echo -e "  ${YELLOW}⌛ Waiting for Convex to become healthy...${NC}"
-  sleep 3
+  echo -ne "  ${YELLOW}⌛ Waiting for Convex to become healthy...${NC}\r"
+  sleep 2
 done
+echo -e "  ${GREEN}✓ Convex is healthy!${NC}                                "
 echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
 
 # 5. Generate Admin Key
@@ -203,10 +204,20 @@ if [ -z "$ADMIN_KEY" ]; then
 fi
 
 # Save Admin Key to .env
-if grep -q "CONVEX_DEPLOY_KEY=" .env; then
-  sedi "/^CONVEX_DEPLOY_KEY=/d" .env
+if grep -q "^CONVEX_DEPLOY_KEY=" .env; then
+  sedi "s@^CONVEX_DEPLOY_KEY=.*@CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"@" .env
+else
+  # Add it after the placeholder if it exists, otherwise at the end
+  if grep -q "# CONVEX_DEPLOY_KEY=" .env; then
+    sedi "s@# CONVEX_DEPLOY_KEY=.*@CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"@" .env
+  else
+    echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
+  fi
 fi
-echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
+
+# 6. Start remaining services
+echo -e "${BLUE}▶ Starting remaining services...${NC}"
+docker compose up -d $REBUILD_FLAG
 
 # 6. Set Environment Variables on Convex Backend
 echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
@@ -234,14 +245,15 @@ docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --ad
 
 echo -e "\n${GREEN}${BOLD} Setup Complete!${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}  Hub Dashboard: ${NC} ${CYAN}${SITE_URL}${NC}"
-echo -e "${BOLD}  Convex API:    ${NC} ${CYAN}${NEXT_PUBLIC_CONVEX_URL}/api${NC}"
-echo -e "${BOLD}  HTTP Port:     ${NC} ${YELLOW}${PROXY_HTTP_PORT}${NC}"
+echo -e "${BOLD}  Hub Dashboard:     ${NC} ${CYAN}${SITE_URL}${NC}"
+echo -e "${BOLD}  Convex API:        ${NC} ${CYAN}${NEXT_PUBLIC_CONVEX_URL}/api${NC}"
+echo -e "${BOLD}  HTTP Port:         ${NC} ${YELLOW}${PROXY_HTTP_PORT}${NC}"
 if [[ "$BEHIND_PROXY" == "true" ]]; then
-  echo -e "${BOLD}  Mode:          ${NC} ${YELLOW}Behind reverse proxy${NC}"
+  echo -e "${BOLD}  Mode:              ${NC} ${YELLOW}Behind reverse proxy${NC}"
 else
-  echo -e "${BOLD}  HTTPS Port:    ${NC} ${YELLOW}${PROXY_HTTPS_PORT}${NC}"
+  echo -e "${BOLD}  HTTPS Port:        ${NC} ${YELLOW}${PROXY_HTTPS_PORT}${NC}"
 fi
-echo -e "${BOLD}  Data Dir:      ${NC} ${YELLOW}${CONVEX_DATA_DIR}${NC}"
+echo -e "${BOLD}  Data Dir:          ${NC} ${YELLOW}${CONVEX_DATA_DIR}${NC}"
+echo -e "${BOLD}  Convex Admin Key:  ${NC} ${YELLOW}${ADMIN_KEY}${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
 echo -e "${PURPLE}Enjoy building with Fleetctrl!${NC}\n"

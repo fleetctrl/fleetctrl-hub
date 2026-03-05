@@ -4,14 +4,15 @@
  * Handles user-related queries for the admin panel.
  */
 
-import { query } from "./_generated/server";
+
 import { authComponent } from "./auth";
+import { withAuthQuery } from "./lib/withAuth";
 
 /**
  * Get the currently authenticated user.
  * Returns null if not authenticated.
  */
-export const viewer = query({
+export const viewer = withAuthQuery({
     args: {},
     handler: async (ctx) => {
         try {
