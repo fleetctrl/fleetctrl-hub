@@ -39,10 +39,14 @@ if [ -d ../.git ]; then
   (cd .. && git pull)
 fi
 
-# If no changes, exit
+# If no changes, ask to continue
 if [ -d ../.git ] && [ -z "$(cd .. && git status --porcelain)" ]; then
   echo -e "${GREEN}No changes detected.${NC}"
-  exit 0
+  echo -ne "${YELLOW}Do you want to continue anyway? [y/N] ${NC}"
+  read -r continue_update
+  if [[ ! "$continue_update" =~ ^[Yy]$ ]]; then
+    exit 0
+  fi
 fi
 
 echo -e "${BLUE}▶ Starting update process...${NC}"
