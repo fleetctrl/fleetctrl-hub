@@ -85,6 +85,13 @@ if [ "$HAS_CONVEX_KEY" = true ]; then
   SKIP_CONVEX_SETUP=true
   CONVEX_DATA_DIR=${EXISTING_DATA_DIR:-convex-data}
   echo -e "  ${BOLD}Using existing Data Directory:${NC} ${CYAN}$CONVEX_DATA_DIR${NC}"
+  
+  echo -e "\n${BLUE}▶ Creating automatic backup before proceeding...${NC}"
+  if [ -x "./backup.sh" ]; then
+    ./backup.sh || echo -e "${YELLOW}Backup encountered an issue, but continuing setup...${NC}"
+  else
+    echo -e "${YELLOW}backup.sh not found or not executable, skipping backup.${NC}"
+  fi
 else
   # Ask for Data Directory
   read -p "$(echo -e ${BOLD}"  Enter Convex Data Directory [convex-data]: "${NC})" CONVEX_DATA_DIR_INPUT
