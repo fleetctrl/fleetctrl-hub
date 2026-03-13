@@ -84,7 +84,7 @@ export function ClientUpdatesTable() {
             // 3. Upload File
             const result = await fetch(postUrl, {
                 method: "POST",
-                headers: { "Content-Type": uploadFile.type },
+                headers: { "Content-Type": uploadFile.type || "application/octet-stream" },
                 body: uploadFile,
             });
 

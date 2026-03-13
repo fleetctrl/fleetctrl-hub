@@ -22,9 +22,13 @@ export async function uploadFileToConvex(
     const postUrl = await generateUploadUrl();
 
     // 3. Upload File
+    const headers: Record<string, string> = {
+        "Content-Type": file.type || "application/octet-stream",
+    };
+
     const result = await fetch(postUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type },
+        headers,
         body: file,
     });
 
