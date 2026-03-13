@@ -245,6 +245,8 @@ export default defineSchema({
         storage_id: v.id("_storage"),
         hash: v.string(),
         byte_size: v.number(),
+        file_name: v.optional(v.string()),
+        mime_type: v.optional(v.string()),
         is_active: v.boolean(),
         notes: v.optional(v.string()),
     })

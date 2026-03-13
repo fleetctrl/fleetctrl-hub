@@ -27,11 +27,12 @@ export async function uploadFileToConvex(
     if (!sanitizedType) {
         sanitizedType = "application/octet-stream";
     }
+    const contentType = sanitizedType;
 
     // 3. Upload File
     const result = await fetch(postUrl, {
         method: "POST",
-        headers: { "Content-Type": sanitizedType },
+        headers: { "Content-Type": contentType },
         body: file,
     });
 
@@ -45,7 +46,7 @@ export async function uploadFileToConvex(
         storageId: storageId as Id<"_storage">,
         name: file.name,
         size: file.size,
-        type: file.type,
+        type: contentType,
         hash,
     };
 }

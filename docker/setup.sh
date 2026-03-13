@@ -7,6 +7,7 @@ CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
+RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
@@ -65,10 +66,48 @@ NEXT_PUBLIC_CONVEX_SITE_URL="${SITE_URL}"
 CONVEX_SITE_URL="${SITE_URL}"
 CONVEX_SITE_INTERNAL_URL="http://convex:3211"
 
-# Ask for Data Directory
+# Check for existing Convex key and config in .env
+HAS_CONVEX_KEY=false
+EXISTING_DATA_DIR=""
+if [ -f .env ]; then
+  CURRENT_KEY=$(grep -m 1 "^CONVEX_DEPLOY_KEY=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ' | tr -d '\r')
+  if [ -n "$CURRENT_KEY" ]; then
+    HAS_CONVEX_KEY=true
+  fi
+  EXISTING_DATA_DIR=$(grep -m 1 "^CONVEX_DATA_DIR=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ' | tr -d '\r')
+fi
+
 echo -e "\n${YELLOW}💾 Storage Configuration${NC}"
-read -p "$(echo -e ${BOLD}"  Enter Convex Data Directory [convex-data]: "${NC})" CONVEX_DATA_DIR_INPUT
-CONVEX_DATA_DIR=${CONVEX_DATA_DIR_INPUT:-convex-data}
+
+if [ "$HAS_CONVEX_KEY" = true ]; then
+  echo -e "  ${GREEN}ℹ️  Existing configuration (CONVEX_DEPLOY_KEY) found in .env.${NC}"
+  echo -e "  ${GREEN}Convex key generation and setup will be skipped to protect your instance.${NC}"
+  SKIP_CONVEX_SETUP=true
+  CONVEX_DATA_DIR=${EXISTING_DATA_DIR:-convex-data}
+  echo -e "  ${BOLD}Using existing Data Directory:${NC} ${CYAN}$CONVEX_DATA_DIR${NC}"
+  
+  echo -e "\n${BLUE}▶ Creating automatic backup before proceeding...${NC}"
+  if [ -x "./backup.sh" ]; then
+    ./backup.sh || echo -e "${YELLOW}Backup encountered an issue, but continuing setup...${NC}"
+  else
+    echo -e "${YELLOW}backup.sh not found or not executable, skipping backup.${NC}"
+  fi
+else
+  # Ask for Data Directory
+  read -p "$(echo -e ${BOLD}"  Enter Convex Data Directory [convex-data]: "${NC})" CONVEX_DATA_DIR_INPUT
+  CONVEX_DATA_DIR=${CONVEX_DATA_DIR_INPUT:-convex-data}
+
+  if [ -d "$CONVEX_DATA_DIR" ] && [ "$(ls -A "$CONVEX_DATA_DIR" 2>/dev/null)" ]; then
+    echo -e "\n${RED}⚠️  WARNING: Data directory '$CONVEX_DATA_DIR' already exists and is not empty.${NC}"
+    echo -e "${RED}Continuing might overwrite or corrupt your existing Convex data!${NC}"
+    read -p "$(echo -e ${BOLD}"  Are you sure you want to continue and risk overwriting data? (y/N): "${NC})" OVERWRITE_INPUT
+    if [[ ! "$OVERWRITE_INPUT" =~ ^[Yy]$ ]]; then
+      echo -e "${YELLOW}Setup cancelled to protect existing data.${NC}"
+      exit 1
+    fi
+  fi
+  SKIP_CONVEX_SETUP=false
+fi
 
 # Ask for rebuild
 read -p "$(echo -e ${BOLD}"  Rebuild Docker images? if you changed NEXT_PUBLIC_* env vars [y/N]: "${NC})" REBUILD_INPUT
@@ -194,24 +233,29 @@ done
 echo -e "  ${GREEN}✓ Convex is healthy!${NC}                                "
 echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
 
-# 5. Generate Admin Key
-echo -e "${BLUE}▶ Generating Convex Admin Key...${NC}"
-ADMIN_KEY=$(docker compose exec convex ./generate_admin_key.sh | tr -d '\r')
-
-if [ -z "$ADMIN_KEY" ]; then
-  echo -e "${YELLOW}Failed to generate Admin Key${NC}"
-  exit 1
-fi
-
-# Save Admin Key to .env
-if grep -q "^CONVEX_DEPLOY_KEY=" .env; then
-  sedi "s@^CONVEX_DEPLOY_KEY=.*@CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"@" .env
+if [ "$SKIP_CONVEX_SETUP" = true ]; then
+  echo -e "${BLUE}▶ Skipping Convex key generation (already configured)...${NC}"
+  ADMIN_KEY=$CURRENT_KEY
 else
-  # Add it after the placeholder if it exists, otherwise at the end
-  if grep -q "# CONVEX_DEPLOY_KEY=" .env; then
-    sedi "s@# CONVEX_DEPLOY_KEY=.*@CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"@" .env
+  # 5. Generate Admin Key
+  echo -e "${BLUE}▶ Generating Convex Admin Key...${NC}"
+  ADMIN_KEY=$(docker compose exec convex ./generate_admin_key.sh | tr -d '\r')
+
+  if [ -z "$ADMIN_KEY" ]; then
+    echo -e "${YELLOW}Failed to generate Admin Key${NC}"
+    exit 1
+  fi
+
+  # Save Admin Key to .env
+  if grep -q "^CONVEX_DEPLOY_KEY=" .env; then
+    sedi "s@^CONVEX_DEPLOY_KEY=.*@CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"@" .env
   else
-    echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
+    # Add it after the placeholder if it exists, otherwise at the end
+    if grep -q "# CONVEX_DEPLOY_KEY=" .env; then
+      sedi "s@# CONVEX_DEPLOY_KEY=.*@CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"@" .env
+    else
+      echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
+    fi
   fi
 fi
 

@@ -9,6 +9,8 @@ export type ClientUpdateRow = {
     version: string;
     hash: string;
     byte_size: number;
+    file_name: string | null;
+    mime_type: string | null;
     is_active: boolean;
     notes: string | null;
     createdAtFormatted: string;
@@ -45,6 +47,15 @@ export const columns: ColumnDef<ClientUpdateRow>[] = [
         accessorKey: "byte_size",
         header: "Size",
         cell: ({ row }) => formatBytes(row.original.byte_size),
+    },
+    {
+        accessorKey: "file_name",
+        header: "Filename",
+        cell: ({ row }) => (
+            <span className="max-w-[200px] truncate text-sm text-muted-foreground">
+                {row.original.file_name || "—"}
+            </span>
+        ),
     },
     {
         accessorKey: "hash",

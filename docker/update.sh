@@ -39,10 +39,14 @@ if [ -d ../.git ]; then
   (cd .. && git pull)
 fi
 
-# If no changes, exit
+# If no changes, ask to continue
 if [ -d ../.git ] && [ -z "$(cd .. && git status --porcelain)" ]; then
   echo -e "${GREEN}No changes detected.${NC}"
-  exit 0
+  echo -ne "${YELLOW}Do you want to continue anyway? [y/N] ${NC}"
+  read -r continue_update
+  if [[ ! "$continue_update" =~ ^[Yy]$ ]]; then
+    exit 0
+  fi
 fi
 
 echo -e "${BLUE}▶ Starting update process...${NC}"
@@ -63,8 +67,15 @@ set +a
 ADMIN_KEY=${CONVEX_DEPLOY_KEY}
 CONVEX_SITE_INTERNAL_URL_FOR_CONVEX=${CONVEX_SITE_INTERNAL_URL_FOR_CONVEX:-http://127.0.0.1:3211}
 
+echo -e "\n${BLUE}▶ Creating automatic backup before update...${NC}"
+if [ -n "$ADMIN_KEY" ] && [ -x "./backup.sh" ]; then
+  ./backup.sh || echo -e "${YELLOW}Backup encountered an issue, but continuing update...${NC}"
+else
+  echo -e "${YELLOW}No Convex key found or backup.sh not executable, skipping backup.${NC}"
+fi
+
 # 3. Start services
-echo -e "${BLUE}▶ Starting Docker services...${NC}"
+echo -e "\n${BLUE}▶ Starting Docker services...${NC}"
 docker compose up -d $REBUILD_FLAG
 
 # 4. Wait for Convex to be ready

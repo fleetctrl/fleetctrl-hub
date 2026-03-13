@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "FleetCtrl",
   description: "Fleet management for RustDesk clients",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default async function RootLayout({

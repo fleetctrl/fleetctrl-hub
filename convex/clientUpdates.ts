@@ -15,6 +15,8 @@ export const create = withAuthMutation({
         storageId: v.id("_storage"),
         hash: v.string(),
         byte_size: v.number(),
+        file_name: v.optional(v.string()),
+        mime_type: v.optional(v.string()),
         notes: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
@@ -39,6 +41,8 @@ export const create = withAuthMutation({
             storage_id: args.storageId, // Using storageId as path reference
             hash: args.hash,
             byte_size: args.byte_size,
+            file_name: args.file_name,
+            mime_type: args.mime_type,
             notes: args.notes,
             is_active: false, // Default to inactive
         });
