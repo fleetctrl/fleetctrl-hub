@@ -100,6 +100,8 @@ export function ClientUpdatesTable() {
                 storageId: storageId as Id<"_storage">,
                 hash,
                 byte_size: uploadFile.size,
+                file_name: uploadFile.name,
+                mime_type: uploadFile.type || "application/octet-stream",
                 notes: notes.trim() || undefined,
             });
 
@@ -137,6 +139,8 @@ export function ClientUpdatesTable() {
                 version: update.version,
                 hash: update.hash,
                 byte_size: update.byte_size,
+                file_name: update.file_name ?? null,
+                mime_type: update.mime_type ?? null,
                 is_active: update.is_active,
                 notes: update.notes ?? null,
                 createdAtFormatted: formatDateTime(update._creationTime),
