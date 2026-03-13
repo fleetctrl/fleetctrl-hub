@@ -70,11 +70,11 @@ CONVEX_SITE_INTERNAL_URL="http://convex:3211"
 HAS_CONVEX_KEY=false
 EXISTING_DATA_DIR=""
 if [ -f .env ]; then
-  CURRENT_KEY=$(grep -m 1 "^CONVEX_DEPLOY_KEY=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ')
+  CURRENT_KEY=$(grep -m 1 "^CONVEX_DEPLOY_KEY=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ' | tr -d '\r')
   if [ -n "$CURRENT_KEY" ]; then
     HAS_CONVEX_KEY=true
   fi
-  EXISTING_DATA_DIR=$(grep -m 1 "^CONVEX_DATA_DIR=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ')
+  EXISTING_DATA_DIR=$(grep -m 1 "^CONVEX_DATA_DIR=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ' | tr -d '\r')
 fi
 
 echo -e "\n${YELLOW}💾 Storage Configuration${NC}"
