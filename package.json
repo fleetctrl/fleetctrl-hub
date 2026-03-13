@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@auth/core": "0.37.0",
+    "@convex-dev/aggregate": "^0.2.1",
     "@convex-dev/better-auth": "^0.10.10",
     "@hookform/resolvers": "^5.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -34,7 +35,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.31.4",
-    "convex-helpers": "^0.1.111",
+    "convex-helpers": "^0.1.114",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.1",
     "hono": "^4.11.4",
