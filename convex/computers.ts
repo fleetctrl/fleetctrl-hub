@@ -9,6 +9,8 @@ import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
 // ========================================
 // Public Queries
 // ========================================
@@ -20,7 +22,7 @@ export const list = withAuthQuery({
     handler: async (ctx) => {
         const computers = await ctx.db.query("computers").collect();
         const now = Date.now();
-        const fiveMinutesAgo = now - 5 * 60 * 1000;
+        const onlineThreshold = now - ONLINE_THRESHOLD_MS;
 
         return computers.map((c) => ({
             id: c._id,
@@ -33,7 +35,7 @@ export const list = withAuthQuery({
             loginUser: c.login_user,
             clientVersion: c.client_version,
             lastConnection:
-                c.last_connection && c.last_connection >= fiveMinutesAgo
+                c.last_connection && c.last_connection >= onlineThreshold
                     ? "Online"
                     : "Offline",
             intuneId: c.intune_id,
@@ -57,7 +59,7 @@ export const listPaginated = withAuthQuery({
     handler: async (ctx, { skip = 0, limit = 10, filter, sortField, sortDesc }) => {
         let computers = await ctx.db.query("computers").collect();
         const now = Date.now();
-        const onlineThreshold = now - 6 * 60 * 1000;
+        const onlineThreshold = now - ONLINE_THRESHOLD_MS;
 
         // Filter by login_user
         if (filter) {
