@@ -57,7 +57,7 @@ export const listPaginated = withAuthQuery({
     handler: async (ctx, { skip = 0, limit = 10, filter, sortField, sortDesc }) => {
         let computers = await ctx.db.query("computers").collect();
         const now = Date.now();
-        const fiveMinutesAgo = now - 5 * 60 * 1000;
+        const onlineThreshold = now - 6 * 60 * 1000;
 
         // Filter by login_user
         if (filter) {
@@ -133,7 +133,7 @@ export const listPaginated = withAuthQuery({
                 osVersion: c.os_version,
                 loginUser: c.login_user,
                 lastConnection:
-                    c.last_connection && c.last_connection >= fiveMinutesAgo
+                    c.last_connection && c.last_connection >= onlineThreshold
                         ? "Online"
                         : "Offline",
                 clientVersion: c.client_version,
