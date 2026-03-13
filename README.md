@@ -2,7 +2,7 @@
 
 FleetCtrl Hub is a modern device management (MDM/Fleet Management) platform that enables centralized management of computers, groups, applications, and releases.
 
-## 🛠 Technologies
+## Technologies
 
 The project is built on the following technologies:
 
@@ -78,3 +78,4 @@ The project includes a `docker-compose.yaml` to build and run the application in
     ```
  
  The application will be available at [http://localhost:3000](http://localhost:3000).
+

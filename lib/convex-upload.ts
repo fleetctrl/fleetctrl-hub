@@ -20,6 +20,13 @@ export async function uploadFileToConvex(
 
     // 2. Get Upload URL
     const postUrl = await generateUploadUrl();
+    
+    // Sanitize the file type to prevent Convex (hyper) from rejecting the upload with 400 Bad Request
+    // OS default MIME types can sometimes contain non-ASCII characters or commas.
+    let sanitizedType = file.type ? file.type.split(',')[0].replace(/[^\x20-\x7E]/g, '').trim() : "";
+    if (!sanitizedType) {
+        sanitizedType = "application/octet-stream";
+    }
 
     // 3. Upload File
     const headers: Record<string, string> = {
@@ -28,7 +35,7 @@ export async function uploadFileToConvex(
 
     const result = await fetch(postUrl, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": sanitizedType },
         body: file,
     });
 
