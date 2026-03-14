@@ -1355,37 +1355,3 @@ export const updateRelease = withAuthMutation({
         return { success: true };
     },
 });
-
-// ========================================
-// Aggregate Backfill
-// ========================================
-
-/**
- * Backfill the installStatusAggregate from existing computer_release_installs data.
- *
- * Run this once after deploying to populate the aggregate for pre-existing records.
- * Uses idempotent operations so it's safe to run multiple times.
- *
- * Processes in pages of 100 records. Pass the returned `cursor` into the next
- * call to continue, until `isDone` is true.
- */
-export const backfillInstallAggregate = internalMutation({
-    args: { cursor: v.optional(v.string()) },
-    handler: async (ctx, { cursor }) => {
-        const page = await ctx.db
-            .query("computer_release_installs")
-            .paginate({ cursor: cursor ?? null, numItems: 100 });
-
-        for (const install of page.page) {
-            const release = await ctx.db.get(install.release_id);
-            if (!release) continue;
-            await installStatusAggregate.insertIfDoesNotExist(ctx, {
-                namespace: [release.app_id, install.status as InstallStatus],
-                key: null,
-                id: install._id.toString(),
-            });
-        }
-
-        return { isDone: page.isDone, cursor: page.continueCursor };
-    },
-});

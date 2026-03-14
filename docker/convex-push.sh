@@ -70,6 +70,9 @@ echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
 echo -e "${BLUE}▶ Pushing Convex schema and functions...${NC}"
 docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
+echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
+docker compose exec convex-cli npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
+
 echo -e "\n${GREEN}${BOLD} Push Complete!${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}  Convex API:    ${NC} ${CYAN}${NEXT_PUBLIC_CONVEX_URL}/api${NC}"
