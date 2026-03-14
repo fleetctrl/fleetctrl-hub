@@ -287,6 +287,9 @@ done
 echo -e "${BLUE}▶ Deploying Convex Schema and Functions...${NC}"
 docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
+echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
+docker compose exec convex-cli npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
+
 echo -e "\n${GREEN}${BOLD} Setup Complete!${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}  Hub Dashboard:     ${NC} ${CYAN}${SITE_URL}${NC}"
