@@ -31,6 +31,13 @@ echo "    ║          DOCKER ENVIRONMENT            ║"
 echo "    ╚════════════════════════════════════════╝"
 echo -e "${NC}"
 
+# Prevent running setup if configuration already exists
+if [ -f .env ]; then
+  echo -e "${YELLOW}Error: .env already exists. Setup should only be run once.${NC}"
+  echo -e "${YELLOW}If you need to change configuration, edit .env directly or delete it to rerun setup.${NC}"
+  exit 1
+fi
+
 # Check for curl
 if ! command -v curl &> /dev/null; then
   echo -e "${YELLOW}Error: 'curl' is required but not installed.${NC}"
