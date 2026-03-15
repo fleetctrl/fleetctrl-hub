@@ -19,6 +19,7 @@ import {
     getRefreshTokenExpiry,
     getAccessTokenTTL,
 } from "./lib/jwt";
+import { computerCountAggregate } from "./lib/aggregate/computerCountAggregate";
 
 // ========================================
 // Public Queries
@@ -112,11 +113,20 @@ export const createComputer = internalMutation({
         jkt: v.string(),
     },
     handler: async (ctx, { name, fingerprint, jkt }) => {
-        return await ctx.db.insert("computers", {
+        const computerId = await ctx.db.insert("computers", {
             name,
             fingerprint: fingerprint,
             jkt,
         });
+
+        // Keep the aggregate count in sync
+        await computerCountAggregate.insert(ctx, {
+            namespace: null,
+            key: computerId.toString(),
+            id: computerId.toString(),
+        });
+
+        return computerId;
     },
 });
 

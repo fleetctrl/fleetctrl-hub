@@ -9,8 +9,8 @@
  */
 
 import { DirectAggregate } from "@convex-dev/aggregate";
-import { components } from "../_generated/api";
-import { Id } from "../_generated/dataModel";
+import { components } from "../../_generated/api";
+import { Id } from "../../_generated/dataModel";
 
 export type InstallStatus =
     | "PENDING"

@@ -208,92 +208,76 @@ export function RustDeskTable() {
     pageIndex: 0,
     pageSize: 10,
   });
-  const [displayPagination, setDisplayPagination] =
-    useState<PaginationState>(pagination);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState<string>("");
-  const [tableData, setTableData] = useState<RustDesk[]>([]);
-  const [tableTotal, setTableTotal] = useState<number | undefined>(undefined);
+  const [pageCache, setPageCache] = useState<Record<number, RustDesk[]>>({});
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+  const [total, setTotal] = useState<number | undefined>(undefined);
+  const [isDone, setIsDone] = useState(false);
 
-  const skip = pagination.pageIndex * pagination.pageSize;
-  const limit = pagination.pageSize;
+  const { pageIndex, pageSize } = pagination;
 
-  // Get sort field and direction for Convex query
   const sortField = sorting.length > 0 ? sorting[0].id : undefined;
   const sortDesc = sorting.length > 0 ? sorting[0].desc : undefined;
 
-  // Convex auth query is automatically reactive - no refetch needed!
-  const data = useAuthQuery(api.computers.listPaginated, {
-    skip,
-    limit,
+  const cursor = cursorStack[pageIndex] ?? null;
+
+  const pageResult = useAuthQuery(api.computers.listPaginated, {
     filter: filter || undefined,
     sortField,
     sortDesc,
+    paginationOpts: {
+      numItems: pageSize,
+      cursor,
+    },
   });
 
-  const isFetching = data === undefined;
+  const isFetching = pageResult === undefined;
 
   useEffect(() => {
-    if (!data) {
+    if (!pageResult) {
       return;
     }
 
-    setTableTotal(data.total);
+    setTotal(pageResult.total);
+    setIsDone(pageResult.isDone);
 
-    const totalCount =
-      typeof data.total === "number" ? data.total : data.data.length;
-    const maxPageIndex = Math.max(
-      0,
-      Math.ceil(totalCount / pagination.pageSize) - 1
-    );
+    setPageCache((prev) => ({
+      ...prev,
+      [pageIndex]: pageResult.page,
+    }));
 
-    const shouldHoldData =
-      totalCount > 0 &&
-      data.data.length === 0 &&
-      pagination.pageIndex > maxPageIndex;
-
-    if (shouldHoldData) {
-      return;
-    }
-
-    setTableData(data.data as RustDesk[]);
-    setDisplayPagination(pagination);
-  }, [data, pagination]);
-
-  // Convex queries are automatically reactive - no Supabase subscription needed!
+    setCursorStack((prev) => {
+      const next = [...prev];
+      next[pageIndex + 1] = pageResult.continueCursor;
+      return next;
+    });
+  }, [pageIndex, pageResult]);
 
   useEffect(() => {
-    if (typeof tableTotal !== "number") {
-      return;
+    setPagination({ pageIndex: 0, pageSize });
+    setPageCache({});
+    setCursorStack([null]);
+    setTotal(undefined);
+    setIsDone(false);
+  }, [filter, sortField, sortDesc, pageSize]);
+
+  const tableData = pageCache[pageIndex] ?? [];
+
+  const pageCount = useMemo(() => {
+    if (typeof total === "number") {
+      return Math.max(1, Math.ceil(total / pageSize));
     }
 
-    if (tableTotal === 0 && pagination.pageIndex !== 0) {
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-      setDisplayPagination((prev) => ({ ...prev, pageIndex: 0 }));
-      return;
-    }
-
-    const maxPageIndex = Math.max(
-      0,
-      Math.ceil(tableTotal / pagination.pageSize) - 1
-    );
-
-    if (pagination.pageIndex > maxPageIndex) {
-      setPagination((prev) => ({ ...prev, pageIndex: maxPageIndex }));
-      setDisplayPagination((prev) => ({ ...prev, pageIndex: maxPageIndex }));
-    }
-  }, [tableTotal, pagination.pageIndex, pagination.pageSize]);
+    // When total is unknown, allow the user to fetch at least one more page
+    // (until the query indicates that it is done).
+    return isDone ? pageIndex + 1 : pageIndex + 2;
+  }, [isDone, pageIndex, pageSize, total]);
 
   const handlePaginationChange = useCallback(
     (updater: Updater<PaginationState>) => {
       setPagination((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
-
-        setDisplayPagination((current) => ({
-          ...current,
-          pageSize: next.pageSize,
-        }));
-
         return next;
       });
     },
@@ -301,70 +285,24 @@ export function RustDeskTable() {
   );
 
   const handleSortingChange = useCallback((updater: Updater<SortingState>) => {
-    setSorting((prev) =>
-      typeof updater === "function" ? updater(prev) : updater
-    );
-
-    setPagination((prev) => {
-      if (prev.pageIndex === 0) {
-        return prev;
-      }
-
-      return { ...prev, pageIndex: 0 };
-    });
-
-    setDisplayPagination((prev) => {
-      if (prev.pageIndex === 0) {
-        return prev;
-      }
-
-      return { ...prev, pageIndex: 0 };
-    });
+    setSorting((prev) => (typeof updater === "function" ? updater(prev) : updater));
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    setPageCache({});
+    setCursorStack([null]);
   }, []);
 
-  const handleFilterChange = (filter: string) => {
-    setPagination((prev) => {
-      if (prev.pageIndex === 0) {
-        return prev;
-      }
-
-      return { ...prev, pageIndex: 0 };
-    });
-
-    setDisplayPagination((prev) => {
-      if (prev.pageIndex === 0) {
-        return prev;
-      }
-
-      return { ...prev, pageIndex: 0 };
-    });
-
-    setFilter(filter);
+  const handleFilterChange = (nextFilter: string) => {
+    setFilter(nextFilter);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    setPageCache({});
+    setCursorStack([null]);
   };
-
-  const pageCount = useMemo(() => {
-    if (typeof tableTotal === "number") {
-      const computed = Math.ceil(tableTotal / pagination.pageSize) || 1;
-      return Math.max(1, computed);
-    }
-
-    const hasMore = tableData.length === displayPagination.pageSize;
-    const base = displayPagination.pageIndex + 1;
-
-    return hasMore ? base + 1 : base;
-  }, [
-    tableTotal,
-    tableData.length,
-    displayPagination.pageIndex,
-    displayPagination.pageSize,
-    pagination.pageSize,
-  ]);
 
   return (
     <DataTable
       columns={columns}
       data={tableData}
-      pagination={displayPagination}
+      pagination={pagination}
       pageCount={pageCount}
       onPaginationChange={handlePaginationChange}
       sorting={sorting}
@@ -372,7 +310,7 @@ export function RustDeskTable() {
       filter={filter}
       onFilterChange={handleFilterChange}
       isLoading={isFetching}
-      total={tableTotal}
+      total={total}
     />
   );
 }

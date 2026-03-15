@@ -8,6 +8,8 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { paginationOptsValidator } from "convex/server";
+import { computerCountAggregate } from "./lib/aggregate/computerCountAggregate";
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
 
@@ -50,30 +52,32 @@ export const list = withAuthQuery({
  */
 export const listPaginated = withAuthQuery({
     args: {
-        skip: v.optional(v.number()),
-        limit: v.optional(v.number()),
         filter: v.optional(v.string()),
         sortField: v.optional(v.string()),
         sortDesc: v.optional(v.boolean()),
+        paginationOpts: paginationOptsValidator,
     },
-    handler: async (ctx, { skip = 0, limit = 10, filter, sortField, sortDesc }) => {
-        let computers = await ctx.db.query("computers").collect();
+    handler: async (ctx, { filter, sortField, sortDesc, paginationOpts }) => {
         const now = Date.now();
         const onlineThreshold = now - ONLINE_THRESHOLD_MS;
+        const lowerFilter = filter?.toLowerCase();
+        const pageSize = paginationOpts.numItems;
+        const order = sortDesc ? "desc" : "asc";
 
-        // Filter by login_user
-        if (filter) {
-            const lowerFilter = filter.toLowerCase();
-            computers = computers.filter(
-                (c) =>
-                    c.login_user?.toLowerCase().includes(lowerFilter) ||
-                    c.name?.toLowerCase().includes(lowerFilter)
-            );
-        }
+        const sortItems = <T extends {
+            name?: string;
+            rustdesk_id?: number;
+            ip?: string;
+            os?: string;
+            os_version?: string;
+            login_user?: string;
+            last_connection?: number;
+        }>(items: T[]) => {
+            if (!sortField) {
+                return items;
+            }
 
-        // Sort
-        if (sortField) {
-            computers.sort((a, b) => {
+            items.sort((a, b) => {
                 let aVal: unknown;
                 let bVal: unknown;
 
@@ -120,13 +124,53 @@ export const listPaginated = withAuthQuery({
 
                 return sortDesc ? -comparison : comparison;
             });
+
+            return items;
+        };
+
+        let items: Awaited<ReturnType<typeof ctx.db.query<"computers">>> extends never
+            ? never[]
+            : any[] = [];
+        let continueCursor: string | null = paginationOpts.cursor;
+        let isDone = false;
+        let total: number;
+
+        if (lowerFilter) {
+            const allComputers = await ctx.db.query("computers").collect();
+            const filteredComputers = sortItems(
+                allComputers.filter(
+                    (c) =>
+                        c.login_user?.toLowerCase().includes(lowerFilter) ||
+                        c.name?.toLowerCase().includes(lowerFilter)
+                )
+            );
+
+            const offset = paginationOpts.cursor ? Number.parseInt(paginationOpts.cursor, 10) : 0;
+            const safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
+
+            total = filteredComputers.length;
+            items = filteredComputers.slice(safeOffset, safeOffset + pageSize);
+            isDone = safeOffset + pageSize >= total;
+            continueCursor = isDone ? null : String(safeOffset + pageSize);
+        } else {
+            const { page, continueCursor: nextCursor, isDone: pageDone } = await ctx.db
+                .query("computers")
+                .order(order)
+                .paginate({
+                    numItems: pageSize,
+                    cursor: paginationOpts.cursor,
+                });
+
+            items = sortItems(page);
+            continueCursor = nextCursor;
+            isDone = pageDone;
+            total = await computerCountAggregate.count(ctx, {
+                namespace: null,
+            });
         }
 
-        const total = computers.length;
-        const paginated = computers.slice(skip, skip + limit);
-
         return {
-            data: paginated.map((c) => ({
+            page: items.map((c) => ({
                 id: c._id,
                 rustdeskID: c.rustdesk_id,
                 name: c.name,
@@ -141,6 +185,8 @@ export const listPaginated = withAuthQuery({
                 clientVersion: c.client_version,
                 intuneId: c.intune_id,
             })),
+            continueCursor,
+            isDone,
             total,
         };
     },
@@ -290,6 +336,13 @@ export const remove = withAuthMutation({
         for (const membership of dynamicMemberships) {
             await ctx.db.delete(membership._id);
         }
+
+        // Update aggregate count
+        await computerCountAggregate.delete(ctx, {
+            namespace: null,
+            key: id.toString(),
+            id: id.toString(),
+        });
 
         // Delete computer
         await ctx.db.delete(id);

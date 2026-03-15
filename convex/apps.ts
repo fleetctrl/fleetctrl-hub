@@ -9,7 +9,7 @@ import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
-import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/installAggregate";
+import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
 
 // ========================================
 // Public Queries
