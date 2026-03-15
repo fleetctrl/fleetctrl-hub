@@ -28,7 +28,7 @@ import { env } from "@/lib/env";
 
 // Zod schema for sign in/sign up form
 const authFormSchema = z.object({
-    email: z.string().email("Please enter a valid email address"),
+    email: z.email("Please enter a valid email address"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     name: z.string().optional(),
 });
@@ -42,7 +42,7 @@ export default function SignInPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Check if registration is allowed
-    const allowRegistration = process.env.NEXT_PUBLIC_ALLOW_REGISTRATION !== "false";
+    const allowRegistration = env.NEXT_PUBLIC_ALLOW_REGISTRATION === "true";
 
     const { data: session, isPending } = authClient.useSession();
 

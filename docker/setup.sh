@@ -72,7 +72,15 @@ NEXT_PUBLIC_CONVEX_URL="${SITE_URL}"
 NEXT_PUBLIC_CONVEX_SITE_URL="${SITE_URL}"
 CONVEX_SITE_URL="${SITE_URL}"
 CONVEX_SITE_INTERNAL_URL="http://convex:3211"
-
+# Registration configuration
+# This controls whether users can sign up for new accounts.
+read -p "$(echo -e ${BOLD}\"  Allow user registration? [Y/n]: \"${NC})" ALLOW_REGISTRATION_INPUT
+if [[ "${ALLOW_REGISTRATION_INPUT}" =~ ^[Nn]$ ]]; then
+  ALLOW_REGISTRATION=false
+else
+  ALLOW_REGISTRATION=true
+fi
+NEXT_PUBLIC_ALLOW_REGISTRATION=$ALLOW_REGISTRATION
 # Check for existing Convex key and config in .env
 HAS_CONVEX_KEY=false
 EXISTING_DATA_DIR=""
@@ -150,6 +158,17 @@ if grep -q "^API_URL=" .env; then
   sedi "s|^API_URL=.*|API_URL=${SITE_URL}/api|" .env
 else
   echo "API_URL=${SITE_URL}/api" >> .env
+fi
+# Add ALLOW_REGISTRATION / NEXT_PUBLIC_ALLOW_REGISTRATION if missing, otherwise update them
+if grep -q "^ALLOW_REGISTRATION=" .env; then
+  sedi "s|^ALLOW_REGISTRATION=.*|ALLOW_REGISTRATION=$ALLOW_REGISTRATION|" .env
+else
+  echo "ALLOW_REGISTRATION=$ALLOW_REGISTRATION" >> .env
+fi
+if grep -q "^NEXT_PUBLIC_ALLOW_REGISTRATION=" .env; then
+  sedi "s|^NEXT_PUBLIC_ALLOW_REGISTRATION=.*|NEXT_PUBLIC_ALLOW_REGISTRATION=$NEXT_PUBLIC_ALLOW_REGISTRATION|" .env
+else
+  echo "NEXT_PUBLIC_ALLOW_REGISTRATION=$NEXT_PUBLIC_ALLOW_REGISTRATION" >> .env
 fi
 sedi "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
 sedi "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
