@@ -4,12 +4,13 @@
  * Handles app and release queries for computers.
  */
 
-import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { internalAction, internalQuery } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
+import { internalMutation } from "./functions";
 
 // ========================================
 // Public Queries
@@ -349,24 +350,11 @@ export const updateInstallState = internalMutation({
 
         if (existing) {
             await ctx.db.patch(existing._id, updatePayload);
-            // Update aggregate if status changed
-            if (existing.status !== status) {
-                await installStatusAggregate.replaceOrInsert(
-                    ctx,
-                    { namespace: [release.app_id, existing.status as InstallStatus], key: null, id: existing._id.toString() },
-                    { namespace: [release.app_id, status], key: null }
-                );
-            }
         } else {
-            const newId = await ctx.db.insert("computer_release_installs", {
+            await ctx.db.insert("computer_release_installs", {
                 computer_id: computer._id,
                 release_id: release._id,
                 ...updatePayload,
-            });
-            await installStatusAggregate.insertIfDoesNotExist(ctx, {
-                namespace: [release.app_id, status],
-                key: null,
-                id: newId.toString(),
             });
         }
 

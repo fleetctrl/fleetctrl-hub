@@ -4,12 +4,13 @@
  * Handles computer CRUD operations.
  */
 
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { paginationOptsValidator } from "convex/server";
-import { computerCountAggregate } from "./lib/aggregate/computerCountAggregate";
+import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
+import { internalMutation } from "./functions";
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
 
@@ -336,13 +337,6 @@ export const remove = withAuthMutation({
         for (const membership of dynamicMemberships) {
             await ctx.db.delete(membership._id);
         }
-
-        // Update aggregate count
-        await computerCountAggregate.delete(ctx, {
-            namespace: null,
-            key: id.toString(),
-            id: id.toString(),
-        });
 
         // Delete computer
         await ctx.db.delete(id);

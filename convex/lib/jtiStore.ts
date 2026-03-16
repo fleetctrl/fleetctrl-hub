@@ -5,7 +5,7 @@
  * Stores used JTI values to prevent replay attacks.
  */
 
-import { internalMutation } from "../_generated/server";
+import { internalMutation } from "../functions";
 import { internal } from "../_generated/api";
 import { v } from "convex/values";
 

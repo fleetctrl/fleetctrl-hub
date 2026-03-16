@@ -7,7 +7,6 @@
 
 import {
     internalAction,
-    internalMutation,
     internalQuery,
 } from "./_generated/server";
 import { v } from "convex/values";
@@ -19,7 +18,8 @@ import {
     getRefreshTokenExpiry,
     getAccessTokenTTL,
 } from "./lib/jwt";
-import { computerCountAggregate } from "./lib/aggregate/computerCountAggregate";
+import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
+import { internalMutation } from "./functions";
 
 // ========================================
 // Public Queries
@@ -118,14 +118,6 @@ export const createComputer = internalMutation({
             fingerprint: fingerprint,
             jkt,
         });
-
-        // Keep the aggregate count in sync
-        await computerCountAggregate.insert(ctx, {
-            namespace: null,
-            key: computerId.toString(),
-            id: computerId.toString(),
-        });
-
         return computerId;
     },
 });

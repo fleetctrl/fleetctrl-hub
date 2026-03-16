@@ -4,11 +4,10 @@
  * Handles static and dynamic group management.
  * Replaces SQL triggers for dynamic group membership evaluation.
  */
-
-import { internalMutation, internalQuery } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { Id, Doc } from "./_generated/dataModel";
+import { internalMutation } from "./functions";
 
 // ========================================
 // Rule Evaluation Logic

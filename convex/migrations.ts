@@ -1,9 +1,9 @@
 import { Migrations } from "@convex-dev/migrations";
 import { components, internal } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { installStatusAggregate, InstallStatus } from "./lib/aggregate/installAggregate";
-import { computerCountAggregate } from "./lib/aggregate/computerCountAggregate";
+import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
 
 export const migrations = new Migrations<DataModel>(components.migrations, {
     internalMutation,

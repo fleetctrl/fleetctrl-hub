@@ -11,7 +11,8 @@ import {
     customMutation,
     customAction,
 } from "convex-helpers/server/customFunctions";
-import { query, mutation, action } from "../_generated/server";
+import { query, action } from "../_generated/server";
+import { mutation } from "../functions";
 import { ConvexError } from "convex/values";
 
 export const withAuthQuery = customQuery(query, {
