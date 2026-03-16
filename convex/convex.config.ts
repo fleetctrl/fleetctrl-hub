@@ -9,6 +9,6 @@ app.use(migrations);
 
 // Aggregates
 app.use(aggregate, { name: "installStatusAggregate" });
-app.use(aggregate, { name: "computerCountAggregate" });
+app.use(aggregate, { name: "computerAggregate" });
 
 export default app;

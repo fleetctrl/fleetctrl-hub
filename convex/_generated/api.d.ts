@@ -1340,7 +1340,7 @@ export declare const components: {
       >;
     };
   };
-  computerCountAggregate: {
+  computerAggregate: {
     btree: {
       aggregateBetween: FunctionReference<
         "query",

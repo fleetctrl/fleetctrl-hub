@@ -11,4 +11,4 @@ export const computerCountAggregate = new DirectAggregate<{
     Namespace: null;
     Key: string;
     Id: string;
-}>(components.computerCountAggregate);
+}>(components.computerAggregate);
