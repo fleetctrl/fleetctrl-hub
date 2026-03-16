@@ -6,7 +6,12 @@
  */
 
 import { internalMutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
+
+// Keep maintenance reads intentionally small in Convex and let the scheduler
+// drain large backlogs over many short mutations.
+const CLEANUP_BATCH_SIZE = 64;
 
 /**
  * Checks if JTI has been used and stores it for replay prevention.
@@ -42,35 +47,33 @@ export const checkAndStore = internalMutation({
  */
 export const cleanupStale = internalMutation({
     handler: async (ctx) => {
-        const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
+        const cutoff = Date.now() - 15 * 60 * 1000;
+        const oldest = await ctx.db
+            .query("used_jtis")
+            .order("asc")
+            .take(CLEANUP_BATCH_SIZE);
 
-        // Batch delete stale JTIs (process in chunks to avoid timeout)
-        let deleted = 0;
-        let hasMore = true;
+        const expired = oldest.filter((doc) => doc._creationTime < cutoff);
 
-        while (hasMore) {
-            const stale = await ctx.db
-                .query("used_jtis")
-                .filter((q) => q.lt(q.field("_creationTime"), fifteenMinAgo))
-                .take(100);
-
-            if (stale.length === 0) {
-                hasMore = false;
-                break;
-            }
-
-            for (const doc of stale) {
-                await ctx.db.delete(doc._id);
-                deleted++;
-            }
-
-            // If we got less than 100, we're done
-            if (stale.length < 100) {
-                hasMore = false;
-            }
+        for (const doc of expired) {
+            await ctx.db.delete(doc._id);
         }
 
-        console.log(`[JTI Cleanup] Deleted ${deleted} stale JTIs`);
-        return { deleted };
+        const hasMore =
+            oldest.length === CLEANUP_BATCH_SIZE &&
+            expired.length === oldest.length;
+
+        if (hasMore) {
+            await ctx.scheduler.runAfter(0, internal.lib.jtiStore.cleanupStale);
+        }
+
+        console.log(
+            `[JTI Cleanup] Deleted ${expired.length} stale JTIs${hasMore ? ", scheduling another pass" : ""}`
+        );
+
+        return {
+            deleted: expired.length,
+            hasMore,
+        };
     },
 });

@@ -22,7 +22,7 @@ const crons = cronJobs();
  */
 crons.interval(
     "cleanup stale JTIs",
-    { hours: 1 },
+    { minutes: 5 },
     internal.lib.jtiStore.cleanupStale
 );
 
