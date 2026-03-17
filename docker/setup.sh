@@ -70,6 +70,7 @@ SITE_URL=${SITE_URL_INPUT:-https://localhost}
 # Convex client expects an origin without `/api` and will call `${NEXT_PUBLIC_CONVEX_URL}/api/...`.
 NEXT_PUBLIC_CONVEX_URL="${SITE_URL}"
 NEXT_PUBLIC_CONVEX_SITE_URL="${SITE_URL}"
+NEXT_PUBLIC_SITE_URL="${SITE_URL}"
 CONVEX_SITE_URL="${SITE_URL}"
 CONVEX_SITE_INTERNAL_URL="http://convex:3211"
 # Registration configuration
@@ -134,6 +135,7 @@ fi
 
 # Update values in .env
 sedi "s|^SITE_URL=.*|SITE_URL=$SITE_URL|" .env
+sedi "s|^NEXT_PUBLIC_SITE_URL=.*|NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL|" .env
 sedi "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL|" .env
 # Add NEXT_PUBLIC_CONVEX_SITE_URL if missing, otherwise update it
 if grep -q "^NEXT_PUBLIC_CONVEX_SITE_URL=" .env; then

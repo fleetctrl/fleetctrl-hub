@@ -40,11 +40,12 @@ export default function SignInPage() {
     const [step, setStep] = useState<"signIn" | "signUp">("signIn");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCheckingSession, setIsCheckingSession] = useState(true);
 
     // Check if registration is allowed
     const allowRegistration = env.NEXT_PUBLIC_ALLOW_REGISTRATION === "true";
 
-    const { data: session, isPending } = authClient.useSession();
+    const { data: session, isPending, refetch } = authClient.useSession();
 
     const form = useForm<AuthFormValues>({
         resolver: zodResolver(authFormSchema),
@@ -56,12 +57,26 @@ export default function SignInPage() {
         mode: "onBlur",
     });
 
+    useEffect(() => {
+        let isActive = true;
+
+        refetch().finally(() => {
+            if (isActive) {
+                setIsCheckingSession(false);
+            }
+        });
+
+        return () => {
+            isActive = false;
+        };
+    }, [refetch]);
+
     // Redirect when authenticated
     useEffect(() => {
-        if (session?.user) {
-            router.push("/admin");
+        if (!isCheckingSession && session?.user) {
+            router.replace("/admin");
         }
-    }, [session, router]);
+    }, [isCheckingSession, session, router]);
 
     const onSubmit = async (data: AuthFormValues) => {
         setIsSubmitting(true);
@@ -88,7 +103,7 @@ export default function SignInPage() {
                 }
 
                 // Redirect after successful sign up
-                router.push("/admin");
+                router.replace("/admin");
                 return;
             } else {
                 const result = await authClient.signIn.email({
@@ -103,7 +118,7 @@ export default function SignInPage() {
                 }
 
                 // Redirect after successful sign in
-                router.push("/admin");
+                router.replace("/admin");
                 return;
             }
         } catch {
@@ -116,7 +131,7 @@ export default function SignInPage() {
         }
     };
 
-    if (isPending) {
+    if (isPending || isCheckingSession) {
         return null; // Don't show anything while checking session to avoid flicker
     }
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
     IconDotsVertical,
     IconLogout,
@@ -33,11 +34,22 @@ import Link from "next/link"
 export function NavUser() {
     const { isMobile } = useSidebar()
     const router = useRouter()
-    const { data: session } = authClient.useSession()
+    const { data: session, refetch } = authClient.useSession()
+    const [isLoggingOut, setIsLoggingOut] = useState(false)
 
     const logout = async () => {
-        await authClient.signOut()
-        router.push("/sign-in")
+        setIsLoggingOut(true)
+
+        const result = await authClient.signOut()
+
+        if (result.error) {
+            setIsLoggingOut(false)
+            return
+        }
+
+        await refetch()
+        router.replace("/sign-in")
+        router.refresh()
     }
 
     const email = session?.user?.email ?? "Loading..."
@@ -96,9 +108,9 @@ export function NavUser() {
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={logout}>
+                        <DropdownMenuItem onClick={logout} disabled={isLoggingOut}>
                             <IconLogout />
-                            Log out
+                            {isLoggingOut ? "Logging out..." : "Log out"}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
