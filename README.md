@@ -78,4 +78,3 @@ The project includes a `docker-compose.yaml` to build and run the application in
     ```
  
  The application will be available at [http://localhost:3000](http://localhost:3000).
-
