@@ -4,11 +4,13 @@
  * Handles app and release queries for computers.
  */
 
-import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { internalAction, internalQuery } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
+import { internalMutation } from "./functions";
 
 // ========================================
 // Public Queries
@@ -364,16 +366,6 @@ export const updateInstallState = internalMutation({
 // Admin Queries
 // ========================================
 
-const INSTALL_STATUSES = [
-    "PENDING",
-    "INSTALLING",
-    "INSTALLED",
-    "ERROR",
-    "UNINSTALLED",
-] as const;
-
-type InstallStatus = (typeof INSTALL_STATUSES)[number];
-
 const createStatusSummary = () =>
     INSTALL_STATUSES.reduce(
         (acc, status) => ({ ...acc, [status]: 0 }),
@@ -426,19 +418,9 @@ export const getTableData = withAuthQuery({
                     }
                 }
 
-                const installedComputerIds = new Set<string>();
-                for (const release of releases) {
-                    const installs = await ctx.db
-                        .query("computer_release_installs")
-                        .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
-                        .collect();
-
-                    for (const install of installs) {
-                        if (install.status === "INSTALLED") {
-                            installedComputerIds.add(install.computer_id.toString());
-                        }
-                    }
-                }
+                const installedCount = await installStatusAggregate.count(ctx, {
+                    namespace: [app._id, "INSTALLED"],
+                });
 
                 // Deduplicate groups
                 const uniqueGroups = Array.from(
@@ -452,7 +434,7 @@ export const getTableData = withAuthQuery({
                     updatedAt: app._creationTime,
                     groups: uniqueGroups,
                     groupsCount: uniqueGroups.length,
-                    installedCount: installedComputerIds.size,
+                    installedCount: installedCount,
                 };
             })
         );
@@ -676,12 +658,10 @@ export const getDeviceInstallStatus = withAuthQuery({
             .withIndex("by_app_id", (q) => q.eq("app_id", appId))
             .collect();
 
-        const statusSummary = createStatusSummary();
-
         if (releases.length === 0) {
             return {
                 total: 0,
-                byStatus: statusSummary,
+                byStatus: createStatusSummary(),
                 items: [] as Array<{
                     id: string;
                     computerId: string;
@@ -695,6 +675,17 @@ export const getDeviceInstallStatus = withAuthQuery({
                 }>,
             };
         }
+
+        // Use aggregate for O(log n) status counts
+        const statusCounts = await installStatusAggregate.countBatch(
+            ctx,
+            INSTALL_STATUSES.map((status) => ({ namespace: [appId, status] as [typeof appId, InstallStatus] }))
+        );
+        const byStatus = INSTALL_STATUSES.reduce(
+            (acc, status, i) => ({ ...acc, [status]: statusCounts[i] }),
+            {} as Record<InstallStatus, number>
+        );
+        const total = statusCounts.reduce((sum, n) => sum + n, 0);
 
         const releaseMap = new Map(releases.map((release) => [release._id.toString(), release]));
         const releaseInstalls = await Promise.all(
@@ -748,13 +739,9 @@ export const getDeviceInstallStatus = withAuthQuery({
                 return bTs - aTs;
             });
 
-        for (const item of items) {
-            statusSummary[item.status] += 1;
-        }
-
         return {
-            total: items.length,
-            byStatus: statusSummary,
+            total,
+            byStatus,
             items,
         };
     },

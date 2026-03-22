@@ -4,7 +4,8 @@
  * Handles task management for computers.
  */
 
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 

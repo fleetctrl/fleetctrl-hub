@@ -6,18 +6,14 @@ services:
       context: ../
       dockerfile: Dockerfile
       target: runner
-      args:
-        CONVEX_SITE_URL: ${CONVEX_SITE_URL}
-        NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL}
-        NEXT_PUBLIC_CONVEX_SITE_URL: ${NEXT_PUBLIC_CONVEX_SITE_URL}
-        NEXT_PUBLIC_SITE_URL: ${SITE_URL}
-        NEXT_PUBLIC_ALLOW_REGISTRATION: "true"
     env_file:
       - .env
     environment:
       - CONVEX_URL=${CONVEX_URL}
       - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
       - SITE_URL=${SITE_URL}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+      - NEXT_PUBLIC_ALLOW_REGISTRATION=${NEXT_PUBLIC_ALLOW_REGISTRATION}
     restart: unless-stopped
     depends_on:
       - convex
@@ -31,7 +27,7 @@ services:
       # Used by the backend to populate built-in UDF env vars (e.g. process.env.CONVEX_SITE_URL)
       - CONVEX_CLOUD_ORIGIN=${SITE_URL}
       - CONVEX_SITE_ORIGIN=${SITE_URL}
-      # Using built-in storage for simplicity in this local version
+    # Using built-in storage for simplicity in this local version
     volumes:
       - ${CONVEX_DATA_DIR:-convex-data}:/var/lib/convex
     healthcheck:
@@ -42,17 +38,14 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  convex-cli:
-    container_name: fleetctrl-convex-cli
+  convex-migration:
+    container_name: fleetctrl-convex-migration
     build:
       context: ../
-      dockerfile: Dockerfile
-      target: deps
-    volumes:
-      - ../convex:/app/convex
-    command: tail -f /dev/null
-    env_file:
-      - .env
+      dockerfile: Dockerfile.convex-migration
+    environment:
+      - CONVEX_SELF_HOSTED_URL=${CONVEX_URL}
+      - CONVEX_SELF_HOSTED_ADMIN_KEY=${CONVEX_DEPLOY_KEY}
     depends_on:
       - convex
 
