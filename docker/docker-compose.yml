@@ -38,17 +38,14 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  convex-cli:
-    container_name: fleetctrl-convex-cli
+  convex-migration:
+    container_name: fleetctrl-convex-migration
     build:
       context: ../
-      dockerfile: Dockerfile
-      target: deps
-    volumes:
-      - ../convex:/app/convex
-    command: tail -f /dev/null
-    env_file:
-      - .env
+      dockerfile: Dockerfile.convex-migration
+    environment:
+      - CONVEX_SELF_HOSTED_URL=${CONVEX_URL}
+      - CONVEX_SELF_HOSTED_ADMIN_KEY=${CONVEX_DEPLOY_KEY}
     depends_on:
       - convex
 

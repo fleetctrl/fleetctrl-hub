@@ -23,6 +23,17 @@ sedi() {
   fi
 }
 
+run_convex_migration() {
+  docker compose run --rm --no-deps convex-migration "$@"
+}
+
+run_convex_migration_with_backups() {
+  mkdir -p ../convex/backups
+  docker compose run --rm --no-deps \
+    -v "$(pwd)/../convex/backups:/app/convex/backups" \
+    convex-migration "$@"
+}
+
 show_banner() {
   clear
   echo -e "${CYAN}${BOLD}"
@@ -58,15 +69,7 @@ cmd_backup() {
   echo -e "${BLUE}▶ Starting export process...${NC}"
   echo -e "Target file: ${CYAN}$LOCAL_BACKUP_PATH${NC}\n"
 
-  if ! docker compose ps convex-cli | grep -q "Up"; then
-    echo -e "${YELLOW}convex-cli container is not running. Attempting to start...${NC}"
-    docker compose up -d --no-build convex-cli
-    sleep 3
-  fi
-
-  docker compose exec convex-cli mkdir -p /app/convex/backups
-
-  if docker compose exec convex-cli npx convex export \
+  if run_convex_migration_with_backups npx convex export \
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" \
     --include-file-storage \
@@ -136,13 +139,7 @@ cmd_restore() {
 
   echo -e "\n${BLUE}▶ Starting import process...${NC}"
 
-  if ! docker compose ps convex-cli | grep -q "Up"; then
-    echo -e "${YELLOW}convex-cli container is not running. Attempting to start...${NC}"
-    docker compose up -d --no-build convex-cli
-    sleep 3
-  fi
-
-  if docker compose exec convex-cli npx convex import \
+  if run_convex_migration_with_backups npx convex import \
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" \
     --replace-all --yes \
@@ -196,10 +193,10 @@ cmd_convex_push() {
   echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
 
   echo -e "${BLUE}▶ Pushing Convex schema and functions...${NC}"
-  docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
+  run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
   echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
-  docker compose exec convex-cli npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
+  run_convex_migration npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
 
   echo -e "\n${GREEN}${BOLD} Push Complete!${NC}"
   echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
@@ -453,16 +450,16 @@ cmd_setup() {
     "API_URL=$API_URL" \
     "ALLOW_REGISTRATION=$ALLOW_REGISTRATION" \
     "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL_FOR_CONVEX"; do
-    docker compose exec convex-cli npx convex env set "$var" \
+    run_convex_migration npx convex env set "$var" \
       --url "http://convex:3210" \
       --admin-key "$ADMIN_KEY" > /dev/null
   done
 
   echo -e "${BLUE}▶ Deploying Convex Schema and Functions...${NC}"
-  docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
+  run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
   echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
-  docker compose exec convex-cli npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
+  run_convex_migration npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
 
   echo -e "\n${GREEN}${BOLD} Setup Complete!${NC}"
   echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
@@ -553,20 +550,20 @@ cmd_update() {
   ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
 
   for var in "SITE_URL=$SITE_URL" "API_URL=$API_URL" "ALLOW_REGISTRATION=$ALLOW_REGISTRATION"; do
-    docker compose exec convex-cli npx convex env set "$var" \
+    run_convex_migration npx convex env set "$var" \
       --url "http://convex:3210" \
       --admin-key "$ADMIN_KEY" > /dev/null
   done
 
-  docker compose exec convex-cli npx convex env set "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL_FOR_CONVEX" \
+  run_convex_migration npx convex env set "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL_FOR_CONVEX" \
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" > /dev/null
 
   echo -e "${BLUE}▶ Deploying Convex Schema and Functions...${NC}"
-  docker compose exec convex-cli npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
+  run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
   echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
-  docker compose exec convex-cli npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
+  run_convex_migration npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
 
   echo -e "\n${GREEN}${BOLD} Update Complete!${NC}"
   echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
