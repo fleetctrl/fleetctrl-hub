@@ -47,7 +47,8 @@ services:
       - CONVEX_SELF_HOSTED_URL=${CONVEX_URL}
       - CONVEX_SELF_HOSTED_ADMIN_KEY=${CONVEX_DEPLOY_KEY}
     depends_on:
-      - convex
+      convex:
+        condition: service_healthy
 
   convex-dashboard:
     # Change this to :${REV} if you want to pin to a specific version

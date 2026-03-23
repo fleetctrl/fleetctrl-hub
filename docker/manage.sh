@@ -195,9 +195,6 @@ cmd_convex_push() {
   echo -e "${BLUE}▶ Pushing Convex schema and functions...${NC}"
   run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
-  echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
-  run_convex_migration npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
-
   echo -e "\n${GREEN}${BOLD} Push Complete!${NC}"
   echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
   echo -e "${BOLD}  Convex API:    ${NC} ${CYAN}${NEXT_PUBLIC_CONVEX_URL}/api${NC}"
@@ -458,9 +455,6 @@ cmd_setup() {
   echo -e "${BLUE}▶ Deploying Convex Schema and Functions...${NC}"
   run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
-  echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
-  run_convex_migration npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
-
   echo -e "\n${GREEN}${BOLD} Setup Complete!${NC}"
   echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
   echo -e "${BOLD}  Hub Dashboard:     ${NC} ${CYAN}${SITE_URL}${NC}"
@@ -561,9 +555,6 @@ cmd_update() {
 
   echo -e "${BLUE}▶ Deploying Convex Schema and Functions...${NC}"
   run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
-
-  echo -e "${BLUE}▶ Running Convex data migrations...${NC}"
-  run_convex_migration npx convex run convex/migrations.ts:runInstallAggregateBackfill --url "http://convex:3210" --admin-key "$ADMIN_KEY" > /dev/null
 
   echo -e "\n${GREEN}${BOLD} Update Complete!${NC}"
   echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
