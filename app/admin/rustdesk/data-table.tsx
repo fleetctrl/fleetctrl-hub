@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -209,7 +209,9 @@ export function RustDeskTable() {
     pageSize: 10,
   });
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [inputValue, setInputValue] = useState<string>("");
   const [filter, setFilter] = useState<string>("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pageCache, setPageCache] = useState<Record<number, RustDesk[]>>({});
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const [total, setTotal] = useState<number | undefined>(undefined);
@@ -291,12 +293,42 @@ export function RustDeskTable() {
     setCursorStack([null]);
   }, []);
 
-  const handleFilterChange = (nextFilter: string) => {
-    setFilter(nextFilter);
+  const lastAppliedRef = useRef<number>(0);
+
+  const applyFilter = useCallback((value: string) => {
+    setFilter(value);
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     setPageCache({});
     setCursorStack([null]);
+    lastAppliedRef.current = Date.now();
+  }, []);
+
+  const handleFilterChange = (nextInputValue: string) => {
+    setInputValue(nextInputValue);
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    const elapsed = Date.now() - lastAppliedRef.current;
+
+    if (elapsed >= 500) {
+      applyFilter(nextInputValue);
+    } else {
+      debounceRef.current = setTimeout(() => {
+        applyFilter(nextInputValue);
+      }, 500 - elapsed);
+    }
   };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   return (
     <DataTable
@@ -307,7 +339,7 @@ export function RustDeskTable() {
       onPaginationChange={handlePaginationChange}
       sorting={sorting}
       onSortingChange={handleSortingChange}
-      filter={filter}
+      filter={inputValue}
       onFilterChange={handleFilterChange}
       isLoading={isFetching}
       total={total}
