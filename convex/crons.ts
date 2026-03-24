@@ -12,19 +12,7 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// ========================================
-// JTI Anti-Replay Cleanup
-// ========================================
-
-/**
- * Cleanup stale JTIs every hour.
- * DPoP proofs are valid for 15 minutes, so we clean up anything older.
- */
-crons.interval(
-    "cleanup stale JTIs",
-    { minutes: 5 },
-    internal.lib.jtiStore.cleanupStale
-);
+// JTI Anti-Replay is handled in-memory (see lib/jtiStore.ts)
 
 // ========================================
 // Refresh Token Cleanup
