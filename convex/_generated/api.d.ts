@@ -23,7 +23,6 @@ import type * as lib_aggregate_computerAggregate from "../lib/aggregate/computer
 import type * as lib_aggregate_installAggregate from "../lib/aggregate/installAggregate.js";
 import type * as lib_dpop from "../lib/dpop.js";
 import type * as lib_encoding from "../lib/encoding.js";
-import type * as lib_jtiStore from "../lib/jtiStore.js";
 import type * as lib_jwt from "../lib/jwt.js";
 import type * as lib_withAuth from "../lib/withAuth.js";
 import type * as migrations from "../migrations.js";
@@ -53,7 +52,6 @@ declare const fullApi: ApiFromModules<{
   "lib/aggregate/installAggregate": typeof lib_aggregate_installAggregate;
   "lib/dpop": typeof lib_dpop;
   "lib/encoding": typeof lib_encoding;
-  "lib/jtiStore": typeof lib_jtiStore;
   "lib/jwt": typeof lib_jwt;
   "lib/withAuth": typeof lib_withAuth;
   migrations: typeof migrations;

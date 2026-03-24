@@ -58,10 +58,7 @@ export default defineSchema({
         .index("by_computer_id", ["computer_id"])
         .index("by_status", ["status"]),
 
-    // Anti-replay store (replacement for Redis)
-    used_jtis: defineTable({
-        jti: v.string(),
-    }).index("by_jti", ["jti"]),
+    // JTI anti-replay is now handled in-memory (see lib/jtiStore.ts)
 
     // ========================================
     // TASKS

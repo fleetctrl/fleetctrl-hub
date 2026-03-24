@@ -11,6 +11,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { verifyDPoP, computeATH } from "./lib/dpop";
+import { checkAndStoreJti } from "../lib/jtiStore";
 import { verifyAccessToken } from "./lib/jwt";
 import { authComponent, createAuth } from "./auth";
 import { createMiddleware } from "hono/factory";
@@ -101,9 +102,7 @@ const dpopAuth = createMiddleware<Env>(async (c, next) => {
 
         // Check JTI for replay
         try {
-            await c.env.ctx.runMutation(internal.lib.jtiStore.checkAndStore, {
-                jti: dpopResult.jti,
-            });
+            checkAndStoreJti(dpopResult.jti);
         } catch {
             return c.json({ error: "Replayed DPoP proof" }, 401);
         }
@@ -295,9 +294,7 @@ app.post("/token/recover", async (c) => {
 
         // Check JTI for replay
         try {
-            await c.env.ctx.runMutation(internal.lib.jtiStore.checkAndStore, {
-                jti: dpopResult.jti,
-            });
+            checkAndStoreJti(dpopResult.jti);
         } catch {
             return c.json({ error: "Replayed DPoP proof" }, 401);
         }
