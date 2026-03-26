@@ -242,6 +242,7 @@ export const rustdeskSync = internalMutation({
 
         const syncData = data as {
             rustdesk_id?: number | string;
+            name?: string;
             ip?: string;
             os?: string;
             os_version?: string;
@@ -261,6 +262,9 @@ export const rustdeskSync = internalMutation({
             if (!isNaN(rid)) {
                 updates.rustdesk_id = rid;
             }
+        }
+        if (syncData.name !== undefined) {
+            updates.name = syncData.name;
         }
         if (syncData.ip !== undefined) {
             updates.ip = syncData.ip;
