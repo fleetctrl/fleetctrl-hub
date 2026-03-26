@@ -193,27 +193,34 @@ app.post("/enroll", async (c) => {
         }
 
         const body = await c.req.json();
-        const { name, fingerprint, fingerprint_hash, jkt } = body as {
+        const { name, jkt, device_id } = body as {
             name?: string;
-            fingerprint?: string;
-            fingerprint_hash?: string;
             jkt?: string;
+            device_id?: string;
         };
 
-        const fp = fingerprint || fingerprint_hash; // Backwards compatibility
-
-        if (!name || !fp || !jkt) {
+        if (!name || !jkt) {
             return c.json({ error: "Missing required fields" }, 400);
         }
 
         const result = await c.env.ctx.runAction(internal.deviceAuth.enroll, {
             enrollmentToken,
             name,
-            fingerprint: fp,
             jkt,
+            deviceId: device_id,
         });
 
-        return c.json({ tokens: result }, 201);
+        return c.json(
+            {
+                tokens: {
+                    access_token: result.access_token,
+                    refresh_token: result.refresh_token,
+                    expires_in: result.expires_in,
+                },
+                device_id: result.device_id,
+            },
+            201
+        );
     } catch (error: unknown) {
         const message =
             error instanceof Error ? error.message : "Enrollment failed";
@@ -224,15 +231,15 @@ app.post("/enroll", async (c) => {
 /**
  * Check Enrollment Status
  */
-app.get("/enroll/:fingerprint/is-enrolled", async (c) => {
-    const fingerprint = c.req.param("fingerprint");
+app.get("/devices/:deviceId/is-enrolled", async (c) => {
+    const deviceId = c.req.param("deviceId");
 
-    if (!fingerprint) {
-        return c.json({ error: "Missing fingerprint" }, 400);
+    if (!deviceId) {
+        return c.json({ error: "Missing deviceId" }, 400);
     }
 
     const result = await c.env.ctx.runQuery(internal.deviceAuth.isEnrolled, {
-        fingerprint,
+        deviceId,
     });
 
     if (result) {

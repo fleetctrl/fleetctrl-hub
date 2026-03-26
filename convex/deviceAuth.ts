@@ -26,17 +26,14 @@ import { internalMutation } from "./functions";
 // ========================================
 
 /**
- * Check if a computer is enrolled by fingerprint.
+ * Check if a computer is enrolled by device ID.
  */
 export const isEnrolled = internalQuery({
-    args: { fingerprint: v.string() },
-    handler: async (ctx, { fingerprint }) => {
-        const computer = await ctx.db
-            .query("computers")
-            .withIndex("by_fingerprint", (q) =>
-                q.eq("fingerprint", fingerprint)
-            )
-            .first();
+    args: { deviceId: v.string() },
+    handler: async (ctx, { deviceId }) => {
+        const computer = (await ctx.db.query("computers").collect()).find(
+            (candidate) => candidate._id.toString() === deviceId
+        );
 
         return computer !== null;
     },
@@ -66,15 +63,14 @@ export const getRefreshTokenByHash = internalQuery({
     },
 });
 
-export const getComputerByFingerprint = internalQuery({
-    args: { fingerprint: v.string() },
-    handler: async (ctx, { fingerprint }) => {
-        return await ctx.db
-            .query("computers")
-            .withIndex("by_fingerprint", (q) =>
-                q.eq("fingerprint", fingerprint)
-            )
-            .first();
+export const getComputerByDeviceId = internalQuery({
+    args: { deviceId: v.string() },
+    handler: async (ctx, { deviceId }) => {
+        return (
+            (await ctx.db.query("computers").collect()).find(
+                (candidate) => candidate._id.toString() === deviceId
+            ) ?? null
+        );
     },
 });
 
@@ -109,13 +105,11 @@ export const decrementTokenUses = internalMutation({
 export const createComputer = internalMutation({
     args: {
         name: v.string(),
-        fingerprint: v.string(),
         jkt: v.string(),
     },
-    handler: async (ctx, { name, fingerprint, jkt }) => {
+    handler: async (ctx, { name, jkt }) => {
         const computerId = await ctx.db.insert("computers", {
             name,
-            fingerprint: fingerprint,
             jkt,
         });
         return computerId;
@@ -129,7 +123,10 @@ export const updateComputerJkt = internalMutation({
         name: v.string(),
     },
     handler: async (ctx, { computerId, jkt, name }) => {
-        await ctx.db.patch(computerId, { jkt, name });
+        await ctx.db.patch(computerId, {
+            jkt,
+            name,
+        });
     },
 });
 
@@ -223,10 +220,10 @@ export const enroll = internalAction({
     args: {
         enrollmentToken: v.string(),
         name: v.string(),
-        fingerprint: v.string(),
         jkt: v.string(),
+        deviceId: v.optional(v.string()),
     },
-    handler: async (ctx, { enrollmentToken, name, fingerprint, jkt }) => {
+    handler: async (ctx, { enrollmentToken, name, jkt, deviceId }) => {
         // 1. Validate enrollment token
         const tokenHash = await hashToken(enrollmentToken);
 
@@ -263,11 +260,13 @@ export const enroll = internalAction({
 
         // 3. Check if computer already exists
         let computerId: Id<"computers">;
-        const existing = await ctx.runQuery(
-            // @ts-expect-error - internal API
-            "deviceAuth:getComputerByFingerprint",
-            { fingerprint }
-        );
+        const existing = deviceId
+            ? await ctx.runQuery(
+                // @ts-expect-error - internal API
+                "deviceAuth:getComputerByDeviceId",
+                { deviceId }
+            )
+            : null;
 
         if (existing) {
             // Update existing computer
@@ -288,7 +287,6 @@ export const enroll = internalAction({
                 "deviceAuth:createComputer",
                 {
                     name,
-                    fingerprint,
                     jkt,
                 }
             );
@@ -315,6 +313,7 @@ export const enroll = internalAction({
             access_token: accessToken,
             refresh_token: refreshToken,
             expires_in: getAccessTokenTTL(),
+            device_id: computerId.toString(),
         };
     },
 });

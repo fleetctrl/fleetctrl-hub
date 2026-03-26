@@ -29,8 +29,8 @@ export const list = withAuthQuery({
 
         return computers.map((c) => ({
             id: c._id,
+            deviceId: c._id,
             name: c.name,
-            fingerprint: c.fingerprint,
             rustdeskId: c.rustdesk_id,
             ip: c.ip,
             os: c.os,
@@ -173,6 +173,7 @@ export const listPaginated = withAuthQuery({
         return {
             page: items.map((c) => ({
                 id: c._id,
+                deviceId: c._id,
                 rustdeskID: c.rustdesk_id,
                 name: c.name,
                 ip: c.ip,
@@ -204,8 +205,8 @@ export const getById = withAuthQuery({
 
         return {
             id: computer._id,
+            deviceId: computer._id,
             name: computer.name,
-            fingerprint: computer.fingerprint,
             rustdeskId: computer.rustdesk_id,
             ip: computer.ip,
             os: computer.os,
@@ -371,22 +372,6 @@ export const updateClientVersion = internalMutation({
                 last_connection: Date.now(),
             });
         }
-    },
-});
-
-// ========================================
-// Internal Queries (for auth)
-// ========================================
-
-export const getByFingerprint = internalQuery({
-    args: { fingerprint: v.string() },
-    handler: async (ctx, { fingerprint }) => {
-        return await ctx.db
-            .query("computers")
-            .withIndex("by_fingerprint", (q) =>
-                q.eq("fingerprint", fingerprint)
-            )
-            .first();
     },
 });
 
