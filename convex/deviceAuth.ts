@@ -268,14 +268,22 @@ export const enroll = internalAction({
             )
             : null;
 
+        if (deviceId && !existing) {
+            throw new Error("Unknown device ID");
+        }
+
         if (existing) {
+            if (existing.jkt && existing.jkt !== jkt) {
+                throw new Error("Device proof mismatch");
+            }
+
             // Update existing computer
             await ctx.runMutation(
                 // @ts-expect-error - internal API
                 "deviceAuth:updateComputerJkt",
                 {
                     computerId: existing._id,
-                    jkt,
+                    jkt: existing.jkt ?? jkt,
                     name,
                 }
             );

@@ -199,14 +199,53 @@ app.post("/enroll", async (c) => {
             device_id?: string;
         };
 
-        if (!name || !jkt) {
+        if (!name) {
+            return c.json({ error: "Missing required fields" }, 400);
+        }
+
+        let effectiveJkt = jkt;
+        if (device_id) {
+            const dpopHeader = c.req.header("DPoP");
+            if (!dpopHeader) {
+                return c.json({ error: "Missing DPoP header" }, 401);
+            }
+
+            const url = new URL(c.req.url);
+            const apiUrl = process.env.API_URL;
+
+            let expectedUrl: string;
+            if (apiUrl) {
+                const apiBase = apiUrl.replace(/\/$/, "");
+                expectedUrl = `${apiBase}${url.pathname}`;
+            } else {
+                url.search = "";
+                url.hash = "";
+                expectedUrl = url.href;
+            }
+
+            const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);
+
+            try {
+                checkAndStoreJti(dpopResult.jti);
+            } catch {
+                return c.json({ error: "Replayed DPoP proof" }, 401);
+            }
+
+            if (effectiveJkt && effectiveJkt !== dpopResult.jkt) {
+                return c.json({ error: "JKT mismatch" }, 401);
+            }
+
+            effectiveJkt = dpopResult.jkt;
+        }
+
+        if (!effectiveJkt) {
             return c.json({ error: "Missing required fields" }, 400);
         }
 
         const result = await c.env.ctx.runAction(internal.deviceAuth.enroll, {
             enrollmentToken,
             name,
-            jkt,
+                jkt: effectiveJkt,
             deviceId: device_id,
         });
 
