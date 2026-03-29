@@ -11,8 +11,10 @@ import { internal } from "./_generated/api";
 import { paginationOptsValidator } from "convex/server";
 import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
 import { internalMutation } from "./functions";
+import { Doc } from "./_generated/dataModel";
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+type ComputerDoc = Doc<"computers">;
 
 // ========================================
 // Public Queries
@@ -63,22 +65,13 @@ export const listPaginated = withAuthQuery({
         const onlineThreshold = now - ONLINE_THRESHOLD_MS;
         const lowerFilter = filter?.toLowerCase();
         const pageSize = paginationOpts.numItems;
-        const order = sortDesc ? "desc" : "asc";
 
-        const sortItems = <T extends {
-            name?: string;
-            rustdesk_id?: number;
-            ip?: string;
-            os?: string;
-            os_version?: string;
-            login_user?: string;
-            last_connection?: number;
-        }>(items: T[]) => {
+        const sortItems = (items: ComputerDoc[]) => {
             if (!sortField) {
                 return items;
             }
 
-            items.sort((a, b) => {
+            return [...items].sort((a, b) => {
                 let aVal: unknown;
                 let bVal: unknown;
 
@@ -125,44 +118,48 @@ export const listPaginated = withAuthQuery({
 
                 return sortDesc ? -comparison : comparison;
             });
-
-            return items;
         };
 
-        let items: Awaited<ReturnType<typeof ctx.db.query<"computers">>> extends never
-            ? never[]
-            : any[] = [];
+        const matchesFilter = (computer: ComputerDoc) => {
+            if (!lowerFilter) {
+                return true;
+            }
+
+            return (
+                computer.login_user?.toLowerCase().includes(lowerFilter) ||
+                computer.name?.toLowerCase().includes(lowerFilter)
+            );
+        };
+
+        const requiresInMemoryPagination = Boolean(lowerFilter || sortField);
+
+        let items: ComputerDoc[] = [];
         let continueCursor: string | null = paginationOpts.cursor;
         let isDone = false;
-        let total: number;
+        let total = 0;
 
-        if (lowerFilter) {
+        if (requiresInMemoryPagination) {
             const allComputers = await ctx.db.query("computers").collect();
-            const filteredComputers = sortItems(
-                allComputers.filter(
-                    (c) =>
-                        c.login_user?.toLowerCase().includes(lowerFilter) ||
-                        c.name?.toLowerCase().includes(lowerFilter)
-                )
-            );
+            const filteredComputers = allComputers.filter(matchesFilter);
+            const sortedComputers = sortItems(filteredComputers);
 
             const offset = paginationOpts.cursor ? Number.parseInt(paginationOpts.cursor, 10) : 0;
             const safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
 
-            total = filteredComputers.length;
-            items = filteredComputers.slice(safeOffset, safeOffset + pageSize);
+            total = sortedComputers.length;
+            items = sortedComputers.slice(safeOffset, safeOffset + pageSize);
             isDone = safeOffset + pageSize >= total;
             continueCursor = isDone ? null : String(safeOffset + pageSize);
         } else {
             const { page, continueCursor: nextCursor, isDone: pageDone } = await ctx.db
                 .query("computers")
-                .order(order)
+                .order(sortDesc ? "desc" : "asc")
                 .paginate({
                     numItems: pageSize,
                     cursor: paginationOpts.cursor,
                 });
 
-            items = sortItems(page);
+            items = page;
             continueCursor = nextCursor;
             isDone = pageDone;
             total = await computerCountAggregate.count(ctx, {

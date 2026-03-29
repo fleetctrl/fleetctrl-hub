@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -211,7 +211,6 @@ export function RustDeskTable() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [inputValue, setInputValue] = useState<string>("");
   const [filter, setFilter] = useState<string>("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pageCache, setPageCache] = useState<Record<number, RustDesk[]>>({});
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const [total, setTotal] = useState<number | undefined>(undefined);
@@ -236,6 +235,14 @@ export function RustDeskTable() {
 
   const isFetching = pageResult === undefined;
 
+  const resetQueryState = useCallback((nextPageSize: number) => {
+    setPagination({ pageIndex: 0, pageSize: nextPageSize });
+    setPageCache({});
+    setCursorStack([null]);
+    setTotal(undefined);
+    setIsDone(false);
+  }, []);
+
   useEffect(() => {
     if (!pageResult) {
       return;
@@ -257,12 +264,21 @@ export function RustDeskTable() {
   }, [pageIndex, pageResult]);
 
   useEffect(() => {
-    setPagination({ pageIndex: 0, pageSize });
-    setPageCache({});
-    setCursorStack([null]);
-    setTotal(undefined);
-    setIsDone(false);
-  }, [filter, sortField, sortDesc, pageSize]);
+    const timeoutId = setTimeout(() => {
+      if (inputValue === filter) {
+        return;
+      }
+
+      resetQueryState(pageSize);
+      setFilter(inputValue);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [filter, inputValue, pageSize, resetQueryState]);
+
+  useEffect(() => {
+    resetQueryState(pageSize);
+  }, [pageSize, resetQueryState]);
 
   const tableData = pageCache[pageIndex] ?? [];
 
@@ -270,9 +286,6 @@ export function RustDeskTable() {
     if (typeof total === "number") {
       return Math.max(1, Math.ceil(total / pageSize));
     }
-
-    // When total is unknown, allow the user to fetch at least one more page
-    // (until the query indicates that it is done).
     return isDone ? pageIndex + 1 : pageIndex + 2;
   }, [isDone, pageIndex, pageSize, total]);
 
@@ -288,47 +301,8 @@ export function RustDeskTable() {
 
   const handleSortingChange = useCallback((updater: Updater<SortingState>) => {
     setSorting((prev) => (typeof updater === "function" ? updater(prev) : updater));
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    setPageCache({});
-    setCursorStack([null]);
-  }, []);
-
-  const lastAppliedRef = useRef<number>(0);
-
-  const applyFilter = useCallback((value: string) => {
-    setFilter(value);
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    setPageCache({});
-    setCursorStack([null]);
-    lastAppliedRef.current = Date.now();
-  }, []);
-
-  const handleFilterChange = (nextInputValue: string) => {
-    setInputValue(nextInputValue);
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    const elapsed = Date.now() - lastAppliedRef.current;
-
-    if (elapsed >= 500) {
-      applyFilter(nextInputValue);
-    } else {
-      debounceRef.current = setTimeout(() => {
-        applyFilter(nextInputValue);
-      }, 500 - elapsed);
-    }
-  };
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
+    resetQueryState(pageSize);
+  }, [pageSize, resetQueryState]);
 
   return (
     <DataTable
@@ -340,7 +314,7 @@ export function RustDeskTable() {
       sorting={sorting}
       onSortingChange={handleSortingChange}
       filter={inputValue}
-      onFilterChange={handleFilterChange}
+      onFilterChange={setInputValue}
       isLoading={isFetching}
       total={total}
     />
