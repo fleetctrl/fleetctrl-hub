@@ -1,7 +1,7 @@
-/* eslint-disable no-restricted-imports */
+ 
 import { mutation as rawMutation, internalMutation as rawInternalMutation } from "./_generated/server";
 
-/* eslint-enable no-restricted-imports */
+ 
 import type { DataModel, Id } from "./_generated/dataModel";
 import { Triggers } from "convex-helpers/server/triggers";
 import { customCtx, customMutation } from "convex-helpers/server/customFunctions";
@@ -20,7 +20,7 @@ async function getReleaseAppId(
         : never,
     releaseId: Id<"releases">
 ) {
-    const release = await ctx.innerDb.get(releaseId);
+    const release = await ctx.innerDb.get("releases", releaseId);
     return release?.app_id ?? null;
 }
 

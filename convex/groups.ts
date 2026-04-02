@@ -6,126 +6,66 @@
  */
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
-import { Id, Doc } from "./_generated/dataModel";
+import { Doc } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./functions";
+import { internal } from "./_generated/api";
+import {
+    evaluateRule,
+    parseRuleExpression,
+} from "./lib/groupRules";
 
-// ========================================
-// Rule Evaluation Logic
-// ========================================
+async function refreshSingleGroupMembership(
+    ctx: MutationCtx,
+    group: Doc<"dynamic_computer_groups">,
+    computers: Doc<"computers">[]
+) {
+    const existing = await ctx.db
+        .query("dynamic_group_members")
+        .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
+        .collect();
 
-type Computer = Doc<"computers">;
-
-interface RuleCondition {
-    property: string;
-    operator: string;
-    value: string;
-}
-
-interface RuleGroup {
-    logic: "AND" | "OR";
-    conditions: (RuleCondition | RuleGroup)[];
-}
-
-type RuleExpression = RuleCondition | RuleGroup;
-
-/**
- * Evaluate a rule expression against a computer.
- * Supports nested AND/OR logic and various operators.
- */
-function evaluateRule(rule: RuleExpression, computer: Computer): boolean {
-    // Leaf node (single condition)
-    if ("property" in rule) {
-        return evaluateCondition(rule, computer);
+    for (const member of existing) {
+        await ctx.db.delete("dynamic_group_members", member._id);
     }
 
-    // Branch node (nested conditions)
-    const logic = rule.logic || "AND";
-    const results = (rule.conditions || []).map((c) =>
-        evaluateRule(c as RuleExpression, computer)
-    );
+    const parsedRuleExpression = parseRuleExpression(group.rule_expression);
+    const evaluatedAt = Date.now();
+    let added = 0;
 
-    if (results.length === 0) return false;
-
-    if (logic === "AND") {
-        return results.every((r) => r);
-    } else {
-        return results.some((r) => r);
-    }
-}
-
-/**
- * Evaluate a single condition against a computer.
- */
-function evaluateCondition(
-    condition: RuleCondition,
-    computer: Computer
-): boolean {
-    let propValue: string | undefined;
-
-    switch (condition.property) {
-        case "name":
-            propValue = computer.name;
-            break;
-        case "os":
-            propValue = computer.os ?? undefined;
-            break;
-        case "osVersion":
-            propValue = computer.os_version ?? undefined;
-            break;
-        case "ip":
-            propValue = computer.ip ?? undefined;
-            break;
-        case "loginUser":
-            propValue = computer.login_user ?? undefined;
-            break;
-        case "intuneEnrolled":
-            propValue = computer.intune_id ? "true" : "false";
-            break;
-        case "clientVersion":
-            propValue = computer.client_version ?? undefined;
-            break;
-        default:
-            return false;
-    }
-
-    if (propValue === undefined) return false;
-
-    const ruleValue = condition.value;
-
-    switch (condition.operator) {
-        case "equals":
-            return propValue === ruleValue;
-        case "notEquals":
-            return propValue !== ruleValue;
-        case "contains":
-            return propValue.toLowerCase().includes(ruleValue.toLowerCase());
-        case "notContains":
-            return !propValue.toLowerCase().includes(ruleValue.toLowerCase());
-        case "startsWith":
-            return propValue.toLowerCase().startsWith(ruleValue.toLowerCase());
-        case "endsWith":
-            return propValue.toLowerCase().endsWith(ruleValue.toLowerCase());
-        case "regex":
-            try {
-                return new RegExp(ruleValue).test(propValue);
-            } catch {
-                return false;
-            }
-        case "olderThanDays": {
-            const days = parseInt(ruleValue, 10);
-            if (isNaN(days)) return false;
-            const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-            return computer._creationTime < cutoff;
+    for (const computer of computers) {
+        if (evaluateRule(parsedRuleExpression, computer, evaluatedAt)) {
+            await ctx.db.insert("dynamic_group_members", {
+                group_id: group._id,
+                computer_id: computer._id,
+                added_at: evaluatedAt,
+            });
+            added++;
         }
-        case "newerThanDays": {
-            const days = parseInt(ruleValue, 10);
-            if (isNaN(days)) return false;
-            const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-            return computer._creationTime >= cutoff;
-        }
-        default:
-            return false;
     }
+
+    await ctx.db.patch("dynamic_computer_groups", group._id, {
+        last_evaluated_at: evaluatedAt,
+    });
+
+    return { added, removed: existing.length };
+}
+
+async function refreshAllGroupMemberships(
+    ctx: MutationCtx
+) {
+    const groups = await ctx.db.query("dynamic_computer_groups").collect();
+    const computers = await ctx.db.query("computers").collect();
+    let totalAdded = 0;
+    let totalRemoved = 0;
+
+    for (const group of groups) {
+        const result = await refreshSingleGroupMembership(ctx, group, computers);
+        totalAdded += result.added;
+        totalRemoved += result.removed;
+    }
+
+    return { groups: groups.length, added: totalAdded, removed: totalRemoved };
 }
 
 // ========================================
@@ -139,7 +79,7 @@ function evaluateCondition(
 export const refreshComputerMemberships = internalMutation({
     args: { computerId: v.id("computers") },
     handler: async (ctx, { computerId }) => {
-        const computer = await ctx.db.get(computerId);
+        const computer = await ctx.db.get("computers", computerId);
         if (!computer) return { added: 0, removed: 0 };
 
         // Remove existing memberships
@@ -149,19 +89,21 @@ export const refreshComputerMemberships = internalMutation({
             .collect();
 
         for (const member of existing) {
-            await ctx.db.delete(member._id);
+            await ctx.db.delete("dynamic_group_members", member._id);
         }
 
         // Evaluate all dynamic groups
         const groups = await ctx.db.query("dynamic_computer_groups").collect();
         let added = 0;
+        const evaluatedAt = Date.now();
 
         for (const group of groups) {
-            if (evaluateRule(group.rule_expression as RuleExpression, computer)) {
+            const parsedRuleExpression = parseRuleExpression(group.rule_expression);
+            if (evaluateRule(parsedRuleExpression, computer, evaluatedAt)) {
                 await ctx.db.insert("dynamic_group_members", {
                     group_id: group._id,
                     computer_id: computerId,
-                    added_at: Date.now(),
+                    added_at: evaluatedAt,
                 });
                 added++;
             }
@@ -178,38 +120,10 @@ export const refreshComputerMemberships = internalMutation({
 export const refreshGroupMembership = internalMutation({
     args: { groupId: v.id("dynamic_computer_groups") },
     handler: async (ctx, { groupId }) => {
-        const group = await ctx.db.get(groupId);
+        const group = await ctx.db.get("dynamic_computer_groups", groupId);
         if (!group) return { added: 0, removed: 0 };
-
-        // Clear existing members
-        const existing = await ctx.db
-            .query("dynamic_group_members")
-            .withIndex("by_group_id", (q) => q.eq("group_id", groupId))
-            .collect();
-
-        for (const member of existing) {
-            await ctx.db.delete(member._id);
-        }
-
-        // Evaluate all computers
         const computers = await ctx.db.query("computers").collect();
-        let added = 0;
-
-        for (const computer of computers) {
-            if (evaluateRule(group.rule_expression as RuleExpression, computer)) {
-                await ctx.db.insert("dynamic_group_members", {
-                    group_id: groupId,
-                    computer_id: computer._id,
-                    added_at: Date.now(),
-                });
-                added++;
-            }
-        }
-
-        // Update last evaluated timestamp
-        await ctx.db.patch(groupId, { last_evaluated_at: Date.now() });
-
-        return { added, removed: existing.length };
+        return await refreshSingleGroupMembership(ctx, group, computers);
     },
 });
 
@@ -219,43 +133,12 @@ export const refreshGroupMembership = internalMutation({
  */
 export const refreshAllDynamicGroups = internalMutation({
     handler: async (ctx) => {
-        const groups = await ctx.db.query("dynamic_computer_groups").collect();
-        const computers = await ctx.db.query("computers").collect();
-        let totalAdded = 0;
-        let totalRemoved = 0;
-
-        for (const group of groups) {
-            // Clear existing members
-            const existing = await ctx.db
-                .query("dynamic_group_members")
-                .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
-                .collect();
-
-            for (const member of existing) {
-                await ctx.db.delete(member._id);
-                totalRemoved++;
-            }
-
-            // Evaluate all computers
-            for (const computer of computers) {
-                if (evaluateRule(group.rule_expression as RuleExpression, computer)) {
-                    await ctx.db.insert("dynamic_group_members", {
-                        group_id: group._id,
-                        computer_id: computer._id,
-                        added_at: Date.now(),
-                    });
-                    totalAdded++;
-                }
-            }
-
-            // Update timestamp
-            await ctx.db.patch(group._id, { last_evaluated_at: Date.now() });
-        }
+        const result = await refreshAllGroupMemberships(ctx);
 
         console.log(
-            `[Dynamic Groups] Refreshed ${groups.length} groups. Added: ${totalAdded}, Removed: ${totalRemoved}`
+            `[Dynamic Groups] Refreshed ${result.groups} groups. Added: ${result.added}, Removed: ${result.removed}`
         );
-        return { groups: groups.length, added: totalAdded, removed: totalRemoved };
+        return result;
     },
 });
 
@@ -264,40 +147,9 @@ export const refreshAllDynamicGroups = internalMutation({
  * Called from admin UI.
  */
 export const refreshAll = withAuthMutation({
-    handler: async (ctx) => {
-        const groups = await ctx.db.query("dynamic_computer_groups").collect();
-        const computers = await ctx.db.query("computers").collect();
-        let totalAdded = 0;
-        let totalRemoved = 0;
-
-        for (const group of groups) {
-            // Clear existing members
-            const existing = await ctx.db
-                .query("dynamic_group_members")
-                .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
-                .collect();
-
-            for (const member of existing) {
-                await ctx.db.delete(member._id);
-                totalRemoved++;
-            }
-
-            // Evaluate all computers
-            for (const computer of computers) {
-                if (evaluateRule(group.rule_expression as RuleExpression, computer)) {
-                    await ctx.db.insert("dynamic_group_members", {
-                        group_id: group._id,
-                        computer_id: computer._id,
-                        added_at: Date.now(),
-                    });
-                    totalAdded++;
-                }
-            }
-
-            await ctx.db.patch(group._id, { last_evaluated_at: Date.now() });
-        }
-
-        return { groups: groups.length, added: totalAdded, removed: totalRemoved };
+    handler: async (ctx): Promise<{ groups: number; added: number; removed: number }> => {
+        const result = await ctx.runMutation(internal.groups.refreshAllDynamicGroups, {});
+        return result;
     },
 });
 
@@ -311,7 +163,7 @@ export const refreshAll = withAuthMutation({
 export const getById = withAuthQuery({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
-        const group = await ctx.db.get(id);
+        const group = await ctx.db.get("dynamic_computer_groups", id);
         if (!group) return null;
 
         return {
@@ -371,7 +223,7 @@ export const getMembers = withAuthQuery({
 
         return Promise.all(
             members.map(async (member) => {
-                const computer = await ctx.db.get(member.computer_id);
+                const computer = await ctx.db.get("computers", member.computer_id);
                 return {
                     computerId: member.computer_id,
                     addedAt: member.added_at,
@@ -426,7 +278,7 @@ export const getDynamicGroupMembers = withAuthQuery({
 
         return Promise.all(
             members.map(async (member) => {
-                const computer = await ctx.db.get(member.computer_id);
+                const computer = await ctx.db.get("computers", member.computer_id);
                 return {
                     memberId: member._id,
                     addedAt: member.added_at,
@@ -449,12 +301,13 @@ export const getDynamicGroupMembers = withAuthQuery({
  * Preview which computers would match a rule expression.
  */
 export const previewRuleMatches = withAuthQuery({
-    args: { ruleExpression: v.any() },
-    handler: async (ctx, { ruleExpression }) => {
+    args: { ruleExpression: v.any(), asOf: v.number() },
+    handler: async (ctx, { ruleExpression, asOf }) => {
+        const parsedRuleExpression = parseRuleExpression(ruleExpression);
         const computers = await ctx.db.query("computers").collect();
 
         return computers
-            .filter((c) => evaluateRule(ruleExpression as RuleExpression, c))
+            .filter((c) => evaluateRule(parsedRuleExpression, c, asOf))
             .map((c) => ({
                 id: c._id,
                 name: c.name,
@@ -480,6 +333,8 @@ export const createDynamicGroup = withAuthMutation({
         ruleExpression: v.any(),
     },
     handler: async (ctx, { displayName, description, ruleExpression }) => {
+        const parsedRuleExpression = parseRuleExpression(ruleExpression);
+
         // Check for duplicate name
         const existing = await ctx.db
             .query("dynamic_computer_groups")
@@ -493,12 +348,12 @@ export const createDynamicGroup = withAuthMutation({
         const id = await ctx.db.insert("dynamic_computer_groups", {
             display_name: displayName,
             description,
-            rule_expression: ruleExpression,
+            rule_expression: parsedRuleExpression,
         });
 
-        // Trigger membership evaluation
-        // Note: In production, you might want to schedule this
-        // instead of running inline for large computer sets
+        await ctx.scheduler.runAfter(0, internal.groups.refreshGroupMembership, {
+            groupId: id,
+        });
 
         return { id };
     },
@@ -515,10 +370,15 @@ export const updateDynamicGroup = withAuthMutation({
         ruleExpression: v.optional(v.any()),
     },
     handler: async (ctx, { id, displayName, description, ruleExpression }) => {
-        const existing = await ctx.db.get(id);
+        const existing = await ctx.db.get("dynamic_computer_groups", id);
         if (!existing) {
             throw new Error("Group not found");
         }
+
+        const parsedRuleExpression =
+            ruleExpression !== undefined
+                ? parseRuleExpression(ruleExpression)
+                : undefined;
 
         // Check for duplicate name if changing
         if (displayName && displayName !== existing.display_name) {
@@ -535,9 +395,17 @@ export const updateDynamicGroup = withAuthMutation({
         const updates: Partial<Doc<"dynamic_computer_groups">> = {};
         if (displayName !== undefined) updates.display_name = displayName;
         if (description !== undefined) updates.description = description;
-        if (ruleExpression !== undefined) updates.rule_expression = ruleExpression;
+        if (parsedRuleExpression !== undefined) {
+            updates.rule_expression = parsedRuleExpression;
+        }
 
-        await ctx.db.patch(id, updates);
+        await ctx.db.patch("dynamic_computer_groups", id, updates);
+
+        if (parsedRuleExpression !== undefined) {
+            await ctx.scheduler.runAfter(0, internal.groups.refreshGroupMembership, {
+                groupId: id,
+            });
+        }
 
         return { success: true };
     },
@@ -550,7 +418,7 @@ export const deleteDynamicGroup = withAuthMutation({
     args: { id: v.id("dynamic_computer_groups") },
     handler: async (ctx, { id }) => {
         // Members will be cascade-deleted by Convex
-        await ctx.db.delete(id);
+        await ctx.db.delete("dynamic_computer_groups", id);
         return { success: true };
     },
 });

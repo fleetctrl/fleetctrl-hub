@@ -60,37 +60,42 @@ export const generateUploadUrl = withAuthMutation({
 export const setActive = withAuthMutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
-        const update = await ctx.db.get(args.id);
+        const update = await ctx.db.get("client_updates", args.id);
         if (!update) throw new Error("Update not found");
 
-        // Deactivate all others
-        const allUpdates = await ctx.db.query("client_updates").collect();
-        for (const u of allUpdates) {
-            if (u.is_active && u._id !== args.id) {
-                await ctx.db.patch(u._id, { is_active: false });
+        const activeUpdates = await ctx.db
+            .query("client_updates")
+            .withIndex("by_is_active", (q) => q.eq("is_active", true))
+            .collect();
+
+        for (const activeUpdate of activeUpdates) {
+            if (activeUpdate._id !== args.id) {
+                await ctx.db.patch("client_updates", activeUpdate._id, {
+                    is_active: false,
+                });
             }
         }
 
-        await ctx.db.patch(args.id, { is_active: true });
+        await ctx.db.patch("client_updates", args.id, { is_active: true });
     },
 });
 
 export const deactivate = withAuthMutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
-        await ctx.db.patch(args.id, { is_active: false });
+        await ctx.db.patch("client_updates", args.id, { is_active: false });
     },
 });
 
 export const remove = withAuthMutation({
     args: { id: v.id("client_updates") },
     handler: async (ctx, args) => {
-        const update = await ctx.db.get(args.id);
+        const update = await ctx.db.get("client_updates", args.id);
         if (!update) throw new Error("Update not found");
 
         // Remove file from storage
         await ctx.storage.delete(update.storage_id);
 
-        await ctx.db.delete(args.id);
+        await ctx.db.delete("client_updates", args.id);
     }
 });

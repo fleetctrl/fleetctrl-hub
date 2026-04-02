@@ -35,7 +35,7 @@ import { useMutation } from "convex/react";
 import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
-import { Id } from "@/convex/_generated/dataModel";
+import { uploadFileToConvex } from "@/lib/convex-upload";
 
 const formatDateTime = (timestamp: number) =>
     new Date(timestamp).toLocaleString("cs-CZ", {
@@ -72,36 +72,15 @@ export function ClientUpdatesTable() {
         setIsUploading(true);
 
         try {
-            // 1. Calculate SHA256 hash (keep client-side calculation)
-            const arrayBuffer = await uploadFile.arrayBuffer();
-            const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+            const uploadedFile = await uploadFileToConvex(uploadFile, generateUploadUrl);
 
-            // 2. Generate Upload URL
-            const postUrl = await generateUploadUrl();
-
-            // 3. Upload File
-            const result = await fetch(postUrl, {
-                method: "POST",
-                headers: { "Content-Type": uploadFile.type || "application/octet-stream" },
-                body: uploadFile,
-            });
-
-            if (!result.ok) {
-                throw new Error(`Upload failed: ${result.statusText}`);
-            }
-
-            const { storageId } = await result.json();
-
-            // 4. Create Database Record
             await createUpdate({
                 version: version.trim(),
-                storageId: storageId as Id<"_storage">,
-                hash,
-                byte_size: uploadFile.size,
-                file_name: uploadFile.name,
-                mime_type: uploadFile.type || "application/octet-stream",
+                storageId: uploadedFile.storageId,
+                hash: uploadedFile.hash,
+                byte_size: uploadedFile.size,
+                file_name: uploadedFile.name,
+                mime_type: uploadedFile.type,
                 notes: notes.trim() || undefined,
             });
 

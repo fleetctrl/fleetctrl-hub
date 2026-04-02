@@ -36,6 +36,12 @@ import {
 import { SearchIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
+function isComputerOnline(lastConnection?: number) {
+  return typeof lastConnection === "number" && Date.now() - lastConnection < ONLINE_THRESHOLD_MS;
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -140,12 +146,12 @@ function DataTable<TData, TValue>({
                           <TableCell className="pl-4">
                             <div
                               className={cn("w-3 h-3 rounded-[50%]", {
-                                "bg-red-400":
-                                  (cell.getContext().getValue() as string) ===
-                                  "Offline",
-                                "bg-green-400":
-                                  (cell.getContext().getValue() as string) ===
-                                  "Online",
+                                "bg-red-400": !isComputerOnline(
+                                  cell.getContext().getValue() as number | undefined
+                                ),
+                                "bg-green-400": isComputerOnline(
+                                  cell.getContext().getValue() as number | undefined
+                                ),
                               })}
                             />
                           </TableCell>

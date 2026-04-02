@@ -4,13 +4,83 @@
  * Handles app and release queries for computers.
  */
 
-import { internalAction, internalQuery } from "./_generated/server";
+import { internalAction, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
 import { internalMutation } from "./functions";
+import { normalizeTableId } from "./lib/idNormalization";
+
+type ReleaseAssignment = {
+    release_id: Id<"releases">;
+    assign_type: "include" | "exclude";
+    action: "install" | "uninstall";
+};
+
+type AssignmentLookupCtx = Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">;
+
+async function getReleaseAssignmentsForComputer(
+    ctx: AssignmentLookupCtx,
+    computerId: Id<"computers">
+): Promise<ReleaseAssignment[]> {
+    const [staticMemberships, dynamicMemberships] = await Promise.all([
+        ctx.db
+            .query("computer_group_members")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
+            .collect(),
+        ctx.db
+            .query("dynamic_group_members")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
+            .collect(),
+    ]);
+
+    const [staticAssignments, dynamicAssignments] = await Promise.all([
+        Promise.all(
+            staticMemberships.map(({ group_id }) =>
+                ctx.db
+                    .query("computer_group_releases")
+                    .withIndex("by_group_id", (q) => q.eq("group_id", group_id))
+                    .collect()
+            )
+        ),
+        Promise.all(
+            dynamicMemberships.map(({ group_id }) =>
+                ctx.db
+                    .query("dynamic_group_releases")
+                    .withIndex("by_group_id", (q) => q.eq("group_id", group_id))
+                    .collect()
+            )
+        ),
+    ]);
+
+    const dedupedAssignments = new Map<string, ReleaseAssignment>();
+
+    for (const assignment of [...staticAssignments.flat(), ...dynamicAssignments.flat()]) {
+        const releaseKey = assignment.release_id.toString();
+        if (!dedupedAssignments.has(releaseKey)) {
+            dedupedAssignments.set(releaseKey, {
+                release_id: assignment.release_id,
+                assign_type: assignment.assign_type,
+                action: assignment.action,
+            });
+        }
+    }
+
+    return [...dedupedAssignments.values()];
+}
+
+async function hasAssignedReleaseAccess(
+    ctx: AssignmentLookupCtx,
+    computerId: Id<"computers">,
+    releaseId: Id<"releases">
+) {
+    const assignments = await getReleaseAssignmentsForComputer(ctx, computerId);
+    return assignments.some(
+        (assignment) => assignment.release_id.toString() === releaseId.toString()
+    );
+}
 
 // ========================================
 // Public Queries
@@ -22,81 +92,85 @@ import { internalMutation } from "./functions";
 export const getAssigned = internalQuery({
     args: { computerId: v.string() },
     handler: async (ctx, { computerId }) => {
-        // 1. Get static group memberships
-        const staticMemberships = await ctx.db
-            .query("computer_group_members")
-            .withIndex("by_computer_id")
-            .collect();
-
-        const staticGroupIds = staticMemberships
-            .filter((m) => m.computer_id.toString() === computerId)
-            .map((m) => m.group_id);
-
-        // 2. Get dynamic group memberships
-        const dynamicMemberships = await ctx.db
-            .query("dynamic_group_members")
-            .withIndex("by_computer_id")
-            .collect();
-
-        const dynamicGroupIds = dynamicMemberships
-            .filter((m) => m.computer_id.toString() === computerId)
-            .map((m) => m.group_id);
-
-        if (staticGroupIds.length === 0 && dynamicGroupIds.length === 0) {
-            return [];
-        }
-
-        // 3. Get releases for static groups
-        const staticReleases = await ctx.db
-            .query("computer_group_releases")
-            .collect();
-
-        const staticReleaseAssignments = staticReleases.filter((r) =>
-            staticGroupIds.some((gid) => gid.toString() === r.group_id.toString())
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
         );
-
-        // 4. Get releases for dynamic groups
-        const dynamicReleases = await ctx.db
-            .query("dynamic_group_releases")
-            .collect();
-
-        const dynamicReleaseAssignments = dynamicReleases.filter((r) =>
-            dynamicGroupIds.some((gid) => gid.toString() === r.group_id.toString())
+        const releaseAssignments = await getReleaseAssignmentsForComputer(
+            ctx,
+            normalizedComputerId
         );
-
-        // 5. Combine and deduplicate release IDs
-        const releaseAssignments = [
-            ...staticReleaseAssignments,
-            ...dynamicReleaseAssignments,
-        ];
 
         if (releaseAssignments.length === 0) {
             return [];
         }
 
-        // 6. Get release details
-        const releaseIds = [
-            ...new Set(releaseAssignments.map((r) => r.release_id.toString())),
-        ];
-
-        const allReleases = await ctx.db.query("releases").collect();
-        const releases = allReleases.filter(
-            (r) => releaseIds.includes(r._id.toString()) && !r.disabled_at
+        const releases = (
+            await Promise.all(
+                releaseAssignments.map(({ release_id }) =>
+                    ctx.db.get("releases", release_id)
+                )
+            )
+        ).filter(
+            (release): release is NonNullable<typeof release> =>
+                release !== null && release.disabled_at === undefined
         );
 
-        // 7. Build app map
-        const appIds = [...new Set(releases.map((r) => r.app_id.toString()))];
-        const allApps = await ctx.db.query("apps").collect();
-        const apps = allApps.filter((a) => appIds.includes(a._id.toString()));
+        if (releases.length === 0) {
+            return [];
+        }
 
-        // 8. Get additional release data
-        const win32Releases = await ctx.db.query("win32_releases").collect();
-        const wingetReleases = await ctx.db.query("winget_releases").collect();
-        const detectionRules = await ctx.db.query("detection_rules").collect();
-        const requirements = await ctx.db.query("release_requirements").collect();
-        const release_scripts = await ctx.db.query("release_scripts").collect();
+        const appIds = [...new Set(releases.map((release) => release.app_id.toString()))];
+        const apps = (
+            await Promise.all(
+                appIds.map((appId) =>
+                    ctx.db.get("apps", appId as Id<"apps">)
+                )
+            )
+        ).filter((app): app is NonNullable<typeof app> => app !== null);
 
-        // 9. Build response
+        const releaseMetadata = new Map(
+            await Promise.all(
+                releases.map(async (release) => [
+                    release._id.toString(),
+                    {
+                        win32: await ctx.db
+                            .query("win32_releases")
+                            .withIndex("by_release_id", (q) =>
+                                q.eq("release_id", release._id)
+                            )
+                            .first(),
+                        winget: await ctx.db
+                            .query("winget_releases")
+                            .withIndex("by_release_id", (q) =>
+                                q.eq("release_id", release._id)
+                            )
+                            .first(),
+                        detectionRules: await ctx.db
+                            .query("detection_rules")
+                            .withIndex("by_release_id", (q) =>
+                                q.eq("release_id", release._id)
+                            )
+                            .collect(),
+                        requirements: await ctx.db
+                            .query("release_requirements")
+                            .withIndex("by_release_id", (q) =>
+                                q.eq("release_id", release._id)
+                            )
+                            .collect(),
+                        scripts: await ctx.db
+                            .query("release_scripts")
+                            .withIndex("by_release_id", (q) =>
+                                q.eq("release_id", release._id)
+                            )
+                            .collect(),
+                    },
+                ] as const)
+            )
+        );
+
         const result = apps.map((app) => {
             const appReleases = releases.filter(
                 (r) => r.app_id.toString() === app._id.toString()
@@ -108,24 +182,9 @@ export const getAssigned = internalQuery({
                 publisher: app.publisher,
                 auto_update: app.auto_update,
                 releases: appReleases.map((release) => {
+                    const metadata = releaseMetadata.get(release._id.toString());
                     const assignment = releaseAssignments.find(
                         (ra) => ra.release_id.toString() === release._id.toString()
-                    );
-
-                    const win32 = win32Releases.find(
-                        (w) => w.release_id.toString() === release._id.toString()
-                    );
-
-                    const winget = wingetReleases.find(
-                        (w) => w.release_id.toString() === release._id.toString()
-                    );
-
-                    const rules = detectionRules.filter(
-                        (d) => d.release_id.toString() === release._id.toString()
-                    );
-
-                    const reqs = requirements.filter(
-                        (r) => r.release_id.toString() === release._id.toString()
                     );
 
                     return {
@@ -135,35 +194,33 @@ export const getAssigned = internalQuery({
                         action: assignment?.action || "install",
                         installer_type: release.installer_type,
                         uninstall_previous: release.uninstall_previous,
-                        win32: win32
+                        win32: metadata?.win32
                             ? {
-                                install_binary_path: win32.install_binary_storage_id,
-                                installer_name: win32.installer_name,
-                                hash: win32.hash,
-                                install_script: win32.install_script,
-                                uninstall_script: win32.uninstall_script,
-                                install_binary_size: win32.install_binary_size,
+                                install_binary_path: metadata.win32.install_binary_storage_id,
+                                installer_name: metadata.win32.installer_name,
+                                hash: metadata.win32.hash,
+                                install_script: metadata.win32.install_script,
+                                uninstall_script: metadata.win32.uninstall_script,
+                                install_binary_size: metadata.win32.install_binary_size,
                             }
                             : null,
-                        winget: winget
+                        winget: metadata?.winget
                             ? {
-                                winget_id: winget.winget_id,
+                                winget_id: metadata.winget.winget_id,
                             }
                             : null,
-                        detection_rules: rules.map((r) => ({
+                        detection_rules: (metadata?.detectionRules ?? []).map((r) => ({
                             type: r.type,
                             config: r.config,
                         })),
-                        requirements: reqs.map((r) => ({
+                        requirements: (metadata?.requirements ?? []).map((r) => ({
                             id: r._id,
                             script_name: r.script_name,
                             timeout_seconds: r.timeout_seconds,
                             run_as_system: r.run_as_system,
                             hash: r.hash,
                         })),
-                        scripts: release_scripts.filter(
-                            (s) => s.release_id.toString() === release._id.toString()
-                        ),
+                        scripts: metadata?.scripts ?? [],
                     };
                 }),
             };
@@ -185,18 +242,9 @@ export const getDownloadUrl = internalAction({
         computerId: v.string(),
         releaseId: v.string(),
     },
-    handler: async (ctx, { releaseId }): Promise<string | null> => {
-        // 1. Verify assignment (simplified - in production, check group membership)
-        const release = await ctx.runQuery(internal.apps.getReleaseById, {
-            releaseId,
-        });
-
-        if (!release) {
-            return null;
-        }
-
-        // 2. Get win32 release data
-        const win32 = await ctx.runQuery(internal.apps.getWin32Release, {
+    handler: async (ctx, { computerId, releaseId }): Promise<string | null> => {
+        const win32 = await ctx.runQuery(internal.apps.getAuthorizedWin32Release, {
+            computerId,
             releaseId,
         });
 
@@ -221,9 +269,9 @@ export const getRequirementDownloadUrl = internalAction({
         computerId: v.string(),
         requirementId: v.string(),
     },
-    handler: async (ctx, { requirementId }): Promise<string | null> => {
-        // 1. Get requirement
-        const requirement = await ctx.runQuery(internal.apps.getRequirementById, {
+    handler: async (ctx, { computerId, requirementId }): Promise<string | null> => {
+        const requirement = await ctx.runQuery(internal.apps.getAuthorizedRequirement, {
+            computerId,
             requirementId,
         });
 
@@ -248,9 +296,9 @@ export const getScriptDownloadUrl = internalAction({
         computerId: v.string(),
         scriptId: v.string(),
     },
-    handler: async (ctx, { scriptId }): Promise<string | null> => {
-        // 1. Get script
-        const script = await ctx.runQuery(internal.apps.getScriptById, {
+    handler: async (ctx, { computerId, scriptId }): Promise<string | null> => {
+        const script = await ctx.runQuery(internal.apps.getAuthorizedScript, {
+            computerId,
             scriptId,
         });
 
@@ -271,37 +319,115 @@ export const getScriptDownloadUrl = internalAction({
 // Internal Queries (for actions)
 // ========================================
 
-export const getReleaseById = internalQuery({
-    args: { releaseId: v.string() },
-    handler: async (ctx, { releaseId }) => {
-        const releases = await ctx.db.query("releases").collect();
-        return releases.find((r) => r._id.toString() === releaseId) || null;
+export const getAuthorizedWin32Release = internalQuery({
+    args: {
+        computerId: v.string(),
+        releaseId: v.string(),
     },
-});
-
-export const getWin32Release = internalQuery({
-    args: { releaseId: v.string() },
-    handler: async (ctx, { releaseId }) => {
-        const win32Releases = await ctx.db.query("win32_releases").collect();
-        return (
-            win32Releases.find((w) => w.release_id.toString() === releaseId) || null
+    handler: async (ctx, { computerId, releaseId }) => {
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
         );
+        const normalizedReleaseId = normalizeTableId(
+            ctx.db,
+            "releases",
+            releaseId,
+            "release ID"
+        );
+        const release = await ctx.db.get("releases", normalizedReleaseId);
+
+        if (!release || release.disabled_at) {
+            return null;
+        }
+
+        if (!(await hasAssignedReleaseAccess(ctx, normalizedComputerId, normalizedReleaseId))) {
+            return null;
+        }
+
+        return await ctx.db
+            .query("win32_releases")
+            .withIndex("by_release_id", (q) => q.eq("release_id", normalizedReleaseId))
+            .first();
     },
 });
 
-export const getRequirementById = internalQuery({
-    args: { requirementId: v.string() },
-    handler: async (ctx, { requirementId }) => {
-        const requirements = await ctx.db.query("release_requirements").collect();
-        return requirements.find((r) => r._id.toString() === requirementId) || null;
+export const getAuthorizedRequirement = internalQuery({
+    args: {
+        computerId: v.string(),
+        requirementId: v.string(),
+    },
+    handler: async (ctx, { computerId, requirementId }) => {
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
+        );
+        const normalizedRequirementId = normalizeTableId(
+            ctx.db,
+            "release_requirements",
+            requirementId,
+            "requirement ID"
+        );
+        const requirement = await ctx.db.get(
+            "release_requirements",
+            normalizedRequirementId
+        );
+
+        if (!requirement) {
+            return null;
+        }
+
+        const release = await ctx.db.get("releases", requirement.release_id);
+        if (!release || release.disabled_at) {
+            return null;
+        }
+
+        return (await hasAssignedReleaseAccess(
+            ctx,
+            normalizedComputerId,
+            requirement.release_id
+        ))
+            ? requirement
+            : null;
     },
 });
 
-export const getScriptById = internalQuery({
-    args: { scriptId: v.string() },
-    handler: async (ctx, { scriptId }) => {
-        const scripts = await ctx.db.query("release_scripts").collect();
-        return scripts.find((s) => s._id.toString() === scriptId) || null;
+export const getAuthorizedScript = internalQuery({
+    args: {
+        computerId: v.string(),
+        scriptId: v.string(),
+    },
+    handler: async (ctx, { computerId, scriptId }) => {
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
+        );
+        const normalizedScriptId = normalizeTableId(
+            ctx.db,
+            "release_scripts",
+            scriptId,
+            "script ID"
+        );
+        const script = await ctx.db.get("release_scripts", normalizedScriptId);
+
+        if (!script || !script.storage_id) {
+            return null;
+        }
+
+        const release = await ctx.db.get("releases", script.release_id);
+        if (!release || release.disabled_at) {
+            return null;
+        }
+
+        return (await hasAssignedReleaseAccess(ctx, normalizedComputerId, script.release_id))
+            ? script
+            : null;
     },
 });
 
@@ -320,16 +446,32 @@ export const updateInstallState = internalMutation({
         lastSeenAt: v.optional(v.number()),
     },
     handler: async (ctx, { computerId, releaseId, status, installedAt, lastSeenAt }) => {
-        const computer = await ctx.db.get(computerId as Id<"computers">);
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
+        );
+        const normalizedReleaseId = normalizeTableId(
+            ctx.db,
+            "releases",
+            releaseId,
+            "release ID"
+        );
+        const computer = await ctx.db.get("computers", normalizedComputerId);
         if (!computer) throw new Error("Computer not found");
 
-        const release = await ctx.db.get(releaseId as Id<"releases">);
+        const release = await ctx.db.get("releases", normalizedReleaseId);
         if (!release) throw new Error("Release not found");
+
+        if (!(await hasAssignedReleaseAccess(ctx, normalizedComputerId, normalizedReleaseId))) {
+            throw new Error("Release not assigned to computer");
+        }
 
         const existing = await ctx.db
             .query("computer_release_installs")
             .withIndex("by_computer_release", (q) =>
-                q.eq("computer_id", computer._id).eq("release_id", release._id)
+                q.eq("computer_id", normalizedComputerId).eq("release_id", normalizedReleaseId)
             )
             .first();
 
@@ -349,11 +491,11 @@ export const updateInstallState = internalMutation({
         };
 
         if (existing) {
-            await ctx.db.patch(existing._id, updatePayload);
+            await ctx.db.patch("computer_release_installs", existing._id, updatePayload);
         } else {
             await ctx.db.insert("computer_release_installs", {
-                computer_id: computer._id,
-                release_id: release._id,
+                computer_id: normalizedComputerId,
+                release_id: normalizedReleaseId,
                 ...updatePayload,
             });
         }
@@ -398,7 +540,7 @@ export const getTableData = withAuthQuery({
                         .collect();
 
                     for (const assignment of staticAssignments) {
-                        const group = await ctx.db.get(assignment.group_id);
+                        const group = await ctx.db.get("computer_groups", assignment.group_id);
                         if (group) {
                             groups.push({ id: group._id, name: group.display_name });
                         }
@@ -411,7 +553,7 @@ export const getTableData = withAuthQuery({
                         .collect();
 
                     for (const assignment of dynamicAssignments) {
-                        const group = await ctx.db.get(assignment.group_id);
+                        const group = await ctx.db.get("dynamic_computer_groups", assignment.group_id);
                         if (group) {
                             groups.push({ id: group._id, name: group.display_name });
                         }
@@ -447,7 +589,7 @@ export const getTableData = withAuthQuery({
 export const getById = withAuthQuery({
     args: { id: v.id("apps") },
     handler: async (ctx, { id }) => {
-        const app = await ctx.db.get(id);
+        const app = await ctx.db.get("apps", id);
         if (!app) return null;
 
         const releases = await ctx.db
@@ -495,7 +637,7 @@ export const remove = withAuthMutation({
                 .collect();
 
             for (const a of staticAssignments) {
-                await ctx.db.delete(a._id);
+                await ctx.db.delete("computer_group_releases", a._id);
             }
 
             const dynamicAssignments = await ctx.db
@@ -504,7 +646,7 @@ export const remove = withAuthMutation({
                 .collect();
 
             for (const a of dynamicAssignments) {
-                await ctx.db.delete(a._id);
+                await ctx.db.delete("dynamic_group_releases", a._id);
             }
 
             // Delete detection rules
@@ -514,15 +656,15 @@ export const remove = withAuthMutation({
                 .collect();
 
             for (const d of detections) {
-                await ctx.db.delete(d._id);
+                await ctx.db.delete("detection_rules", d._id);
             }
 
             // Delete release
-            await ctx.db.delete(release._id);
+            await ctx.db.delete("releases", release._id);
         }
 
         // Delete the app
-        await ctx.db.delete(id);
+        await ctx.db.delete("apps", id);
 
         return { success: true };
     },
@@ -547,7 +689,7 @@ export const update = withAuthMutation({
         if (data.publisher !== undefined) updates.publisher = data.publisher;
 
         if (Object.keys(updates).length > 0) {
-            await ctx.db.patch(id, updates);
+            await ctx.db.patch("apps", id, updates);
         }
 
         return { success: true };
@@ -575,7 +717,7 @@ export const getReleases = withAuthQuery({
 
                 const computer_group_releases = await Promise.all(
                     staticAssignmentsRaw.map(async (a) => {
-                        const group = await ctx.db.get(a.group_id);
+                        const group = await ctx.db.get("computer_groups", a.group_id);
                         return {
                             ...a,
                             computer_groups: group,
@@ -590,7 +732,7 @@ export const getReleases = withAuthQuery({
 
                 const dynamic_group_releases = await Promise.all(
                     dynamicAssignmentsRaw.map(async (a) => {
-                        const group = await ctx.db.get(a.group_id);
+                        const group = await ctx.db.get("dynamic_computer_groups", a.group_id);
                         return {
                             ...a,
                             dynamic_computer_groups: group,
@@ -704,7 +846,7 @@ export const getDeviceInstallStatus = withAuthQuery({
 
         const computers = await Promise.all(
             computerIds.map((computerId) =>
-                ctx.db.get(computerId as Id<"computers">)
+                ctx.db.get("computers", computerId as Id<"computers">)
             )
         );
 
@@ -760,7 +902,7 @@ export const deleteRelease = withAuthMutation({
             .collect();
 
         for (const a of staticAssignments) {
-            await ctx.db.delete(a._id);
+            await ctx.db.delete("computer_group_releases", a._id);
         }
 
         const dynamicAssignments = await ctx.db
@@ -769,7 +911,7 @@ export const deleteRelease = withAuthMutation({
             .collect();
 
         for (const a of dynamicAssignments) {
-            await ctx.db.delete(a._id);
+            await ctx.db.delete("dynamic_group_releases", a._id);
         }
 
         // Delete detection rules
@@ -779,11 +921,11 @@ export const deleteRelease = withAuthMutation({
             .collect();
 
         for (const d of detections) {
-            await ctx.db.delete(d._id);
+            await ctx.db.delete("detection_rules", d._id);
         }
 
         // Delete the release
-        await ctx.db.delete(id);
+        await ctx.db.delete("releases", id);
 
         return { success: true };
     },
@@ -984,16 +1126,28 @@ export const create = withAuthMutation({
         const handleAssignment = async (groups: typeof args.assignment.installGroups, action: "install" | "uninstall") => {
             for (const g of groups) {
                 if (g.groupType === "static") {
+                    const normalizedGroupId = normalizeTableId(
+                        ctx.db,
+                        "computer_groups",
+                        g.groupId,
+                        "static group ID"
+                    );
                     await ctx.db.insert("computer_group_releases", {
                         release_id: releaseId,
-                        group_id: g.groupId as Id<"computer_groups">,
+                        group_id: normalizedGroupId,
                         assign_type: g.mode,
                         action: action,
                     });
                 } else {
+                    const normalizedGroupId = normalizeTableId(
+                        ctx.db,
+                        "dynamic_computer_groups",
+                        g.groupId,
+                        "dynamic group ID"
+                    );
                     await ctx.db.insert("dynamic_group_releases", {
                         release_id: releaseId,
-                        group_id: g.groupId as Id<"dynamic_computer_groups">,
+                        group_id: normalizedGroupId,
                         assign_type: g.mode,
                         action: action,
                     });
@@ -1169,16 +1323,28 @@ export const createRelease = withAuthMutation({
         const handleAssignment = async (groups: typeof args.assignments.installGroups, action: "install" | "uninstall") => {
             for (const g of groups) {
                 if (g.groupType === "static") {
+                    const normalizedGroupId = normalizeTableId(
+                        ctx.db,
+                        "computer_groups",
+                        g.groupId,
+                        "static group ID"
+                    );
                     await ctx.db.insert("computer_group_releases", {
                         release_id: releaseId,
-                        group_id: g.groupId as Id<"computer_groups">,
+                        group_id: normalizedGroupId,
                         assign_type: g.mode,
                         action: action,
                     });
                 } else {
+                    const normalizedGroupId = normalizeTableId(
+                        ctx.db,
+                        "dynamic_computer_groups",
+                        g.groupId,
+                        "dynamic group ID"
+                    );
                     await ctx.db.insert("dynamic_group_releases", {
                         release_id: releaseId,
-                        group_id: g.groupId as Id<"dynamic_computer_groups">,
+                        group_id: normalizedGroupId,
                         assign_type: g.mode,
                         action: action,
                     });
@@ -1200,7 +1366,7 @@ export const updateRelease = withAuthMutation({
     },
     handler: async (ctx, { id, data }) => {
         // 1. Update Release
-        await ctx.db.patch(id, {
+        await ctx.db.patch("releases", id, {
             version: data.version || "latest",
             installer_type: data.type,
             uninstall_previous: data.uninstall_previous,
@@ -1210,27 +1376,27 @@ export const updateRelease = withAuthMutation({
         // 2. Clear old data (simplified update strategy: delete & recreate children)
         // Win32/Winget
         const win32 = await ctx.db.query("win32_releases").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
-        for (const r of win32) await ctx.db.delete(r._id);
+        for (const r of win32) await ctx.db.delete("win32_releases", r._id);
         const winget = await ctx.db.query("winget_releases").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
-        for (const r of winget) await ctx.db.delete(r._id);
+        for (const r of winget) await ctx.db.delete("winget_releases", r._id);
 
         // Requirements
         const reqs = await ctx.db.query("release_requirements").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
-        for (const r of reqs) await ctx.db.delete(r._id);
+        for (const r of reqs) await ctx.db.delete("release_requirements", r._id);
 
         // Detections
         const dets = await ctx.db.query("detection_rules").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
-        for (const d of dets) await ctx.db.delete(d._id);
+        for (const d of dets) await ctx.db.delete("detection_rules", d._id);
 
         // Scripts
         const scripts = await ctx.db.query("release_scripts").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
-        for (const s of scripts) await ctx.db.delete(s._id);
+        for (const s of scripts) await ctx.db.delete("release_scripts", s._id);
 
         // Assignments
         const groupRels = await ctx.db.query("computer_group_releases").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
-        for (const r of groupRels) await ctx.db.delete(r._id);
+        for (const r of groupRels) await ctx.db.delete("computer_group_releases", r._id);
         const dynGroupRels = await ctx.db.query("dynamic_group_releases").withIndex("by_release_id", q => q.eq("release_id", id)).collect();
-        for (const r of dynGroupRels) await ctx.db.delete(r._id);
+        for (const r of dynGroupRels) await ctx.db.delete("dynamic_group_releases", r._id);
 
 
         // 3. Re-create Specific Release Info

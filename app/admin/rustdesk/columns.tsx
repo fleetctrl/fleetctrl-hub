@@ -11,7 +11,7 @@ export type RustDesk = {
   os?: string;
   osVersion?: string;
   loginUser?: string;
-  lastConnection?: string;
+  lastConnection?: number;
   clientVersion?: string;
   intuneId?: string;
 };

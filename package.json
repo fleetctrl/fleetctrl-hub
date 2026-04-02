@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "codegen": "npx convex codegen"
   },
   "dependencies": {
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.17",
+    "@convex-dev/eslint-plugin": "^1.2.1",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",

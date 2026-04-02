@@ -85,7 +85,7 @@ export const create = withAuthMutation({
 export const disable = withAuthMutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
-        await ctx.db.patch(id, { disabled: true });
+        await ctx.db.patch("enrollment_tokens", id, { disabled: true });
         return { success: true };
     },
 });
@@ -96,7 +96,7 @@ export const disable = withAuthMutation({
 export const enable = withAuthMutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
-        await ctx.db.patch(id, { disabled: false });
+        await ctx.db.patch("enrollment_tokens", id, { disabled: false });
         return { success: true };
     },
 });
@@ -107,7 +107,7 @@ export const enable = withAuthMutation({
 export const remove = withAuthMutation({
     args: { id: v.id("enrollment_tokens") },
     handler: async (ctx, { id }) => {
-        await ctx.db.delete(id);
+        await ctx.db.delete("enrollment_tokens", id);
         return { success: true };
     },
 });

@@ -13,7 +13,7 @@ export const migrations = new Migrations<DataModel>(components.migrations, {
 export const backfillInstallStatusAggregate = migrations.define({
     table: "computer_release_installs",
     migrateOne: async (ctx, install) => {
-        const release = await ctx.db.get(install.release_id);
+        const release = await ctx.db.get("releases", install.release_id);
         if (!release) {
             return;
         }
