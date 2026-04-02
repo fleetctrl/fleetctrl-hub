@@ -115,7 +115,7 @@ export const getAssigned = internalQuery({
             )
         ).filter(
             (release): release is NonNullable<typeof release> =>
-                release !== null && release.disabled_at === undefined
+                release !== null && !release.disabled_at
         );
 
         if (releases.length === 0) {
@@ -1370,7 +1370,9 @@ export const updateRelease = withAuthMutation({
             version: data.version || "latest",
             installer_type: data.type,
             uninstall_previous: data.uninstall_previous,
-            ...(data.disabled !== undefined ? { disabled_at: data.disabled ? Date.now() : 0 } : {}),
+            ...(data.disabled !== undefined
+                ? { disabled_at: data.disabled ? Date.now() : undefined }
+                : {}),
         });
 
         // 2. Clear old data (simplified update strategy: delete & recreate children)

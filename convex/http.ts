@@ -245,7 +245,7 @@ app.post("/enroll", async (c) => {
         const result = await c.env.ctx.runAction(internal.deviceAuth.enroll, {
             enrollmentToken,
             name,
-                jkt: effectiveJkt,
+            jkt: effectiveJkt,
             deviceId: device_id,
         });
 
@@ -509,10 +509,34 @@ protectedApi.patch("/computer/rustdesk-sync", async (c) => {
 
     const clientVersion = c.req.header("X-Client-Version");
 
-    const payload = {
-        ...body,
-        client_version: clientVersion || body.client_version,
-    };
+    const payload: Record<string, string | number> = {};
+
+    if (body.rustdesk_id !== undefined) {
+        payload.rustdesk_id = body.rustdesk_id;
+    }
+    if (body.name !== undefined) {
+        payload.name = body.name;
+    }
+    if (body.ip !== undefined) {
+        payload.ip = body.ip;
+    }
+    if (body.os !== undefined) {
+        payload.os = body.os;
+    }
+    if (body.os_version !== undefined) {
+        payload.os_version = body.os_version;
+    }
+    if (body.login_user !== undefined) {
+        payload.login_user = body.login_user;
+    }
+    if (body.intune_id !== undefined) {
+        payload.intune_id = body.intune_id;
+    }
+
+    const effectiveClientVersion = clientVersion || body.client_version;
+    if (effectiveClientVersion !== undefined) {
+        payload.client_version = effectiveClientVersion;
+    }
 
     await c.env.ctx.runMutation(internal.computers.rustdeskSync, {
         computerId,

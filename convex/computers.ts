@@ -225,6 +225,7 @@ export const rustdeskSync = internalMutation({
             os_version: v.optional(v.string()),
             login_user: v.optional(v.string()),
             client_version: v.optional(v.string()),
+            intune_id: v.optional(v.string()),
         }),
     },
     handler: async (ctx, { computerId, data }) => {
@@ -271,6 +272,9 @@ export const rustdeskSync = internalMutation({
         }
         if (data.client_version !== undefined) {
             updates.client_version = data.client_version;
+        }
+        if (data.intune_id !== undefined) {
+            updates.intune_id = data.intune_id;
         }
 
         await ctx.db.patch("computers", computer._id, updates);
