@@ -62,7 +62,7 @@ jobs:
           tags: |
             ${{ env.GHCR_IMAGE }}:${{ env.FULL_VERSION }}
             ${{ env.GHCR_IMAGE }}:latest
-          # volitelné lepší tagy/labels:
+          # optional improved tags/labels:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

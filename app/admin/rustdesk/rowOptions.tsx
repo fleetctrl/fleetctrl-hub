@@ -43,13 +43,13 @@ export default function RowOptions({
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(connectionString);
-        toast.success("Kopírování probehl úspěšně");
+        toast.success("Copied successfully");
       } else {
-        toast.error("Kopírování selhalo");
+        toast.error("Copy failed");
       }
     } catch (error) {
       console.error(error);
-      toast.error("Kopírování selhalo");
+      toast.error("Copy failed");
     }
   }
 
