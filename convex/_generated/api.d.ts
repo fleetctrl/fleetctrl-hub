@@ -1,4 +1,4 @@
- 
+/* eslint-disable */
 /**
  * Generated `api` utility.
  *
@@ -23,6 +23,8 @@ import type * as lib_aggregate_computerAggregate from "../lib/aggregate/computer
 import type * as lib_aggregate_installAggregate from "../lib/aggregate/installAggregate.js";
 import type * as lib_dpop from "../lib/dpop.js";
 import type * as lib_encoding from "../lib/encoding.js";
+import type * as lib_groupRules from "../lib/groupRules.js";
+import type * as lib_idNormalization from "../lib/idNormalization.js";
 import type * as lib_jwt from "../lib/jwt.js";
 import type * as lib_withAuth from "../lib/withAuth.js";
 import type * as migrations from "../migrations.js";
@@ -52,6 +54,8 @@ declare const fullApi: ApiFromModules<{
   "lib/aggregate/installAggregate": typeof lib_aggregate_installAggregate;
   "lib/dpop": typeof lib_dpop;
   "lib/encoding": typeof lib_encoding;
+  "lib/groupRules": typeof lib_groupRules;
+  "lib/idNormalization": typeof lib_idNormalization;
   "lib/jwt": typeof lib_jwt;
   "lib/withAuth": typeof lib_withAuth;
   migrations: typeof migrations;
@@ -544,6 +548,7 @@ export declare const components: {
             maximumRowsRead?: number;
             numItems: number;
           };
+          select?: Array<string>;
           sortBy?: { direction: "asc" | "desc"; field: string };
           where?: Array<{
             connector?: "AND" | "OR";
@@ -1136,6 +1141,7 @@ export declare const components: {
           name: string;
           next?: Array<{ fnHandle: string; name: string }>;
           oneBatchOnly?: boolean;
+          reset?: boolean;
         },
         {
           batchSize?: number;
