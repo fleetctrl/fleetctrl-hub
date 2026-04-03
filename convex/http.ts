@@ -565,7 +565,10 @@ app.get("/client/version", async (c) => {
 const http = httpRouter();
 
 // 1. Register BetterAuth Routes (handles /auth/* by default)
-authComponent.registerRoutes(http, createAuth);
+// cors: true enables CORS handling using trustedOrigins from createAuthOptions.
+// Required for local dev where the browser hits localhost:3211 directly (different
+// origin from the Next.js app on localhost:3000). Behind a proxy this is a no-op.
+authComponent.registerRoutes(http, createAuth, { cors: true });
 
 // 2. Register Hono App (Catch-all for everything else, except /auth/*)
 // We register for each method to ensure full coverage

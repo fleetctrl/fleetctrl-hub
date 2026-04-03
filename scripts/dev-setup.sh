@@ -11,7 +11,8 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-LOCAL_CONVEX_URL="http://127.0.0.1:3210"
+LOCAL_CONVEX_URL="http://localhost:3210"       # API port
+LOCAL_CONVEX_SITE_URL="http://localhost:3211"  # HTTP actions / better-auth site port
 
 cd "$(dirname "$0")/.."
 
@@ -132,19 +133,19 @@ else
   echo -e "${BLUE}▶ Zapisuji env vars do .env a .env.local...${NC}"
   touch .env .env.local
   append_if_missing "NEXT_PUBLIC_CONVEX_URL"         "$LOCAL_CONVEX_URL"
-  append_if_missing "CONVEX_SITE_URL"                "$LOCAL_CONVEX_URL"
-  append_if_missing "NEXT_PUBLIC_CONVEX_SITE_URL"    "$LOCAL_CONVEX_URL"
+  append_if_missing "CONVEX_SITE_URL"                "$LOCAL_CONVEX_SITE_URL"
+  append_if_missing "NEXT_PUBLIC_CONVEX_SITE_URL"    "$LOCAL_CONVEX_SITE_URL"
   append_if_missing "NEXT_PUBLIC_SITE_URL"           "http://localhost:3000"
   append_if_missing "NEXT_PUBLIC_ALLOW_REGISTRATION" "true"
 
   echo -e "${BLUE}▶ Nastavuji Convex backend env vars...${NC}"
   BA_SECRET=$(openssl rand -hex 32)
   JWT_SECRET=$(openssl rand -hex 32)
-  npx convex env set BETTER_AUTH_SECRET  "$BA_SECRET"            > /dev/null
-  npx convex env set JWT_SECRET          "$JWT_SECRET"           > /dev/null
-  npx convex env set SITE_URL            "http://localhost:3000" > /dev/null
-  npx convex env set API_URL             "$LOCAL_CONVEX_URL"     > /dev/null
-  npx convex env set ALLOW_REGISTRATION  "true"                  > /dev/null
+  npx convex env set BETTER_AUTH_SECRET  "$BA_SECRET"             > /dev/null
+  npx convex env set JWT_SECRET          "$JWT_SECRET"            > /dev/null
+  npx convex env set SITE_URL            "http://localhost:3000"  > /dev/null
+  npx convex env set API_URL             "$LOCAL_CONVEX_SITE_URL" > /dev/null
+  npx convex env set ALLOW_REGISTRATION  "true"                   > /dev/null
 
   DISPLAY_URL="$LOCAL_CONVEX_URL"
   DEV_CMD="npx convex dev --local"
