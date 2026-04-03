@@ -100,7 +100,7 @@ function DataTable<TData, TValue>({
   });
 
   return (
-    <div className="w-[1000px]">
+    <div className="w-full flex flex-col">
       <div className="flex w-full items-center py-4">
         <InputGroup className="max-w-[250px]">
           <InputGroupAddon>
