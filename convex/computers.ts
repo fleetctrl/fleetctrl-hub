@@ -242,8 +242,10 @@ export const rustdeskSync = internalMutation({
         }
 
         const updates: Record<string, unknown> = {
+            // Keep connection freshness on every sync call.
             last_connection: Date.now(),
         };
+        let shouldRefreshDynamicGroups = false;
 
         if (data.rustdesk_id !== undefined) {
             // Handle RustDesk ID being sent as string
@@ -251,38 +253,47 @@ export const rustdeskSync = internalMutation({
             if (typeof rid === "string") {
                 rid = parseInt(rid, 10);
             }
-            if (!isNaN(rid)) {
+            if (!isNaN(rid) && computer.rustdesk_id !== rid) {
                 updates.rustdesk_id = rid;
             }
         }
-        if (data.name !== undefined) {
+        if (data.name !== undefined && computer.name !== data.name) {
             updates.name = data.name;
+            shouldRefreshDynamicGroups = true;
         }
-        if (data.ip !== undefined) {
+        if (data.ip !== undefined && computer.ip !== data.ip) {
             updates.ip = data.ip;
+            shouldRefreshDynamicGroups = true;
         }
-        if (data.os !== undefined) {
+        if (data.os !== undefined && computer.os !== data.os) {
             updates.os = data.os;
+            shouldRefreshDynamicGroups = true;
         }
-        if (data.os_version !== undefined) {
+        if (data.os_version !== undefined && computer.os_version !== data.os_version) {
             updates.os_version = data.os_version;
+            shouldRefreshDynamicGroups = true;
         }
-        if (data.login_user !== undefined) {
+        if (data.login_user !== undefined && computer.login_user !== data.login_user) {
             updates.login_user = data.login_user;
+            shouldRefreshDynamicGroups = true;
         }
-        if (data.client_version !== undefined) {
+        if (data.client_version !== undefined && computer.client_version !== data.client_version) {
             updates.client_version = data.client_version;
+            shouldRefreshDynamicGroups = true;
         }
-        if (data.intune_id !== undefined) {
+        if (data.intune_id !== undefined && computer.intune_id !== data.intune_id) {
             updates.intune_id = data.intune_id;
+            shouldRefreshDynamicGroups = true;
         }
 
         await ctx.db.patch("computers", computer._id, updates);
 
-        // Trigger dynamic group membership refresh
-        await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
-            computerId: computer._id,
-        });
+        // Only refresh memberships if rule-relevant fields changed.
+        if (shouldRefreshDynamicGroups) {
+            await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
+                computerId: computer._id,
+            });
+        }
 
         return { success: true };
     },
@@ -364,10 +375,17 @@ export const updateClientVersion = internalMutation({
         const computer = await ctx.db.get("computers", normalizedComputerId);
 
         if (computer) {
+            const clientVersionChanged = computer.client_version !== clientVersion;
             await ctx.db.patch("computers", computer._id, {
-                client_version: clientVersion,
+                ...(clientVersionChanged ? { client_version: clientVersion } : {}),
                 last_connection: Date.now(),
             });
+
+            if (clientVersionChanged) {
+                await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
+                    computerId: computer._id,
+                });
+            }
         }
     },
 });
