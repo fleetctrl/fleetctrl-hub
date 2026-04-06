@@ -270,17 +270,19 @@ export function RustDeskTable() {
   }, [pageIndex, pageResult]);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (inputValue === filter) {
-        return;
-      }
+    const timeoutId = window.setTimeout(() => {
+      setFilter((prev) => {
+        if (prev === inputValue) {
+          return prev;
+        }
 
-      resetQueryState(pageSize);
-      setFilter(inputValue);
-    }, 300);
+        resetQueryState(pageSize);
+        return inputValue;
+      });
+    }, 400);
 
-    return () => clearTimeout(timeoutId);
-  }, [filter, inputValue, pageSize, resetQueryState]);
+    return () => window.clearTimeout(timeoutId);
+  }, [inputValue, pageSize, resetQueryState]);
 
   useEffect(() => {
     resetQueryState(pageSize);
