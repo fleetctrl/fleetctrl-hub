@@ -23,6 +23,53 @@ sedi() {
   fi
 }
 
+get_env_value() {
+  local key="$1"
+  local file="${2:-.env}"
+
+  grep -m 1 "^${key}=" "$file" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d '\r'
+}
+
+upsert_env() {
+  local key="$1"
+  local value="$2"
+  local file="${3:-.env}"
+  local escaped_value
+
+  escaped_value=$(printf '%s' "$value" | sed 's/[&|]/\\&/g')
+
+  if grep -q "^${key}=" "$file"; then
+    sedi "s|^${key}=.*|${key}=${escaped_value}|" "$file"
+  else
+    echo "${key}=${value}" >> "$file"
+  fi
+}
+
+ensure_env_value() {
+  local key="$1"
+  local value="$2"
+  local file="${3:-.env}"
+
+  if [ -z "$(get_env_value "$key" "$file")" ]; then
+    echo "${key}=${value}" >> "$file"
+  fi
+}
+
+confirm_empty_dir() {
+  local label="$1"
+  local dir_path="$2"
+
+  if [ -d "$dir_path" ] && [ "$(ls -A "$dir_path" 2>/dev/null)" ]; then
+    echo -e "\n${RED}⚠️  WARNING: ${label} directory '$dir_path' already exists and is not empty.${NC}"
+    echo -e "${RED}Continuing might overwrite or corrupt your existing data!${NC}"
+    read -p "$(echo -e ${BOLD}"  Are you sure you want to continue and risk overwriting data? (y/N): "${NC})" OVERWRITE_INPUT
+    if [[ ! "$OVERWRITE_INPUT" =~ ^[Yy]$ ]]; then
+      echo -e "${YELLOW}Setup cancelled to protect existing data.${NC}"
+      exit 1
+    fi
+  fi
+}
+
 run_convex_migration() {
   docker compose run --rm --no-deps convex-migration "$@"
 }
@@ -32,6 +79,12 @@ run_convex_migration_with_backups() {
   docker compose run --rm --no-deps \
     -v "$(pwd)/../convex/backups:/app/convex/backups" \
     convex-migration "$@"
+}
+
+generate_convex_admin_key() {
+  docker compose exec -T convex ./generate_admin_key.sh \
+    | tr -d '\r' \
+    | awk '/^convex-self-hosted\|/ { key=$0 } END { print key }'
 }
 
 show_banner() {
@@ -174,7 +227,7 @@ cmd_convex_push() {
 
   if [ -z "$ADMIN_KEY" ]; then
     echo -e "${BLUE}▶ Generating Convex Admin Key...${NC}"
-    ADMIN_KEY=$(docker compose exec convex ./generate_admin_key.sh | tr -d '\r')
+    ADMIN_KEY=$(generate_convex_admin_key)
     if [ -z "$ADMIN_KEY" ]; then
       echo -e "${YELLOW}Failed to generate Admin Key${NC}"
       exit 1
@@ -233,6 +286,8 @@ cmd_setup() {
 
   read -p "$(echo -e ${BOLD}"  Enter Site URL [https://localhost]: "${NC})" SITE_URL_INPUT
   SITE_URL=${SITE_URL_INPUT:-https://localhost}
+  CADDY_DOMAIN=$(echo "$SITE_URL" | sed -E 's|^https?://||' | sed 's|/.*||')
+  RUSTFS_SERVER_DOMAINS_DEFAULT="${CADDY_DOMAIN:-localhost},rustfs"
 
   NEXT_PUBLIC_CONVEX_URL="${SITE_URL}"
   NEXT_PUBLIC_CONVEX_SITE_URL="${SITE_URL}"
@@ -240,7 +295,7 @@ cmd_setup() {
   CONVEX_SITE_URL="${SITE_URL}"
   CONVEX_SITE_INTERNAL_URL="http://convex:3211"
 
-  read -p "$(echo -e ${BOLD}\"  Allow user registration? [Y/n]: \"${NC})" ALLOW_REGISTRATION_INPUT
+  read -p "$(echo -e ${BOLD} Allow user registration? [Y/n]: ${NC})" ALLOW_REGISTRATION_INPUT
   if [[ "${ALLOW_REGISTRATION_INPUT}" =~ ^[Nn]$ ]]; then
     ALLOW_REGISTRATION=false
   else
@@ -250,11 +305,17 @@ cmd_setup() {
 
   HAS_CONVEX_KEY=false
   EXISTING_DATA_DIR=""
-  CURRENT_KEY=$(grep -m 1 "^CONVEX_DEPLOY_KEY=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ' | tr -d '\r')
+  CURRENT_KEY=$(get_env_value "CONVEX_DEPLOY_KEY" .env | tr -d ' ')
   if [ -n "$CURRENT_KEY" ]; then
     HAS_CONVEX_KEY=true
   fi
-  EXISTING_DATA_DIR=$(grep -m 1 "^CONVEX_DATA_DIR=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d ' ' | tr -d '\r')
+  EXISTING_DATA_DIR=$(get_env_value "CONVEX_DATA_DIR" .env | tr -d ' ')
+  EXISTING_POSTGRES_PASSWORD=$(get_env_value "POSTGRES_PASSWORD" .env | tr -d ' ')
+  EXISTING_POSTGRES_DATA_DIR=$(get_env_value "POSTGRES_DATA_DIR" .env | tr -d ' ')
+  EXISTING_RUSTFS_ACCESS_KEY=$(get_env_value "RUSTFS_ACCESS_KEY" .env | tr -d ' ')
+  EXISTING_RUSTFS_SECRET_KEY=$(get_env_value "RUSTFS_SECRET_KEY" .env | tr -d ' ')
+  EXISTING_RUSTFS_SERVER_DOMAINS=$(get_env_value "RUSTFS_SERVER_DOMAINS" .env | tr -d ' ')
+  EXISTING_RUSTFS_DATA_DIR=$(get_env_value "RUSTFS_DATA_DIR" .env | tr -d ' ')
 
   echo -e "\n${YELLOW}💾 Storage Configuration${NC}"
 
@@ -263,6 +324,12 @@ cmd_setup() {
     echo -e "  ${GREEN}Convex key generation and setup will be skipped to protect your instance.${NC}"
     SKIP_CONVEX_SETUP=true
     CONVEX_DATA_DIR=${EXISTING_DATA_DIR:-convex-data}
+    POSTGRES_PASSWORD=${EXISTING_POSTGRES_PASSWORD:-changeme}
+    POSTGRES_DATA_DIR=${EXISTING_POSTGRES_DATA_DIR:-postgres_data}
+    RUSTFS_ACCESS_KEY=${EXISTING_RUSTFS_ACCESS_KEY:-rustfsadmin}
+    RUSTFS_SECRET_KEY=${EXISTING_RUSTFS_SECRET_KEY:-rustfsadmin}
+    RUSTFS_SERVER_DOMAINS=${EXISTING_RUSTFS_SERVER_DOMAINS:-$RUSTFS_SERVER_DOMAINS_DEFAULT}
+    RUSTFS_DATA_DIR=${EXISTING_RUSTFS_DATA_DIR:-rustfs-data}
     echo -e "  ${BOLD}Using existing Data Directory:${NC} ${CYAN}$CONVEX_DATA_DIR${NC}"
 
     echo -e "\n${BLUE}▶ Creating automatic backup before proceeding...${NC}"
@@ -270,16 +337,30 @@ cmd_setup() {
   else
     read -p "$(echo -e ${BOLD}"  Enter Convex Data Directory [convex-data]: "${NC})" CONVEX_DATA_DIR_INPUT
     CONVEX_DATA_DIR=${CONVEX_DATA_DIR_INPUT:-convex-data}
+    read -p "$(echo -e ${BOLD}"  Enter Postgres Data Directory [postgres_data]: "${NC})" POSTGRES_DATA_DIR_INPUT
+    POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR_INPUT:-postgres_data}
+    read -p "$(echo -e ${BOLD}"  Enter RustFS Data Directory [rustfs-data]: "${NC})" RUSTFS_DATA_DIR_INPUT
+    RUSTFS_DATA_DIR=${RUSTFS_DATA_DIR_INPUT:-rustfs-data}
 
-    if [ -d "$CONVEX_DATA_DIR" ] && [ "$(ls -A "$CONVEX_DATA_DIR" 2>/dev/null)" ]; then
-      echo -e "\n${RED}⚠️  WARNING: Data directory '$CONVEX_DATA_DIR' already exists and is not empty.${NC}"
-      echo -e "${RED}Continuing might overwrite or corrupt your existing Convex data!${NC}"
-      read -p "$(echo -e ${BOLD}"  Are you sure you want to continue and risk overwriting data? (y/N): "${NC})" OVERWRITE_INPUT
-      if [[ ! "$OVERWRITE_INPUT" =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Setup cancelled to protect existing data.${NC}"
-        exit 1
-      fi
+    confirm_empty_dir "Convex data" "$CONVEX_DATA_DIR"
+    confirm_empty_dir "Postgres data" "$POSTGRES_DATA_DIR"
+    confirm_empty_dir "RustFS data" "$RUSTFS_DATA_DIR"
+
+    POSTGRES_PASSWORD=${EXISTING_POSTGRES_PASSWORD:-}
+    RUSTFS_ACCESS_KEY=${EXISTING_RUSTFS_ACCESS_KEY:-rustfsadmin}
+    RUSTFS_SECRET_KEY=${EXISTING_RUSTFS_SECRET_KEY:-}
+    RUSTFS_SERVER_DOMAINS=${EXISTING_RUSTFS_SERVER_DOMAINS:-$RUSTFS_SERVER_DOMAINS_DEFAULT}
+
+    if [ -z "$POSTGRES_PASSWORD" ] || [ "$POSTGRES_PASSWORD" = "changeme" ]; then
+      echo -e "${BLUE}▶ Generating random POSTGRES_PASSWORD...${NC}"
+      POSTGRES_PASSWORD=$(openssl rand -hex 24)
     fi
+
+    if [ -z "$RUSTFS_SECRET_KEY" ] || [ "$RUSTFS_SECRET_KEY" = "rustfsadmin" ]; then
+      echo -e "${BLUE}▶ Generating random RUSTFS_SECRET_KEY...${NC}"
+      RUSTFS_SECRET_KEY=$(openssl rand -hex 24)
+    fi
+
     SKIP_CONVEX_SETUP=false
   fi
 
@@ -290,52 +371,25 @@ cmd_setup() {
     REBUILD_FLAG=""
   fi
 
-  sedi "s|^SITE_URL=.*|SITE_URL=$SITE_URL|" .env
-  sedi "s|^NEXT_PUBLIC_SITE_URL=.*|NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL|" .env
-  sedi "s|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL|" .env
-
-  if grep -q "^NEXT_PUBLIC_CONVEX_SITE_URL=" .env; then
-    sedi "s|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=$NEXT_PUBLIC_CONVEX_SITE_URL|" .env
-  else
-    echo "NEXT_PUBLIC_CONVEX_SITE_URL=$NEXT_PUBLIC_CONVEX_SITE_URL" >> .env
-  fi
-
-  if grep -q "^CONVEX_SITE_URL=" .env; then
-    sedi "s|^CONVEX_SITE_URL=.*|CONVEX_SITE_URL=$CONVEX_SITE_URL|" .env
-  else
-    echo "CONVEX_SITE_URL=$CONVEX_SITE_URL" >> .env
-  fi
-
-  if grep -q "^CONVEX_SITE_INTERNAL_URL=" .env; then
-    sedi "s|^CONVEX_SITE_INTERNAL_URL=.*|CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL|" .env
-  else
-    echo "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL" >> .env
-  fi
-
-  if grep -q "^API_URL=" .env; then
-    sedi "s|^API_URL=.*|API_URL=${SITE_URL}/api|" .env
-  else
-    echo "API_URL=${SITE_URL}/api" >> .env
-  fi
-
-  if grep -q "^ALLOW_REGISTRATION=" .env; then
-    sedi "s|^ALLOW_REGISTRATION=.*|ALLOW_REGISTRATION=$ALLOW_REGISTRATION|" .env
-  else
-    echo "ALLOW_REGISTRATION=$ALLOW_REGISTRATION" >> .env
-  fi
-
-  if grep -q "^NEXT_PUBLIC_ALLOW_REGISTRATION=" .env; then
-    sedi "s|^NEXT_PUBLIC_ALLOW_REGISTRATION=.*|NEXT_PUBLIC_ALLOW_REGISTRATION=$NEXT_PUBLIC_ALLOW_REGISTRATION|" .env
-  else
-    echo "NEXT_PUBLIC_ALLOW_REGISTRATION=$NEXT_PUBLIC_ALLOW_REGISTRATION" >> .env
-  fi
-
-  sedi "s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=$PROXY_HTTP_PORT/" .env
-  sedi "s/^PROXY_HTTPS_PORT=.*/PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT/" .env
-  sedi "s|^CONVEX_DATA_DIR=.*|CONVEX_DATA_DIR=$CONVEX_DATA_DIR|" .env
-
-  CADDY_DOMAIN=$(echo "$SITE_URL" | sed -E 's|^https?://||' | sed 's|/.*||')
-  sedi "s/^CADDY_DOMAIN=.*/CADDY_DOMAIN=$CADDY_DOMAIN/" .env
+  upsert_env "SITE_URL" "$SITE_URL" .env
+  upsert_env "NEXT_PUBLIC_SITE_URL" "$NEXT_PUBLIC_SITE_URL" .env
+  upsert_env "NEXT_PUBLIC_CONVEX_URL" "$NEXT_PUBLIC_CONVEX_URL" .env
+  upsert_env "NEXT_PUBLIC_CONVEX_SITE_URL" "$NEXT_PUBLIC_CONVEX_SITE_URL" .env
+  upsert_env "CONVEX_SITE_URL" "$CONVEX_SITE_URL" .env
+  upsert_env "CONVEX_SITE_INTERNAL_URL" "$CONVEX_SITE_INTERNAL_URL" .env
+  upsert_env "API_URL" "${SITE_URL}/api" .env
+  upsert_env "ALLOW_REGISTRATION" "$ALLOW_REGISTRATION" .env
+  upsert_env "NEXT_PUBLIC_ALLOW_REGISTRATION" "$NEXT_PUBLIC_ALLOW_REGISTRATION" .env
+  upsert_env "PROXY_HTTP_PORT" "$PROXY_HTTP_PORT" .env
+  upsert_env "PROXY_HTTPS_PORT" "$PROXY_HTTPS_PORT" .env
+  upsert_env "CONVEX_DATA_DIR" "$CONVEX_DATA_DIR" .env
+  upsert_env "CADDY_DOMAIN" "$CADDY_DOMAIN" .env
+  upsert_env "POSTGRES_PASSWORD" "$POSTGRES_PASSWORD" .env
+  upsert_env "POSTGRES_DATA_DIR" "$POSTGRES_DATA_DIR" .env
+  upsert_env "RUSTFS_ACCESS_KEY" "$RUSTFS_ACCESS_KEY" .env
+  upsert_env "RUSTFS_SECRET_KEY" "$RUSTFS_SECRET_KEY" .env
+  upsert_env "RUSTFS_SERVER_DOMAINS" "$RUSTFS_SERVER_DOMAINS" .env
+  upsert_env "RUSTFS_DATA_DIR" "$RUSTFS_DATA_DIR" .env
 
   echo -e "${YELLOW}🔄 Reverse Proxy Configuration${NC}"
   echo -e "  ${BOLD}Are you running behind an external reverse proxy?${NC}"
@@ -366,14 +420,10 @@ cmd_setup() {
       echo -e "  ${GREEN}✓ Using self-signed certificates${NC}"
       sedi 's/^[[:space:]]*#[[:space:]]*tls internal/    tls internal/' Caddyfile
     fi
-    sedi "s/^TLS_INTERNAL=.*/TLS_INTERNAL=$TLS_INTERNAL/" .env
+    upsert_env "TLS_INTERNAL" "$TLS_INTERNAL" .env
   fi
 
-  if grep -q "^BEHIND_PROXY=" .env; then
-    sedi "s/^BEHIND_PROXY=.*/BEHIND_PROXY=$BEHIND_PROXY/" .env
-  else
-    echo "BEHIND_PROXY=$BEHIND_PROXY" >> .env
-  fi
+  upsert_env "BEHIND_PROXY" "$BEHIND_PROXY" .env
 
   DEFAULT_SECRET="fleetctrl_secret_123456"
   if grep -q "^BETTER_AUTH_SECRET=$DEFAULT_SECRET" .env; then
@@ -397,7 +447,7 @@ cmd_setup() {
   set +a
 
   echo -e "${BLUE}▶ Starting Convex backend...${NC}"
-  docker compose up -d convex $REBUILD_FLAG
+  docker compose up -d rustfs rustfs-init convex $REBUILD_FLAG
 
   echo -e "${BLUE}▶ Waiting for Convex backend...${NC}"
   until [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" == "healthy" ]; do
@@ -412,7 +462,7 @@ cmd_setup() {
     ADMIN_KEY=$CURRENT_KEY
   else
     echo -e "${BLUE}▶ Generating Convex Admin Key...${NC}"
-    ADMIN_KEY=$(docker compose exec convex ./generate_admin_key.sh | tr -d '\r')
+    ADMIN_KEY=$(generate_convex_admin_key)
 
     if [ -z "$ADMIN_KEY" ]; then
       echo -e "${YELLOW}Failed to generate Admin Key${NC}"
@@ -431,7 +481,8 @@ cmd_setup() {
   fi
 
   echo -e "${BLUE}▶ Starting remaining services...${NC}"
-  docker compose up -d $REBUILD_FLAG
+  docker compose up -d rustfs rustfs-init convex $REBUILD_FLAG
+  docker compose up -d hub convex-migration convex-dashboard proxy $REBUILD_FLAG
 
   echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
   BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
@@ -466,6 +517,8 @@ cmd_setup() {
     echo -e "${BOLD}  HTTPS Port:        ${NC} ${YELLOW}${PROXY_HTTPS_PORT}${NC}"
   fi
   echo -e "${BOLD}  Data Dir:          ${NC} ${YELLOW}${CONVEX_DATA_DIR}${NC}"
+  echo -e "${BOLD}  Postgres Dir:      ${NC} ${YELLOW}${POSTGRES_DATA_DIR}${NC}"
+  echo -e "${BOLD}  RustFS Dir:        ${NC} ${YELLOW}${RUSTFS_DATA_DIR}${NC}"
   echo -e "${BOLD}  Convex Admin Key:  ${NC} ${YELLOW}${ADMIN_KEY}${NC}"
   echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
   echo -e "${PURPLE}Enjoy building with Fleetctrl!${NC}\n"
@@ -513,6 +566,19 @@ cmd_update() {
     exit 1
   fi
 
+  SITE_URL=$(get_env_value "SITE_URL" .env)
+  CADDY_DOMAIN=$(get_env_value "CADDY_DOMAIN" .env)
+  if [ -z "$CADDY_DOMAIN" ] && [ -n "$SITE_URL" ]; then
+    CADDY_DOMAIN=$(echo "$SITE_URL" | sed -E 's|^https?://||' | sed 's|/.*||')
+  fi
+
+  ensure_env_value "POSTGRES_PASSWORD" "changeme" .env
+  ensure_env_value "POSTGRES_DATA_DIR" "postgres_data" .env
+  ensure_env_value "RUSTFS_ACCESS_KEY" "rustfsadmin" .env
+  ensure_env_value "RUSTFS_SECRET_KEY" "rustfsadmin" .env
+  ensure_env_value "RUSTFS_SERVER_DOMAINS" "${CADDY_DOMAIN:-localhost},rustfs" .env
+  ensure_env_value "RUSTFS_DATA_DIR" "rustfs-data" .env
+
   REBUILD_FLAG="--build"
 
   set -a
@@ -530,7 +596,7 @@ cmd_update() {
   fi
 
   echo -e "\n${BLUE}▶ Starting Docker services...${NC}"
-  docker compose up -d $REBUILD_FLAG
+  docker compose up -d rustfs rustfs-init convex hub convex-migration convex-dashboard proxy $REBUILD_FLAG
 
   echo -e "${BLUE}▶ Waiting for Convex backend...${NC}"
   until [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" == "healthy" ]; do

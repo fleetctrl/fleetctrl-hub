@@ -6,6 +6,7 @@ This directory contains a fully local setup for the Fleetctrl Hub, including a s
 
 - **Hub**: The Next.js application (production build).
 - **Convex**: A self-hosted instance of the Convex backend.
+- **RustFS**: S3-compatible object storage used by Convex for file and snapshot storage.
 - **Proxy**: Caddy handling HTTPS termination and routing.
 - **Convex Migration**: A utility container for running Convex deployment, env sync, backup, restore, and migration commands.
 
@@ -77,12 +78,14 @@ This script will:
     docker compose up -d
     ```
 
+    This starts RustFS, waits for the required S3 buckets to be created, and only then starts Convex.
+
 4.  Deploy Schema:
     You need to generate an admin key and run the deploy command.
 
     ```bash
     # Generate Key
-    KEY=$(docker compose exec convex ./generate_admin_key.sh | tr -d '\r')
+    KEY=$(docker compose exec -T convex ./generate_admin_key.sh | tr -d '\r' | tail -n 1)
 
     # Deploy
     docker compose exec convex-migration npx convex deploy --url http://convex:3210 --admin-key $KEY --yes
