@@ -138,6 +138,11 @@ Use this when you only need to deploy Convex schema and functions without runnin
   pnpm test:docker-build
   ```
   This smoke test always builds with `--no-cache --pull`, so it validates a clean build path instead of reusing previous layers.
+  To validate the full Docker deployment path, including container startup, auth registration, auth login, and access to protected routes, run:
+  ```bash
+  pnpm test:docker-deployment
+  ```
+  This smoke test starts a nested Docker Compose runner, which then brings up an isolated deployment stack inside Docker, deploys Convex functions, and exercises the deployed application over HTTPS.
   For local development without rebuilding on each code change, use:
   ```bash
   ./dev.sh up
