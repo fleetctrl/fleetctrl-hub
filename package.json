@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "test:docker-build": "bash ./scripts/test-docker-build.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "codegen": "npx convex codegen"
