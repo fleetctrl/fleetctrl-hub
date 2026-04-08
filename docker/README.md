@@ -133,11 +133,11 @@ Use this when you only need to deploy Convex schema and functions without runnin
   docker compose build
   docker compose up -d
   ```
-    To quickly verify that the custom application images still build locally without starting the whole stack, run:
-    ```bash
-    pnpm test:docker-build
-    ```
-    This smoke test always builds with `--no-cache --pull`, so it validates a clean build path instead of reusing previous layers.
+  To quickly verify that the custom application images still build locally without starting the whole stack, run:
+  ```bash
+  pnpm test:docker-build
+  ```
+  This smoke test always builds with `--no-cache --pull`, so it validates a clean build path instead of reusing previous layers.
   For local development without rebuilding on each code change, use:
   ```bash
   ./dev.sh up
