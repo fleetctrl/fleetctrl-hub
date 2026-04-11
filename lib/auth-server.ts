@@ -1,4 +1,5 @@
 import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";
+import { getToken as getRequestToken } from "@convex-dev/better-auth/utils";
 import { env } from "./env";
 
 // In Docker:
@@ -12,15 +13,66 @@ const serverConvexSiteUrl =
     env.CONVEX_URL ||
     env.NEXT_PUBLIC_CONVEX_SITE_URL!;
 
+const authOptions = {
+    convexUrl: serverConvexUrl,
+    convexSiteUrl: serverConvexSiteUrl,
+    jwtCache: {
+        enabled: true,
+        isAuthError: (error: unknown) => {
+            if (!(error instanceof Error)) {
+                return false;
+            }
+
+            return /unauth|unauthorized|forbidden/i.test(error.message);
+        },
+    },
+};
+
+const auth = convexBetterAuthNextJs(authOptions);
+
+const getRequestHeaders = async () => {
+    const nextHeaders = await (await import("next/headers.js")).headers();
+    const headers = new Headers(nextHeaders);
+    headers.delete("content-length");
+    headers.delete("transfer-encoding");
+    headers.set("accept-encoding", "identity");
+    return headers;
+};
+
+const isConnectionError = (error: unknown) => {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+
+    return /fetch failed|ECONNREFUSED|ENOTFOUND|EHOSTUNREACH/i.test(error.message);
+};
+
 export const {
     handler,
     preloadAuthQuery,
     isAuthenticated,
-    getToken,
     fetchAuthQuery,
     fetchAuthMutation,
     fetchAuthAction,
-} = convexBetterAuthNextJs({
-    convexUrl: serverConvexUrl,
-    convexSiteUrl: serverConvexSiteUrl,
-});
+} = auth;
+
+export async function getToken() {
+    try {
+        return await auth.getToken();
+    } catch (error) {
+        if (!isConnectionError(error)) {
+            throw error;
+        }
+
+        try {
+            const headers = await getRequestHeaders();
+            const token = await getRequestToken(authOptions.convexSiteUrl, headers, {
+                jwtCache: authOptions.jwtCache,
+            });
+
+            return token.token ?? null;
+        } catch {
+            return null;
+        }
+    }
+}
