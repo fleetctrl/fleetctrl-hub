@@ -4,9 +4,10 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
 import { getToken } from "@/lib/auth-server";
+import { env } from "@/lib/env";
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
+const defaultUrl = env.VERCEL_URL
+  ? `https://${env.VERCEL_URL}`
   : "http://localhost:3000";
 
 export const metadata: Metadata = {
