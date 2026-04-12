@@ -468,10 +468,12 @@ export const updateInstallState = internalMutation({
             throw new Error("Release not assigned to computer");
         }
 
+        const appId = release.app_id;
+
         const existing = await ctx.db
-            .query("computer_release_installs")
-            .withIndex("by_computer_release", (q) =>
-                q.eq("computer_id", normalizedComputerId).eq("release_id", normalizedReleaseId)
+            .query("computer_apps_installs")
+            .withIndex("by_computer_app", (q) =>
+                q.eq("computer_id", normalizedComputerId).eq("app_id", appId)
             )
             .first();
 
@@ -491,11 +493,12 @@ export const updateInstallState = internalMutation({
         };
 
         if (existing) {
-            await ctx.db.patch("computer_release_installs", existing._id, updatePayload);
+            await ctx.db.patch("computer_apps_installs", existing._id, updatePayload);
         } else {
-            await ctx.db.insert("computer_release_installs", {
+            await ctx.db.insert("computer_apps_installs", {
                 computer_id: normalizedComputerId,
                 release_id: normalizedReleaseId,
+                app_id: appId,
                 ...updatePayload,
             });
         }
@@ -795,29 +798,6 @@ export const getReleases = withAuthQuery({
 export const getDeviceInstallStatus = withAuthQuery({
     args: { appId: v.id("apps") },
     handler: async (ctx, { appId }) => {
-        const releases = await ctx.db
-            .query("releases")
-            .withIndex("by_app_id", (q) => q.eq("app_id", appId))
-            .collect();
-
-        if (releases.length === 0) {
-            return {
-                total: 0,
-                byStatus: createStatusSummary(),
-                items: [] as Array<{
-                    id: string;
-                    computerId: string;
-                    computerName: string;
-                    releaseId: string;
-                    releaseVersion: string;
-                    status: InstallStatus;
-                    installedAt?: number;
-                    lastSeenAt?: number;
-                    statusUpdatedAt?: number;
-                }>,
-            };
-        }
-
         // Use aggregate for O(log n) status counts
         const statusCounts = await installStatusAggregate.countBatch(
             ctx,
@@ -829,62 +809,32 @@ export const getDeviceInstallStatus = withAuthQuery({
         );
         const total = statusCounts.reduce((sum, n) => sum + n, 0);
 
-        const releaseMap = new Map(releases.map((release) => [release._id.toString(), release]));
-        const releaseInstalls = await Promise.all(
-            releases.map((release) =>
-                ctx.db
-                    .query("computer_release_installs")
-                    .withIndex("by_release_id", (q) => q.eq("release_id", release._id))
-                    .collect()
-            )
-        );
-
-        const installs = releaseInstalls.flat();
-        const computerIds = Array.from(
-            new Set(installs.map((install) => install.computer_id.toString()))
-        );
-
-        const computers = await Promise.all(
-            computerIds.map((computerId) =>
-                ctx.db.get("computers", computerId as Id<"computers">)
-            )
-        );
-
-        const computersById = new Map(
-            computers
-                .filter((computer): computer is NonNullable<typeof computer> => !!computer)
-                .map((computer) => [computer._id.toString(), computer])
-        );
+        // const appMap = new Map(releases.map((app) => [app._id.toString(), app]));
+        const installs = await ctx.db.query("computer_apps_installs").withIndex("by_app_id", (q) => q.eq("app_id", appId))
+            .collect()
 
         const items = installs
-            .map((install) => {
-                const release = releaseMap.get(install.release_id.toString());
-                if (!release) return null;
+            .map(async (install) => {
+                const computer = await ctx.db.get("computers", install.computer_id);
+                const release = install.release_id != undefined ? await ctx.db.get("releases", install.release_id) : null;
 
-                const computer = computersById.get(install.computer_id.toString());
                 return {
                     id: install._id.toString(),
                     computerId: install.computer_id.toString(),
                     computerName: computer?.name ?? "Unknown computer",
-                    releaseId: release._id.toString(),
-                    releaseVersion: release.version || "latest",
+                    appId: install.app_id.toString(),
+                    releaseVersion: release?.version || "Unknown version",
                     status: install.status as InstallStatus,
                     installedAt: install.installed_at,
                     lastSeenAt: install.last_seen_at,
                     statusUpdatedAt: install.status_updated_at,
                 };
-            })
-            .filter((item): item is NonNullable<typeof item> => item !== null)
-            .sort((a, b) => {
-                const aTs = a.statusUpdatedAt ?? a.lastSeenAt ?? 0;
-                const bTs = b.statusUpdatedAt ?? b.lastSeenAt ?? 0;
-                return bTs - aTs;
             });
 
         return {
             total,
             byStatus,
-            items,
+            items: await Promise.all(items),
         };
     },
 });

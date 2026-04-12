@@ -11,15 +11,15 @@ export const migrations = new Migrations<DataModel>(components.migrations, {
 });
 
 export const backfillInstallStatusAggregate = migrations.define({
-    table: "computer_release_installs",
+    table: "computer_apps_installs",
     migrateOne: async (ctx, install) => {
-        const release = await ctx.db.get("releases", install.release_id);
-        if (!release) {
+        const app = await ctx.db.get("apps", install.app_id);
+        if (!app) {
             return;
         }
 
         await installStatusAggregate.insertIfDoesNotExist(ctx, {
-            namespace: [release.app_id, install.status as InstallStatus],
+            namespace: [app._id, install.status as InstallStatus],
             key: null,
             id: install._id.toString(),
         });
