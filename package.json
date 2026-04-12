@@ -6,6 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "test:docker-build": "bash ./scripts/test-docker-build.sh",
+    "test:docker-deployment": "bash ./scripts/test-docker-deployment.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "codegen": "npx convex codegen"
@@ -37,7 +39,7 @@
     "better-auth": "^1.5.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "convex": "^1.34.1",
+    "convex": "^1.35.1",
     "convex-helpers": "^0.1.114",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.0",

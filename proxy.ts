@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { isAuthenticated as betterAuthIsAuthenticated } from "@/lib/auth-server";
 
 // Routes that don't require authentication
 const publicRoutes = ["/", "/sign-in", "/sign-up"];
@@ -12,20 +12,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if this is a public route
-  const isPublicRoute = publicRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
+  // // Check if this is a public route
+  // const isPublicRoute = publicRoutes.some(
+  //   (route) => pathname === route || pathname.startsWith(`${route}/`)
+  // );
 
   // Check if this is an admin route
   const isAdminRoute = pathname.startsWith("/admin");
 
-  // Check for session cookie - BetterAuth stores session in cookies
-  // Uses __Secure- prefix when running over HTTPS
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("__Secure-better-auth.session_token")
-    || cookieStore.get("better-auth.session_token");
-  const isAuthenticated = !!sessionCookie?.value;
+  // If it's an admin route, check authentication
+  const isAuthenticated = await betterAuthIsAuthenticated();
 
   // Redirect authenticated users away from sign-in/sign-up pages
   if (isAuthenticated && (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up"))) {

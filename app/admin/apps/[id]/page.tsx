@@ -58,6 +58,8 @@ export default function AppDetailPage() {
         appId: appId as Id<"apps">,
     });
 
+    console.log("Device install status:", deviceInstallStatus);
+
     const isLoading = app === undefined;
     const releasesLoading = releases === undefined;
     const deviceInstallStatusLoading = deviceInstallStatus === undefined;

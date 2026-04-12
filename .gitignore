@@ -25,6 +25,7 @@
 # testing
 /coverage
 .pnpm-store
+.tmp
 
 # next.js
 /.next/
