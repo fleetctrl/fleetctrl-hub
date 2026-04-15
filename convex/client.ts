@@ -9,6 +9,7 @@ import { withAuthQuery } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { maybeNormalizeTableId } from "./lib/idNormalization";
 
 // ========================================
 // Public Queries
@@ -89,7 +90,14 @@ export const getDownloadUrl = internalAction({
 export const getVersionById = internalQuery({
     args: { versionId: v.string() },
     handler: async (ctx, { versionId }) => {
-        const versions = await ctx.db.query("client_updates").collect();
-        return versions.find((v) => v._id.toString() === versionId) || null;
+        const normalizedVersionId = maybeNormalizeTableId(
+            ctx.db,
+            "client_updates",
+            versionId
+        );
+
+        return normalizedVersionId
+            ? await ctx.db.get("client_updates", normalizedVersionId)
+            : null;
     },
 });

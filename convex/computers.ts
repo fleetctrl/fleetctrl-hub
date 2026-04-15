@@ -11,8 +11,10 @@ import { internal } from "./_generated/api";
 import { paginationOptsValidator } from "convex/server";
 import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
 import { internalMutation } from "./functions";
+import { Doc } from "./_generated/dataModel";
+import { normalizeTableId } from "./lib/idNormalization";
 
-const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+type ComputerDoc = Doc<"computers">;
 
 // ========================================
 // Public Queries
@@ -24,23 +26,18 @@ const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
 export const list = withAuthQuery({
     handler: async (ctx) => {
         const computers = await ctx.db.query("computers").collect();
-        const now = Date.now();
-        const onlineThreshold = now - ONLINE_THRESHOLD_MS;
 
         return computers.map((c) => ({
             id: c._id,
+            deviceId: c._id,
             name: c.name,
-            fingerprint: c.fingerprint,
             rustdeskId: c.rustdesk_id,
             ip: c.ip,
             os: c.os,
             osVersion: c.os_version,
             loginUser: c.login_user,
             clientVersion: c.client_version,
-            lastConnection:
-                c.last_connection && c.last_connection >= onlineThreshold
-                    ? "Online"
-                    : "Offline",
+            lastConnection: c.last_connection,
             intuneId: c.intune_id,
             createdAt: c._creationTime,
         }));
@@ -59,26 +56,15 @@ export const listPaginated = withAuthQuery({
         paginationOpts: paginationOptsValidator,
     },
     handler: async (ctx, { filter, sortField, sortDesc, paginationOpts }) => {
-        const now = Date.now();
-        const onlineThreshold = now - ONLINE_THRESHOLD_MS;
         const lowerFilter = filter?.toLowerCase();
         const pageSize = paginationOpts.numItems;
-        const order = sortDesc ? "desc" : "asc";
 
-        const sortItems = <T extends {
-            name?: string;
-            rustdesk_id?: number;
-            ip?: string;
-            os?: string;
-            os_version?: string;
-            login_user?: string;
-            last_connection?: number;
-        }>(items: T[]) => {
+        const sortItems = (items: ComputerDoc[]) => {
             if (!sortField) {
                 return items;
             }
 
-            items.sort((a, b) => {
+            return [...items].sort((a, b) => {
                 let aVal: unknown;
                 let bVal: unknown;
 
@@ -125,44 +111,48 @@ export const listPaginated = withAuthQuery({
 
                 return sortDesc ? -comparison : comparison;
             });
-
-            return items;
         };
 
-        let items: Awaited<ReturnType<typeof ctx.db.query<"computers">>> extends never
-            ? never[]
-            : any[] = [];
+        const matchesFilter = (computer: ComputerDoc) => {
+            if (!lowerFilter) {
+                return true;
+            }
+
+            return (
+                computer.login_user?.toLowerCase().includes(lowerFilter) ||
+                computer.name?.toLowerCase().includes(lowerFilter)
+            );
+        };
+
+        const requiresInMemoryPagination = Boolean(lowerFilter || sortField);
+
+        let items: ComputerDoc[] = [];
         let continueCursor: string | null = paginationOpts.cursor;
         let isDone = false;
-        let total: number;
+        let total = 0;
 
-        if (lowerFilter) {
+        if (requiresInMemoryPagination) {
             const allComputers = await ctx.db.query("computers").collect();
-            const filteredComputers = sortItems(
-                allComputers.filter(
-                    (c) =>
-                        c.login_user?.toLowerCase().includes(lowerFilter) ||
-                        c.name?.toLowerCase().includes(lowerFilter)
-                )
-            );
+            const filteredComputers = allComputers.filter(matchesFilter);
+            const sortedComputers = sortItems(filteredComputers);
 
             const offset = paginationOpts.cursor ? Number.parseInt(paginationOpts.cursor, 10) : 0;
             const safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
 
-            total = filteredComputers.length;
-            items = filteredComputers.slice(safeOffset, safeOffset + pageSize);
+            total = sortedComputers.length;
+            items = sortedComputers.slice(safeOffset, safeOffset + pageSize);
             isDone = safeOffset + pageSize >= total;
             continueCursor = isDone ? null : String(safeOffset + pageSize);
         } else {
             const { page, continueCursor: nextCursor, isDone: pageDone } = await ctx.db
                 .query("computers")
-                .order(order)
+                .order(sortDesc ? "desc" : "asc")
                 .paginate({
                     numItems: pageSize,
                     cursor: paginationOpts.cursor,
                 });
 
-            items = sortItems(page);
+            items = page;
             continueCursor = nextCursor;
             isDone = pageDone;
             total = await computerCountAggregate.count(ctx, {
@@ -173,16 +163,14 @@ export const listPaginated = withAuthQuery({
         return {
             page: items.map((c) => ({
                 id: c._id,
+                deviceId: c._id,
                 rustdeskID: c.rustdesk_id,
                 name: c.name,
                 ip: c.ip,
                 os: c.os,
                 osVersion: c.os_version,
                 loginUser: c.login_user,
-                lastConnection:
-                    c.last_connection && c.last_connection >= onlineThreshold
-                        ? "Online"
-                        : "Offline",
+                lastConnection: c.last_connection,
                 clientVersion: c.client_version,
                 intuneId: c.intune_id,
             })),
@@ -199,13 +187,13 @@ export const listPaginated = withAuthQuery({
 export const getById = withAuthQuery({
     args: { id: v.id("computers") },
     handler: async (ctx, { id }) => {
-        const computer = await ctx.db.get(id);
+        const computer = await ctx.db.get("computers", id);
         if (!computer) return null;
 
         return {
             id: computer._id,
+            deviceId: computer._id,
             name: computer.name,
-            fingerprint: computer.fingerprint,
             rustdeskId: computer.rustdesk_id,
             ip: computer.ip,
             os: computer.os,
@@ -229,67 +217,83 @@ export const getById = withAuthQuery({
 export const rustdeskSync = internalMutation({
     args: {
         computerId: v.string(),
-        data: v.any(),
+        data: v.object({
+            rustdesk_id: v.optional(v.union(v.number(), v.string())),
+            name: v.optional(v.string()),
+            ip: v.optional(v.string()),
+            os: v.optional(v.string()),
+            os_version: v.optional(v.string()),
+            login_user: v.optional(v.string()),
+            client_version: v.optional(v.string()),
+            intune_id: v.optional(v.string()),
+        }),
     },
     handler: async (ctx, { computerId, data }) => {
-        // Find computer
-        const computers = await ctx.db.query("computers").collect();
-        const computer = computers.find((c) => c._id.toString() === computerId);
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
+        );
+        const computer = await ctx.db.get("computers", normalizedComputerId);
 
         if (!computer) {
             throw new Error("Computer not found");
         }
 
-        const syncData = data as {
-            rustdesk_id?: number | string;
-            name?: string;
-            ip?: string;
-            os?: string;
-            os_version?: string;
-            login_user?: string;
-        };
-
         const updates: Record<string, unknown> = {
+            // Keep connection freshness on every sync call.
             last_connection: Date.now(),
         };
+        let shouldRefreshDynamicGroups = false;
 
-        if (syncData.rustdesk_id !== undefined) {
+        if (data.rustdesk_id !== undefined) {
             // Handle RustDesk ID being sent as string
-            let rid = syncData.rustdesk_id;
+            let rid = data.rustdesk_id;
             if (typeof rid === "string") {
                 rid = parseInt(rid, 10);
             }
-            if (!isNaN(rid)) {
+            if (!isNaN(rid) && computer.rustdesk_id !== rid) {
                 updates.rustdesk_id = rid;
             }
         }
-        if (syncData.name !== undefined) {
-            updates.name = syncData.name;
+        if (data.name !== undefined && computer.name !== data.name) {
+            updates.name = data.name;
+            shouldRefreshDynamicGroups = true;
         }
-        if (syncData.ip !== undefined) {
-            updates.ip = syncData.ip;
+        if (data.ip !== undefined && computer.ip !== data.ip) {
+            updates.ip = data.ip;
+            shouldRefreshDynamicGroups = true;
         }
-        if (syncData.os !== undefined) {
-            updates.os = syncData.os;
+        if (data.os !== undefined && computer.os !== data.os) {
+            updates.os = data.os;
+            shouldRefreshDynamicGroups = true;
         }
-        if (syncData.os_version !== undefined) {
-            updates.os_version = syncData.os_version;
+        if (data.os_version !== undefined && computer.os_version !== data.os_version) {
+            updates.os_version = data.os_version;
+            shouldRefreshDynamicGroups = true;
         }
-        if (syncData.login_user !== undefined) {
-            updates.login_user = syncData.login_user;
+        if (data.login_user !== undefined && computer.login_user !== data.login_user) {
+            updates.login_user = data.login_user;
+            shouldRefreshDynamicGroups = true;
         }
-        // @ts-expect-error - dynamic field
-        if (syncData.client_version !== undefined) {
-            // @ts-expect-error - dynamic field
-            updates.client_version = syncData.client_version;
+        if (data.client_version !== undefined && computer.client_version !== data.client_version) {
+            updates.client_version = data.client_version;
+            shouldRefreshDynamicGroups = true;
+        }
+        if (data.intune_id !== undefined && computer.intune_id !== data.intune_id) {
+            updates.intune_id = data.intune_id;
+            shouldRefreshDynamicGroups = true;
         }
 
-        await ctx.db.patch(computer._id, updates);
+        await ctx.db.patch("computers", computer._id, updates);
 
-        // Trigger dynamic group membership refresh
-        await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
-            computerId: computer._id,
-        });
+        // Only refresh memberships if rule-relevant fields changed.
+        if (shouldRefreshDynamicGroups) {
+            await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
+                computerId: computer._id,
+            });
+        }
 
         return { success: true };
     },
@@ -309,7 +313,7 @@ export const remove = withAuthMutation({
             .collect();
 
         for (const token of refreshTokens) {
-            await ctx.db.delete(token._id);
+            await ctx.db.delete("refresh_tokens", token._id);
         }
 
         // Tasks
@@ -319,7 +323,7 @@ export const remove = withAuthMutation({
             .collect();
 
         for (const task of tasks) {
-            await ctx.db.delete(task._id);
+            await ctx.db.delete("tasks", task._id);
         }
 
         // Static group memberships
@@ -329,7 +333,7 @@ export const remove = withAuthMutation({
             .collect();
 
         for (const membership of staticMemberships) {
-            await ctx.db.delete(membership._id);
+            await ctx.db.delete("computer_group_members", membership._id);
         }
 
         // Dynamic group memberships
@@ -339,11 +343,11 @@ export const remove = withAuthMutation({
             .collect();
 
         for (const membership of dynamicMemberships) {
-            await ctx.db.delete(membership._id);
+            await ctx.db.delete("dynamic_group_members", membership._id);
         }
 
         // Delete computer
-        await ctx.db.delete(id);
+        await ctx.db.delete("computers", id);
 
         return { success: true };
     },
@@ -362,31 +366,27 @@ export const updateClientVersion = internalMutation({
         clientVersion: v.string(),
     },
     handler: async (ctx, { computerId, clientVersion }) => {
-        const computers = await ctx.db.query("computers").collect();
-        const computer = computers.find((c) => c._id.toString() === computerId);
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
+        );
+        const computer = await ctx.db.get("computers", normalizedComputerId);
 
         if (computer) {
-            await ctx.db.patch(computer._id, {
-                client_version: clientVersion,
+            const clientVersionChanged = computer.client_version !== clientVersion;
+            await ctx.db.patch("computers", computer._id, {
+                ...(clientVersionChanged ? { client_version: clientVersion } : {}),
                 last_connection: Date.now(),
             });
+
+            if (clientVersionChanged) {
+                await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
+                    computerId: computer._id,
+                });
+            }
         }
-    },
-});
-
-// ========================================
-// Internal Queries (for auth)
-// ========================================
-
-export const getByFingerprint = internalQuery({
-    args: { fingerprint: v.string() },
-    handler: async (ctx, { fingerprint }) => {
-        return await ctx.db
-            .query("computers")
-            .withIndex("by_fingerprint", (q) =>
-                q.eq("fingerprint", fingerprint)
-            )
-            .first();
     },
 });
 

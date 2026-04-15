@@ -1,9 +1,10 @@
 name: Build and push Docker image
 
 on:
-  push:
-    branches:
-      - main
+  release:
+    types:
+      - published
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,8 +40,15 @@ jobs:
         id: get_version
         run: |
           VERSION=$(jq -r '.version' ./package.json)
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          FULL_VERSION="${RELEASE_TAG#v}"
+
+          if [ -z "$FULL_VERSION" ]; then
+            FULL_VERSION="$VERSION"
+          fi
+
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "FULL_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "FULL_VERSION=$FULL_VERSION" >> "$GITHUB_ENV"
 
       - name: Compute image coordinates (GHCR)
         id: coords
@@ -62,7 +70,7 @@ jobs:
           tags: |
             ${{ env.GHCR_IMAGE }}:${{ env.FULL_VERSION }}
             ${{ env.GHCR_IMAGE }}:latest
-          # volitelné lepší tagy/labels:
+          # optional improved tags/labels:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

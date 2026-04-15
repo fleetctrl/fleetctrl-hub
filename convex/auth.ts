@@ -45,10 +45,19 @@ export const authComponent = createClient<DataModel, typeof authSchema>(componen
     },
 });
 
+const getTrustedOrigins = () => {
+    const origins: string[] = [];
+    if (process.env.SITE_URL) origins.push(process.env.SITE_URL);
+    if (process.env.NEXT_PUBLIC_SITE_URL) origins.push(process.env.NEXT_PUBLIC_SITE_URL);
+    return origins;
+};
+
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
     return {
         baseURL: getBaseUrl(),
         basePath: "/auth",
+        trustedOrigins: getTrustedOrigins(),
+        trustedProxies: ["127.0.0.1", "::1"],
         database: authComponent.adapter(ctx),
         // Configure simple, non-verified email/password
         emailAndPassword: {

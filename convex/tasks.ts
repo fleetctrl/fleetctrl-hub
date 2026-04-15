@@ -8,6 +8,14 @@ import { internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
+import { normalizeTableId } from "./lib/idNormalization";
+
+const taskStatusValidator = v.union(
+    v.literal("PENDING"),
+    v.literal("IN_PROGRESS"),
+    v.literal("SUCCESS"),
+    v.literal("ERROR")
+);
 
 // ========================================
 // Public Queries
@@ -19,24 +27,21 @@ import { v } from "convex/values";
 export const getPending = internalQuery({
     args: { computerId: v.string() },
     handler: async (ctx, { computerId }) => {
-        // Find computer by ID string
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
+        );
+
         const tasks = await ctx.db
             .query("tasks")
-            .filter((q) =>
-                q.and(
-                    q.eq(q.field("status"), "PENDING"),
-                    // We need to compare the computer_id - but it's stored as Id<"computers">
-                    // For now, we'll collect and filter
-                )
+            .withIndex("by_computer_status", (q) =>
+                q.eq("computer_id", normalizedComputerId).eq("status", "PENDING")
             )
             .collect();
 
-        // Filter by computerId (comparing string representation)
-        const filtered = tasks.filter(
-            (t) => t.computer_id.toString() === computerId
-        );
-
-        return filtered.map((task) => ({
+        return tasks.map((task) => ({
             id: task._id,
             created_at: task._creationTime,
             status: task.status,
@@ -81,29 +86,27 @@ export const updateStatus = internalMutation({
     args: {
         taskId: v.string(),
         computerId: v.string(),
-        status: v.string(),
+        status: taskStatusValidator,
         error: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, { taskId, computerId, status, error }) => {
-        // Validate status
-        const validStatuses = ["PENDING", "IN_PROGRESS", "SUCCESS", "ERROR"];
-        if (!validStatuses.includes(status)) {
-            throw new Error(`Invalid status: ${status}`);
-        }
-
-        // Find the task - we need to validate it belongs to this computer
-        const allTasks = await ctx.db.query("tasks").collect();
-        const task = allTasks.find(
-            (t) => t._id.toString() === taskId && t.computer_id.toString() === computerId
+        const normalizedTaskId = normalizeTableId(ctx.db, "tasks", taskId, "task ID");
+        const normalizedComputerId = normalizeTableId(
+            ctx.db,
+            "computers",
+            computerId,
+            "computer ID"
         );
 
-        if (!task) {
+        const task = await ctx.db.get("tasks", normalizedTaskId);
+
+        if (!task || task.computer_id !== normalizedComputerId) {
             throw new Error("Task not found or access denied");
         }
 
         const now = Date.now();
         const updates: Record<string, unknown> = {
-            status: status as "PENDING" | "IN_PROGRESS" | "SUCCESS" | "ERROR",
+            status,
         };
 
         if (error !== undefined) {
@@ -116,7 +119,7 @@ export const updateStatus = internalMutation({
             updates.started_at = now;
         }
 
-        await ctx.db.patch(task._id, updates);
+        await ctx.db.patch("tasks", task._id, updates);
 
         return { success: true };
     },

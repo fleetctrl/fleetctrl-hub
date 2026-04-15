@@ -9,7 +9,6 @@ export default defineSchema({
 
     computers: defineTable({
         name: v.string(),
-        fingerprint: v.optional(v.string()),
         jkt: v.optional(v.string()),
         rustdesk_id: v.optional(v.number()),
         ip: v.optional(v.string()),
@@ -20,7 +19,6 @@ export default defineSchema({
         last_connection: v.optional(v.number()),
         intune_id: v.optional(v.string()),
     })
-        .index("by_fingerprint", ["fingerprint"])
         .index("by_jkt", ["jkt"])
         .index("by_rustdesk_id", ["rustdesk_id"]),
 
@@ -56,7 +54,9 @@ export default defineSchema({
     })
         .index("by_token_hash", ["token_hash"])
         .index("by_computer_id", ["computer_id"])
-        .index("by_status", ["status"]),
+        .index("by_status", ["status"])
+        .index("by_computer_status", ["computer_id", "status"])
+        .index("by_status_expires_at", ["status", "expires_at"]),
 
     // JTI anti-replay is now handled in-memory (see lib/jtiStore.ts)
 
@@ -215,9 +215,9 @@ export default defineSchema({
     // RELEASE INSTALL STATE (per computer)
     // ========================================
 
-    computer_release_installs: defineTable({
+    computer_apps_installs: defineTable({
         computer_id: v.id("computers"),
-        release_id: v.id("releases"),
+        app_id: v.id("apps"),
         status: v.union(
             v.literal("PENDING"),
             v.literal("INSTALLING"),
@@ -225,13 +225,16 @@ export default defineSchema({
             v.literal("ERROR"),
             v.literal("UNINSTALLED")
         ),
+        release_id: v.optional(v.id("releases")), // populated when status moves past PENDING
+        error: v.optional(v.string()),
         installed_at: v.optional(v.number()),
         last_seen_at: v.optional(v.number()),
         status_updated_at: v.optional(v.number()),
     })
         .index("by_computer_id", ["computer_id"])
+        .index("by_app_id", ["app_id"])
         .index("by_release_id", ["release_id"])
-        .index("by_computer_release", ["computer_id", "release_id"]),
+        .index("by_computer_app", ["computer_id", "app_id"]),
 
     // ========================================
     // CLIENT UPDATES

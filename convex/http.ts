@@ -193,27 +193,73 @@ app.post("/enroll", async (c) => {
         }
 
         const body = await c.req.json();
-        const { name, fingerprint, fingerprint_hash, jkt } = body as {
+        const { name, jkt, device_id } = body as {
             name?: string;
-            fingerprint?: string;
-            fingerprint_hash?: string;
             jkt?: string;
+            device_id?: string;
         };
 
-        const fp = fingerprint || fingerprint_hash; // Backwards compatibility
+        if (!name) {
+            return c.json({ error: "Missing required fields" }, 400);
+        }
 
-        if (!name || !fp || !jkt) {
+        let effectiveJkt = jkt;
+        if (device_id) {
+            const dpopHeader = c.req.header("DPoP");
+            if (!dpopHeader) {
+                return c.json({ error: "Missing DPoP header" }, 401);
+            }
+
+            const url = new URL(c.req.url);
+            const apiUrl = process.env.API_URL;
+
+            let expectedUrl: string;
+            if (apiUrl) {
+                const apiBase = apiUrl.replace(/\/$/, "");
+                expectedUrl = `${apiBase}${url.pathname}`;
+            } else {
+                url.search = "";
+                url.hash = "";
+                expectedUrl = url.href;
+            }
+
+            const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);
+
+            try {
+                checkAndStoreJti(dpopResult.jti);
+            } catch {
+                return c.json({ error: "Replayed DPoP proof" }, 401);
+            }
+
+            if (effectiveJkt && effectiveJkt !== dpopResult.jkt) {
+                return c.json({ error: "JKT mismatch" }, 401);
+            }
+
+            effectiveJkt = dpopResult.jkt;
+        }
+
+        if (!effectiveJkt) {
             return c.json({ error: "Missing required fields" }, 400);
         }
 
         const result = await c.env.ctx.runAction(internal.deviceAuth.enroll, {
             enrollmentToken,
             name,
-            fingerprint: fp,
-            jkt,
+            jkt: effectiveJkt,
+            deviceId: device_id,
         });
 
-        return c.json({ tokens: result }, 201);
+        return c.json(
+            {
+                tokens: {
+                    access_token: result.access_token,
+                    refresh_token: result.refresh_token,
+                    expires_in: result.expires_in,
+                },
+                device_id: result.device_id,
+            },
+            201
+        );
     } catch (error: unknown) {
         const message =
             error instanceof Error ? error.message : "Enrollment failed";
@@ -224,15 +270,15 @@ app.post("/enroll", async (c) => {
 /**
  * Check Enrollment Status
  */
-app.get("/enroll/:fingerprint/is-enrolled", async (c) => {
-    const fingerprint = c.req.param("fingerprint");
+app.get("/devices/:deviceId/is-enrolled", async (c) => {
+    const deviceId = c.req.param("deviceId");
 
-    if (!fingerprint) {
-        return c.json({ error: "Missing fingerprint" }, 400);
+    if (!deviceId) {
+        return c.json({ error: "Missing deviceId" }, 400);
     }
 
     const result = await c.env.ctx.runQuery(internal.deviceAuth.isEnrolled, {
-        fingerprint,
+        deviceId,
     });
 
     if (result) {
@@ -463,10 +509,34 @@ protectedApi.patch("/computer/rustdesk-sync", async (c) => {
 
     const clientVersion = c.req.header("X-Client-Version");
 
-    const payload = {
-        ...body,
-        client_version: clientVersion || body.client_version,
-    };
+    const payload: Record<string, string | number> = {};
+
+    if (body.rustdesk_id !== undefined) {
+        payload.rustdesk_id = body.rustdesk_id;
+    }
+    if (body.name !== undefined) {
+        payload.name = body.name;
+    }
+    if (body.ip !== undefined) {
+        payload.ip = body.ip;
+    }
+    if (body.os !== undefined) {
+        payload.os = body.os;
+    }
+    if (body.os_version !== undefined) {
+        payload.os_version = body.os_version;
+    }
+    if (body.login_user !== undefined) {
+        payload.login_user = body.login_user;
+    }
+    if (body.intune_id !== undefined) {
+        payload.intune_id = body.intune_id;
+    }
+
+    const effectiveClientVersion = clientVersion || body.client_version;
+    if (effectiveClientVersion !== undefined) {
+        payload.client_version = effectiveClientVersion;
+    }
 
     await c.env.ctx.runMutation(internal.computers.rustdeskSync, {
         computerId,
@@ -495,7 +565,10 @@ app.get("/client/version", async (c) => {
 const http = httpRouter();
 
 // 1. Register BetterAuth Routes (handles /auth/* by default)
-authComponent.registerRoutes(http, createAuth);
+// cors: true enables CORS handling using trustedOrigins from createAuthOptions.
+// Required for local dev where the browser hits localhost:3211 directly (different
+// origin from the Next.js app on localhost:3000). Behind a proxy this is a no-op.
+authComponent.registerRoutes(http, createAuth, { cors: true });
 
 // 2. Register Hono App (Catch-all for everything else, except /auth/*)
 // We register for each method to ensure full coverage

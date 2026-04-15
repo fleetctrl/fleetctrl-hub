@@ -21,6 +21,7 @@ COPY . .
 
 # Next.js collects completely anonymous telemetry data about general usage.
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV SKIP_ENV_VALIDATION=true
 
     # Arguments for build
     ARG CONVEX_SITE_URL

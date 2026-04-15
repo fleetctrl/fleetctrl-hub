@@ -1,0 +1,50 @@
+services:
+  docker:
+    image: docker:28-dind
+    privileged: true
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - dockerd
+      - --host=tcp://0.0.0.0:2375
+      - --tls=false
+      - --dns=1.1.1.1
+      - --dns=8.8.8.8
+    healthcheck:
+      test: ["CMD-SHELL", "docker -H tcp://localhost:2375 info >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - ..:/workspace
+      - docker_dind_data:/var/lib/docker
+
+  smoke-test:
+    image: docker:28-cli
+    depends_on:
+      docker:
+        condition: service_healthy
+    network_mode: service:docker
+    working_dir: /workspace
+    environment:
+      DOCKER_HOST: tcp://localhost:2375
+      DOCKER_TLS_CERTDIR: ""
+      PROJECT_NAME: ${PROJECT_NAME:-fleetctrl-smoke}
+      TEST_DOCKER_HTTP_PORT: ${TEST_DOCKER_HTTP_PORT:-18080}
+      TEST_DOCKER_HTTPS_PORT: ${TEST_DOCKER_HTTPS_PORT:-18443}
+      TEST_DOCKER_RUSTFS_API_PORT: ${TEST_DOCKER_RUSTFS_API_PORT:-19000}
+      TEST_DOCKER_RUSTFS_CONSOLE_PORT: ${TEST_DOCKER_RUSTFS_CONSOLE_PORT:-19001}
+      TEST_DOCKER_BASE_URL: ${TEST_DOCKER_BASE_URL:-https://localhost:18443}
+      KEEP_TEST_ENV: ${KEEP_TEST_ENV:-false}
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - sh ./scripts/test-docker-deployment-inner.sh
+    volumes:
+      - ..:/workspace
+
+volumes:
+  docker_dind_data:

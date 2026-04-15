@@ -1,0 +1,36 @@
+name: Docker Deployment Smoke Test
+
+on:
+  # pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    container:
+      image: docker:28-cli
+    services:
+      docker:
+        image: docker:28-dind
+        options: --privileged
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+      DOCKER_TLS_CERTDIR: ""
+      PROJECT_NAME: fleetctrl-ci
+      TEST_DOCKER_HTTP_PORT: "18080"
+      TEST_DOCKER_HTTPS_PORT: "18443"
+
+    steps:
+      - name: Install test prerequisites
+        run: apk add --no-cache bash curl git
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Docker CLI connectivity
+        run: docker version
+
+      - name: Run Docker deployment smoke test
+        run: bash ./scripts/test-docker-deployment.sh

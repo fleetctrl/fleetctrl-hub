@@ -11,6 +11,7 @@ import {
 } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import {
     issueAccessToken,
     generateRefreshToken,
@@ -18,27 +19,20 @@ import {
     getRefreshTokenExpiry,
     getAccessTokenTTL,
 } from "./lib/jwt";
-import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
 import { internalMutation } from "./functions";
+import { maybeNormalizeTableId } from "./lib/idNormalization";
 
 // ========================================
 // Public Queries
 // ========================================
 
 /**
- * Check if a computer is enrolled by fingerprint.
+ * Check if a computer is enrolled by device ID.
  */
 export const isEnrolled = internalQuery({
-    args: { fingerprint: v.string() },
-    handler: async (ctx, { fingerprint }) => {
-        const computer = await ctx.db
-            .query("computers")
-            .withIndex("by_fingerprint", (q) =>
-                q.eq("fingerprint", fingerprint)
-            )
-            .first();
-
-        return computer !== null;
+    args: { deviceId: v.string() },
+    handler: async (ctx, { deviceId }) => {
+        return maybeNormalizeTableId(ctx.db, "computers", deviceId) !== null;
     },
 });
 
@@ -66,15 +60,15 @@ export const getRefreshTokenByHash = internalQuery({
     },
 });
 
-export const getComputerByFingerprint = internalQuery({
-    args: { fingerprint: v.string() },
-    handler: async (ctx, { fingerprint }) => {
-        return await ctx.db
-            .query("computers")
-            .withIndex("by_fingerprint", (q) =>
-                q.eq("fingerprint", fingerprint)
-            )
-            .first();
+export const getComputerByDeviceId = internalQuery({
+    args: { deviceId: v.string() },
+    handler: async (ctx, { deviceId }) => {
+        const computerId = maybeNormalizeTableId(ctx.db, "computers", deviceId);
+        if (!computerId) {
+            return null;
+        }
+
+        return await ctx.db.get("computers", computerId);
     },
 });
 
@@ -95,11 +89,11 @@ export const getComputerByJkt = internalQuery({
 export const decrementTokenUses = internalMutation({
     args: { tokenId: v.id("enrollment_tokens") },
     handler: async (ctx, { tokenId }) => {
-        const token = await ctx.db.get(tokenId);
+        const token = await ctx.db.get("enrollment_tokens", tokenId);
         if (!token) return;
 
         const newRemaining = Math.max(token.remaining_uses - 1, 0);
-        await ctx.db.patch(tokenId, {
+        await ctx.db.patch("enrollment_tokens", tokenId, {
             remaining_uses: newRemaining,
             last_used_at: Date.now(),
         });
@@ -109,13 +103,11 @@ export const decrementTokenUses = internalMutation({
 export const createComputer = internalMutation({
     args: {
         name: v.string(),
-        fingerprint: v.string(),
         jkt: v.string(),
     },
-    handler: async (ctx, { name, fingerprint, jkt }) => {
+    handler: async (ctx, { name, jkt }) => {
         const computerId = await ctx.db.insert("computers", {
             name,
-            fingerprint: fingerprint,
             jkt,
         });
         return computerId;
@@ -129,7 +121,10 @@ export const updateComputerJkt = internalMutation({
         name: v.string(),
     },
     handler: async (ctx, { computerId, jkt, name }) => {
-        await ctx.db.patch(computerId, { jkt, name });
+        await ctx.db.patch("computers", computerId, {
+            jkt,
+            name,
+        });
     },
 });
 
@@ -157,7 +152,7 @@ export const rotateRefreshToken = internalMutation({
         graceUntil: v.number(),
     },
     handler: async (ctx, { tokenId, graceUntil }) => {
-        await ctx.db.patch(tokenId, {
+        await ctx.db.patch("refresh_tokens", tokenId, {
             status: "REVOKED",
             grace_until: graceUntil,
         });
@@ -167,7 +162,7 @@ export const rotateRefreshToken = internalMutation({
 export const markGraceUsage = internalMutation({
     args: { tokenId: v.id("refresh_tokens") },
     handler: async (ctx, { tokenId }) => {
-        await ctx.db.patch(tokenId, {
+        await ctx.db.patch("refresh_tokens", tokenId, {
             last_used_at: Date.now(),
         });
     },
@@ -178,12 +173,13 @@ export const revokeAllActiveTokens = internalMutation({
     handler: async (ctx, { computerId }) => {
         const activeTokens = await ctx.db
             .query("refresh_tokens")
-            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
-            .filter((q) => q.eq(q.field("status"), "ACTIVE"))
+            .withIndex("by_computer_status", (q) =>
+                q.eq("computer_id", computerId).eq("status", "ACTIVE")
+            )
             .collect();
 
         for (const token of activeTokens) {
-            await ctx.db.patch(token._id, { status: "REVOKED" });
+            await ctx.db.patch("refresh_tokens", token._id, { status: "REVOKED" });
         }
 
         return { revoked: activeTokens.length };
@@ -198,12 +194,13 @@ export const cleanupExpiredTokens = internalMutation({
         // Find active tokens that have expired
         const expired = await ctx.db
             .query("refresh_tokens")
-            .withIndex("by_status", (q) => q.eq("status", "ACTIVE"))
-            .filter((q) => q.lt(q.field("expires_at"), now))
+            .withIndex("by_status_expires_at", (q) =>
+                q.eq("status", "ACTIVE").lt("expires_at", now)
+            )
             .take(100);
 
         for (const token of expired) {
-            await ctx.db.patch(token._id, { status: "EXPIRED" });
+            await ctx.db.patch("refresh_tokens", token._id, { status: "EXPIRED" });
             updated++;
         }
 
@@ -223,18 +220,16 @@ export const enroll = internalAction({
     args: {
         enrollmentToken: v.string(),
         name: v.string(),
-        fingerprint: v.string(),
         jkt: v.string(),
+        deviceId: v.optional(v.string()),
     },
-    handler: async (ctx, { enrollmentToken, name, fingerprint, jkt }) => {
+    handler: async (ctx, { enrollmentToken, name, jkt, deviceId }) => {
         // 1. Validate enrollment token
         const tokenHash = await hashToken(enrollmentToken);
 
-        const token = await ctx.runQuery(
-            // @ts-expect-error - internal API
-            "deviceAuth:getEnrollmentTokenByHash",
-            { tokenHash }
-        );
+        const token = await ctx.runQuery(internal.deviceAuth.getEnrollmentTokenByHash, {
+            tokenHash,
+        });
 
         if (!token) {
             throw new Error("Invalid enrollment token");
@@ -254,44 +249,41 @@ export const enroll = internalAction({
 
         // 2. Use token (decrement if not unlimited)
         if (token.remaining_uses !== -1) {
-            await ctx.runMutation(
-                // @ts-expect-error - internal API
-                "deviceAuth:decrementTokenUses",
-                { tokenId: token._id }
-            );
+            await ctx.runMutation(internal.deviceAuth.decrementTokenUses, {
+                tokenId: token._id,
+            });
         }
 
         // 3. Check if computer already exists
         let computerId: Id<"computers">;
-        const existing = await ctx.runQuery(
-            // @ts-expect-error - internal API
-            "deviceAuth:getComputerByFingerprint",
-            { fingerprint }
-        );
+        const existing = deviceId
+            ? await ctx.runQuery(internal.deviceAuth.getComputerByDeviceId, {
+                deviceId,
+            })
+            : null;
+
+        if (deviceId && !existing) {
+            throw new Error("Unknown device ID");
+        }
 
         if (existing) {
+            if (existing.jkt && existing.jkt !== jkt) {
+                throw new Error("Device proof mismatch");
+            }
+
             // Update existing computer
-            await ctx.runMutation(
-                // @ts-expect-error - internal API
-                "deviceAuth:updateComputerJkt",
-                {
-                    computerId: existing._id,
-                    jkt,
-                    name,
-                }
-            );
+            await ctx.runMutation(internal.deviceAuth.updateComputerJkt, {
+                computerId: existing._id,
+                jkt: existing.jkt ?? jkt,
+                name,
+            });
             computerId = existing._id;
         } else {
             // Create new computer
-            computerId = await ctx.runMutation(
-                // @ts-expect-error - internal API
-                "deviceAuth:createComputer",
-                {
-                    name,
-                    fingerprint,
-                    jkt,
-                }
-            );
+            computerId = await ctx.runMutation(internal.deviceAuth.createComputer, {
+                name,
+                jkt,
+            });
         }
 
         // 4. Issue tokens
@@ -300,21 +292,18 @@ export const enroll = internalAction({
         const refreshToken = generateRefreshToken();
         const refreshTokenHash = await hashToken(refreshToken);
 
-        await ctx.runMutation(
-            // @ts-expect-error - internal API
-            "deviceAuth:createRefreshToken",
-            {
-                computerId,
-                tokenHash: refreshTokenHash,
-                jkt,
-                expiresAt: getRefreshTokenExpiry(),
-            }
-        );
+        await ctx.runMutation(internal.deviceAuth.createRefreshToken, {
+            computerId,
+            tokenHash: refreshTokenHash,
+            jkt,
+            expiresAt: getRefreshTokenExpiry(),
+        });
 
         return {
             access_token: accessToken,
             refresh_token: refreshToken,
             expires_in: getAccessTokenTTL(),
+            device_id: computerId.toString(),
         };
     },
 });
@@ -328,11 +317,9 @@ export const refreshTokens = internalAction({
         const tokenHash = await hashToken(refreshToken);
 
         // 1. Find refresh token
-        const rt = await ctx.runQuery(
-            // @ts-expect-error - internal API
-            "deviceAuth:getRefreshTokenByHash",
-            { tokenHash }
-        );
+        const rt = await ctx.runQuery(internal.deviceAuth.getRefreshTokenByHash, {
+            tokenHash,
+        });
 
         if (!rt) {
             throw new Error("Invalid refresh token");
@@ -348,14 +335,10 @@ export const refreshTokens = internalAction({
             }
 
             // Rotate token (revoke with grace period)
-            await ctx.runMutation(
-                // @ts-expect-error - internal API
-                "deviceAuth:rotateRefreshToken",
-                {
-                    tokenId: rt._id,
-                    graceUntil: now + graceTTL,
-                }
-            );
+            await ctx.runMutation(internal.deviceAuth.rotateRefreshToken, {
+                tokenId: rt._id,
+                graceUntil: now + graceTTL,
+            });
         } else {
             // Check grace period for replayed refresh
             if (!rt.grace_until || now > rt.grace_until) {
@@ -367,11 +350,9 @@ export const refreshTokens = internalAction({
             }
 
             // Mark grace usage
-            await ctx.runMutation(
-                // @ts-expect-error - internal API
-                "deviceAuth:markGraceUsage",
-                { tokenId: rt._id }
-            );
+            await ctx.runMutation(internal.deviceAuth.markGraceUsage, {
+                tokenId: rt._id,
+            });
         }
 
         // 3. Issue new tokens
@@ -380,16 +361,12 @@ export const refreshTokens = internalAction({
         const newRefreshToken = generateRefreshToken();
         const newRefreshTokenHash = await hashToken(newRefreshToken);
 
-        await ctx.runMutation(
-            // @ts-expect-error - internal API
-            "deviceAuth:createRefreshToken",
-            {
-                computerId: rt.computer_id,
-                tokenHash: newRefreshTokenHash,
-                jkt: rt.jkt,
-                expiresAt: getRefreshTokenExpiry(),
-            }
-        );
+        await ctx.runMutation(internal.deviceAuth.createRefreshToken, {
+            computerId: rt.computer_id,
+            tokenHash: newRefreshTokenHash,
+            jkt: rt.jkt,
+            expiresAt: getRefreshTokenExpiry(),
+        });
 
         return {
             access_token: accessToken,
@@ -407,22 +384,18 @@ export const recover = internalAction({
     args: { jkt: v.string() },
     handler: async (ctx, { jkt }) => {
         // 1. Find computer by JKT
-        const computer = await ctx.runQuery(
-            // @ts-expect-error - internal API
-            "deviceAuth:getComputerByJkt",
-            { jkt }
-        );
+        const computer = await ctx.runQuery(internal.deviceAuth.getComputerByJkt, {
+            jkt,
+        });
 
         if (!computer) {
             throw new Error("Unknown device jkt");
         }
 
         // 2. Revoke all active refresh tokens for this device
-        await ctx.runMutation(
-            // @ts-expect-error - internal API
-            "deviceAuth:revokeAllActiveTokens",
-            { computerId: computer._id }
-        );
+        await ctx.runMutation(internal.deviceAuth.revokeAllActiveTokens, {
+            computerId: computer._id,
+        });
 
         // 3. Issue fresh tokens
         const subject = `device:${computer._id}`;
@@ -430,16 +403,12 @@ export const recover = internalAction({
         const refreshToken = generateRefreshToken();
         const refreshTokenHash = await hashToken(refreshToken);
 
-        await ctx.runMutation(
-            // @ts-expect-error - internal API
-            "deviceAuth:createRefreshToken",
-            {
-                computerId: computer._id,
-                tokenHash: refreshTokenHash,
-                jkt,
-                expiresAt: getRefreshTokenExpiry(),
-            }
-        );
+        await ctx.runMutation(internal.deviceAuth.createRefreshToken, {
+            computerId: computer._id,
+            tokenHash: refreshTokenHash,
+            jkt,
+            expiresAt: getRefreshTokenExpiry(),
+        });
 
         return {
             access_token: accessToken,

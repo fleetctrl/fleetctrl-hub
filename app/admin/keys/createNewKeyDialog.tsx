@@ -411,11 +411,11 @@ export default function CreateNewKeyDialog() {
                 try {
                   await navigator.clipboard.writeText(generatedToken);
                   setCopied(true);
-                  toast.success("Token zkopírován do schránky");
+                  toast.success("Token copied to clipboard");
                   setTimeout(() => setCopied(false), 2000);
                 } catch (error) {
                   console.error(error);
-                  toast.error("Kopírování se nezdařilo");
+                  toast.error("Copy failed");
                 }
               }}
             >

@@ -54,7 +54,7 @@ export const getTableData = withAuthQuery({
 
                 const members = await Promise.all(
                     memberRows.map(async (m) => {
-                        const computer = await ctx.db.get(m.computer_id);
+                        const computer = await ctx.db.get("computers", m.computer_id);
                         return computer
                             ? {
                                 id: computer._id,
@@ -89,7 +89,7 @@ export const getMembers = withAuthQuery({
 
         return Promise.all(
             members.map(async (member) => {
-                const computer = await ctx.db.get(member.computer_id);
+                const computer = await ctx.db.get("computers", member.computer_id);
                 return computer
                     ? {
                         id: computer._id,
@@ -188,7 +188,7 @@ export const edit = withAuthMutation({
         memberIds: v.optional(v.array(v.id("computers"))),
     },
     handler: async (ctx, { id, displayName, description, memberIds }) => {
-        const existing = await ctx.db.get(id);
+        const existing = await ctx.db.get("computer_groups", id);
         if (!existing) {
             throw new Error("Group not found");
         }
@@ -211,7 +211,7 @@ export const edit = withAuthMutation({
         if (description !== undefined) updates.description = description;
 
         if (Object.keys(updates).length > 0) {
-            await ctx.db.patch(id, updates);
+            await ctx.db.patch("computer_groups", id, updates);
         }
 
         // Update members if provided
@@ -223,7 +223,7 @@ export const edit = withAuthMutation({
                 .collect();
 
             for (const member of currentMembers) {
-                await ctx.db.delete(member._id);
+                await ctx.db.delete("computer_group_members", member._id);
             }
 
             // Add new members
@@ -252,7 +252,7 @@ export const remove = withAuthMutation({
             .collect();
 
         for (const member of members) {
-            await ctx.db.delete(member._id);
+            await ctx.db.delete("computer_group_members", member._id);
         }
 
         // Remove release assignments
@@ -262,11 +262,11 @@ export const remove = withAuthMutation({
             .collect();
 
         for (const release of releases) {
-            await ctx.db.delete(release._id);
+            await ctx.db.delete("computer_group_releases", release._id);
         }
 
         // Delete group
-        await ctx.db.delete(id);
+        await ctx.db.delete("computer_groups", id);
 
         return { success: true };
     },

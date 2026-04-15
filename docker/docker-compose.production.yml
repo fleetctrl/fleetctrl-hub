@@ -62,7 +62,6 @@ services:
       retries: 5
 
   convex:
-    container_name: ${CONVEX_CONTAINER_NAME:-fleetctrl-convex}
     image: ghcr.io/get-convex/convex-backend:latest
     environment:
       - CONVEX_Listen=0.0.0.0:3210
@@ -105,10 +104,7 @@ services:
 
   hub:
     container_name: ${HUB_CONTAINER_NAME:-fleetctrl-hub}
-    build:
-      context: ../
-      dockerfile: Dockerfile
-      target: runner
+    image: ghcr.io/fleetctrl/fleetctrl-hub:latest
     env_file:
       - ${DOCKER_ENV_FILE:-.env}
     environment:
@@ -123,10 +119,7 @@ services:
         condition: service_healthy
 
   convex-migration:
-    container_name: ${MIGRATION_CONTAINER_NAME:-fleetctrl-convex-migration}
-    build:
-      context: ../
-      dockerfile: Dockerfile.convex-migration
+    image: ghcr.io/fleetctrl/fleetctrl-convex-migration:latest
     environment:
       - CONVEX_SELF_HOSTED_URL=${CONVEX_URL}
       - CONVEX_SELF_HOSTED_ADMIN_KEY=${CONVEX_DEPLOY_KEY}
@@ -147,7 +140,6 @@ services:
         condition: service_healthy
 
   proxy:
-    container_name: ${PROXY_CONTAINER_NAME:-fleetctrl-proxy}
     image: caddy:alpine
     restart: unless-stopped
     ports:
