@@ -1,0 +1,165 @@
+name: fleetctrl
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    ports:
+      - "${RUSTFS_API_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ${RUSTFS_DATA_DIR:-rustfs-data}:/data
+    environment:
+      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY:-rustfsadmin}
+      - RUSTFS_SERVER_DOMAINS=${RUSTFS_SERVER_DOMAINS:-localhost,rustfs}
+      - RUSTFS_CONSOLE_ENABLE=${RUSTFS_CONSOLE_ENABLE:-true}
+    command:
+      - "--address"
+      - ":9000"
+      - "--console-enable"
+      - "--server-domains"
+      - "${RUSTFS_SERVER_DOMAINS:-localhost,rustfs}"
+      - "--access-key"
+      - "${RUSTFS_ACCESS_KEY:-rustfsadmin}"
+      - "--secret-key"
+      - "${RUSTFS_SECRET_KEY:-rustfsadmin}"
+      - "/data"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot init container: creates S3 buckets required by Convex.
+  rustfs-init:
+    image: minio/mc:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set rustfs http://rustfs:9000 "${RUSTFS_ACCESS_KEY:-rustfsadmin}" "${RUSTFS_SECRET_KEY:-rustfsadmin}"; do
+          echo "Waiting for RustFS S3 API..."
+          sleep 2
+        done
+        for bucket in convex-snapshot-exports convex-snapshot-imports convex-modules convex-user-files convex-search-indexes; do
+          mc mb --ignore-existing rustfs/$$bucket
+        done
+        echo "All buckets ready."
+    restart: "no"
+
+  postgres:
+    image: postgres:17.9
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: convex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: convex_self_hosted
+    volumes:
+      - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U convex -d convex_self_hosted"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  convex:
+    image: ghcr.io/get-convex/convex-backend:latest
+    environment:
+      - CONVEX_Listen=0.0.0.0:3210
+      - SITE_URL=${SITE_URL}
+      # Used by the backend to populate built-in UDF env vars (e.g. process.env.CONVEX_SITE_URL)
+      - CONVEX_CLOUD_ORIGIN=${SITE_URL}
+      - CONVEX_SITE_ORIGIN=${SITE_URL}
+      # Database
+      - POSTGRES_URL=postgresql://convex:${POSTGRES_PASSWORD:-changeme}@postgres:5432
+      - DO_NOT_REQUIRE_SSL=1
+      # S3 storage via RustFS.
+      - S3_ENDPOINT_URL=http://rustfs:9000
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      - AWS_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY:-rustfsadmin}
+      - AWS_S3_FORCE_PATH_STYLE=true
+      - AWS_S3_DISABLE_SSE=true
+      - AWS_S3_DISABLE_CHECKSUMS=true
+      - S3_STORAGE_EXPORTS_BUCKET=convex-snapshot-exports
+      - S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET=convex-snapshot-imports
+      - S3_STORAGE_MODULES_BUCKET=convex-modules
+      - S3_STORAGE_FILES_BUCKET=convex-user-files
+      - S3_STORAGE_SEARCH_BUCKET=convex-search-indexes
+    volumes:
+      - ${CONVEX_DATA_DIR:-convex-data}:/var/lib/convex
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3210/version" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  hub:
+    container_name: ${HUB_CONTAINER_NAME:-fleetctrl-hub}
+    image: ghcr.io/fleetctrl/fleetctrl-hub:latest
+    env_file:
+      - ${DOCKER_ENV_FILE:-.env}
+    environment:
+      - CONVEX_URL=${CONVEX_URL}
+      - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
+      - SITE_URL=${SITE_URL}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+      - NEXT_PUBLIC_ALLOW_REGISTRATION=${NEXT_PUBLIC_ALLOW_REGISTRATION}
+    restart: unless-stopped
+    depends_on:
+      convex:
+        condition: service_healthy
+
+  convex-migration:
+    image: ghcr.io/fleetctrl/fleetctrl-convex-migration:latest
+    environment:
+      - CONVEX_SELF_HOSTED_URL=${CONVEX_URL}
+      - CONVEX_SELF_HOSTED_ADMIN_KEY=${CONVEX_DEPLOY_KEY}
+    depends_on:
+      convex:
+        condition: service_healthy
+
+  convex-dashboard:
+    # Change this to :${REV} if you want to pin to a specific version
+    image: ghcr.io/get-convex/convex-dashboard:latest
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    environment:
+      - NEXT_PUBLIC_DEPLOYMENT_URL=${NEXT_PUBLIC_DEPLOYMENT_URL:-http://convex:${PORT:-3210}}
+      - NEXT_PUBLIC_LOAD_MONACO_INTERNALLY
+    depends_on:
+      convex:
+        condition: service_healthy
+
+  proxy:
+    image: caddy:alpine
+    restart: unless-stopped
+    ports:
+      - "${PROXY_HTTP_PORT:-80}:80"
+      - "${PROXY_HTTPS_PORT:-443}:443"
+    env_file:
+      - ${DOCKER_ENV_FILE:-.env}
+    environment:
+      - CADDY_DOMAIN=${CADDY_DOMAIN:-localhost}
+    volumes:
+      - ${CADDYFILE_PATH:-./Caddyfile}:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - hub
+      - convex
+
+volumes:
+  convex-data:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  rustfs-data:

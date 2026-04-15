@@ -16,6 +16,26 @@ This directory contains a fully local setup for the Fleetctrl Hub, including a s
 
 ## Usage
 
+### Production Setup via curl
+
+If you only want to run the production Docker stack, use the bootstrap script. It downloads the required files into a fresh directory and then runs `manage.sh setup`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | bash
+```
+
+Notes:
+
+- The script creates a `fleetctrl-hub-docker` directory in your current location, downloads the required files into it, and runs `./manage.sh setup`.
+- It stores `docker-compose.production.yml` as `docker-compose.yml`, because `manage.sh` expects Docker Compose's default filename.
+- It downloads both `Caddyfile.proxy` and `Caddyfile.standalone`; the setup flow copies the correct file to `Caddyfile`.
+
+To change the installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | INSTALL_DIR=my-fleetctrl bash
+```
+
 ### Local Dev Mode (No Rebuild on Code Change)
 
 Use the dev override compose file to run Next.js in watch mode with source mounted from your host.

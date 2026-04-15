@@ -55,26 +55,24 @@ For local development, two processes need to be running:
 
 The application will then be available at [http://localhost:3000](http://localhost:3000).
 
-## Docker (Produciton Build)
- 
-The project includes a `docker-compose.yaml` to build and run the application in a containerized environment.
- 
- **Prerequisites for Docker Build:**
- 1. Make sure you have a valid `.env` file in the root directory. It must contain:
-    - `CONVEX_SITE_URL`
-    - `NEXT_PUBLIC_CONVEX_SITE_URL` (usually identical to CONVEX_SITE_URL)
-    - `NEXT_PUBLIC_CONVEX_URL`
-    - Other necessary secrets
- 
- 2. **Deploy the backend first!**
-    The Docker container runs the Next.js frontend in standalone mode. It does **not** run the Convex backend or sync schema changes. Before building or running the container, ensure your Convex backend is live and updated:
-    ```bash
-    npx convex deploy
-    ```
- 
- 3. Build and run:
-    ```bash
-    docker compose up -d --build
-    ```
- 
- The application will be available at [http://localhost:3000](http://localhost:3000).
+## Docker Production Setup
+
+For a production-style Docker deployment you do not need to clone the whole repository. Run the bootstrap script over `curl`; it downloads the required files and starts the interactive setup through `manage.sh`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | bash
+```
+
+Notes:
+
+- The script creates a `fleetctrl-hub-docker` directory in your current location, downloads the required files into it, and runs `./manage.sh setup`.
+- It saves `docker-compose.production.yml` as `docker-compose.yml`, because `manage.sh` uses `docker compose` without an explicit `-f` flag.
+- It downloads both `Caddyfile.proxy` and `Caddyfile.standalone`; the setup script selects the correct one based on your answers.
+
+If you want a different target directory, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | INSTALL_DIR=my-fleetctrl bash
+```
+
+After setup completes, FleetCtrl Hub and the self-hosted Convex stack will be available on the URL you entered during the setup wizard.
