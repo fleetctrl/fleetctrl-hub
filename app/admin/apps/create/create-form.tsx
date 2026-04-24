@@ -768,7 +768,7 @@ function RequirementStep() {
                   control={form.control}
                   name="preScript.runAsSystem"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-xs">
                       <div className="space-y-0.5">
                         <FormLabel>Run as System</FormLabel>
                       </div>
@@ -857,7 +857,7 @@ function RequirementStep() {
                   control={form.control}
                   name="postScript.runAsSystem"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-xs">
                       <div className="space-y-0.5">
                         <FormLabel>Run as System</FormLabel>
                       </div>

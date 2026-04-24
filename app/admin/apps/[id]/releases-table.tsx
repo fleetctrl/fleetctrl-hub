@@ -132,7 +132,7 @@ function AssignmentsBadges({ release }: { release: Release }) {
                 <Badge
                     key={index}
                     variant="outline"
-                    className="max-w-[8rem] truncate text-xs"
+                    className="max-w-32 truncate text-xs"
                 >
                     {g.name}
                 </Badge>

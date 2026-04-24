@@ -40,10 +40,10 @@ const formatDateTime = (value?: number) => {
     });
 };
 
-const statusBadgeVariant: Record<InstallStatus, "secondary" | "destructive" | "outline"> = {
+const statusBadgeVariant: Record<InstallStatus, "secondary" | "destructive" | "outline-solid"> = {
     PENDING: "secondary",
     INSTALLING: "secondary",
-    INSTALLED: "outline",
+    INSTALLED: "outline-solid",
     ERROR: "destructive",
     UNINSTALLED: "secondary",
 };
@@ -139,8 +139,8 @@ export default function AppDetailPage() {
         >
             <div className="flex flex-col md:flex-row gap-6 w-full h-full items-start">
                 {/* Sidebar */}
-                <div className="w-full md:w-64 flex-shrink-0 space-y-1">
-                    <div className="font-semibold text-lg px-4 py-2 mb-2 break-words">{app.display_name}</div>
+                <div className="w-full md:w-64 shrink-0 space-y-1">
+                    <div className="font-semibold text-lg px-4 py-2 mb-2 wrap-break-word">{app.display_name}</div>
                     <nav className="flex flex-col space-y-1">
                         <Button
                             variant={activeView === "overview" ? "secondary" : "ghost"}
