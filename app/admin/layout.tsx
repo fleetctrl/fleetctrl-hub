@@ -13,7 +13,7 @@ export default async function ProtectedLayout({
   // Authentication is now handled by middleware (convexAuthNextjsMiddleware)
   // No need to check auth here - protected routes redirect to sign-in automatically
   const cookieStore = await cookies()
-  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true"
+  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true" || true; // Default to open if cookie is not set
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
