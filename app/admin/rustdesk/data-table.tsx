@@ -302,13 +302,18 @@ export function RustDeskTable() {
   const sortDesc = sort ? desc : undefined;
 
   const cursor = cursorStack[pageIndex] ?? null;
+  const canAdvanceCursorStack = pageIndex === cursorStack.length - 1 && !isDone;
 
-  // Sync the URL page param back when pageIndex was clamped (e.g., deep-link to page beyond known cursor stack)
+  // Only normalize the URL once the requested page is known to be unreachable.
+  // While bootstrapping a deep-link, we intentionally let page 1 load first so its
+  // continueCursor can extend the stack and unlock later pages.
   useEffect(() => {
-    if (rawPageIndex !== pageIndex) {
+    const requestedPageIsTemporarilyClamped = rawPageIndex > pageIndex && canAdvanceCursorStack;
+
+    if (!requestedPageIsTemporarilyClamped && rawPageIndex !== pageIndex) {
       void setQueryState({ page: pageIndex + 1 });
     }
-  }, [page, pageIndex, rawPageIndex, setQueryState]);
+  }, [canAdvanceCursorStack, pageIndex, rawPageIndex, setQueryState]);
 
   const pageResult = useAuthQuery(api.computers.listPaginated, {
     filter: search || undefined,
