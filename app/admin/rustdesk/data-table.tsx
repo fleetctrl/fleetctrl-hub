@@ -284,7 +284,8 @@ export function RustDeskTable() {
   const lastInternalQueryChangeRef = useRef<string | null>(null);
 
   const maxPageIndex = total ? Math.max(0, Math.ceil(total / pageSize) - 1) : Infinity;
-  const pageIndex = Math.max(page, 1) - 1 > maxPageIndex ? maxPageIndex : Math.max(page, 1) - 1;
+  const rawPageIndex = Math.max(page, 1) - 1;
+  const pageIndex = Math.min(rawPageIndex, maxPageIndex, cursorStack.length - 1);
   const pagination = useMemo<PaginationState>(
     () => ({ pageIndex, pageSize }),
     [pageIndex, pageSize]
@@ -301,6 +302,13 @@ export function RustDeskTable() {
   const sortDesc = sort ? desc : undefined;
 
   const cursor = cursorStack[pageIndex] ?? null;
+
+  // Sync the URL page param back when pageIndex was clamped (e.g., deep-link to page beyond known cursor stack)
+  useEffect(() => {
+    if (rawPageIndex !== pageIndex) {
+      void setQueryState({ page: pageIndex + 1 });
+    }
+  }, [page, pageIndex, rawPageIndex, setQueryState]);
 
   const pageResult = useAuthQuery(api.computers.listPaginated, {
     filter: search || undefined,
