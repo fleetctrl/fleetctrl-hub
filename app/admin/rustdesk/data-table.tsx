@@ -13,7 +13,14 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  parseAsBoolean,
+  parseAsInteger,
+  parseAsString,
+  parseAsStringLiteral,
+  useQueryStates,
+} from "nuqs";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,10 +40,29 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon, XIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+const SORTABLE_FIELDS = [
+  "name",
+  "rustdeskID",
+  "ip",
+  "os",
+  "osVersion",
+  "loginUser",
+  "lastConnection",
+] as const;
+type SortField = (typeof SORTABLE_FIELDS)[number];
+
+function isSortField(value: string): value is SortField {
+  return (SORTABLE_FIELDS as readonly string[]).includes(value);
+}
 
 function isComputerOnline(lastConnection?: number) {
   return typeof lastConnection === "number" && Date.now() - lastConnection < ONLINE_THRESHOLD_MS;
@@ -52,6 +78,8 @@ interface DataTableProps<TData, TValue> {
   onSortingChange: OnChangeFn<SortingState>;
   filter: string;
   onFilterChange: (filter: string) => void;
+  onResetFilters: () => void;
+  hasActiveFilters: boolean;
   isLoading?: boolean;
   total?: number;
 }
@@ -66,6 +94,8 @@ function DataTable<TData, TValue>({
   onSortingChange,
   filter,
   onFilterChange,
+  onResetFilters,
+  hasActiveFilters,
   isLoading,
   total,
 }: DataTableProps<TData, TValue>) {
@@ -101,8 +131,8 @@ function DataTable<TData, TValue>({
 
   return (
     <div className="w-full flex flex-col">
-      <div className="flex w-full items-center py-4">
-        <InputGroup className="max-w-[250px]">
+      <div className="flex w-full items-center gap-2 py-4">
+        <InputGroup className="max-w-62.5">
           <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
@@ -113,6 +143,23 @@ function DataTable<TData, TValue>({
             className="max-w-sm"
           />
         </InputGroup>
+        {hasActiveFilters ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onResetFilters}
+                disabled={isLoading}
+                className="size-9"
+                aria-label="Reset filters"
+              >
+                <XIcon className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Reset filters</TooltipContent>
+          </Tooltip>
+        ) : null}
       </div>
       <Card>
         <CardContent className="p-0">
@@ -210,27 +257,53 @@ function DataTable<TData, TValue>({
 }
 
 export function RustDeskTable() {
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
+  const [{ page, search, sort, desc }, setQueryState] = useQueryStates({
+    page: parseAsInteger.withDefault(1).withOptions({
+      clearOnDefault: true,
+      history: "push",
+    }),
+    search: parseAsString.withDefault("").withOptions({
+      clearOnDefault: true,
+      history: "replace",
+    }),
+    sort: parseAsStringLiteral(SORTABLE_FIELDS).withOptions({
+      clearOnDefault: true,
+      history: "push",
+    }),
+    desc: parseAsBoolean.withDefault(false).withOptions({
+      clearOnDefault: true,
+      history: "push",
+    }),
   });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [inputValue, setInputValue] = useState<string>("");
-  const [filter, setFilter] = useState<string>("");
+  const [pageSize, setPageSize] = useState(10);
+  const [inputValue, setInputValue] = useState<string>(search);
   const [pageCache, setPageCache] = useState<Record<number, RustDesk[]>>({});
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const [total, setTotal] = useState<number | undefined>(undefined);
   const [isDone, setIsDone] = useState(false);
+  const lastInternalQueryChangeRef = useRef<string | null>(null);
 
-  const { pageIndex, pageSize } = pagination;
+  const maxPageIndex = total ? Math.max(0, Math.ceil(total / pageSize) - 1) : Infinity;
+  const pageIndex = Math.max(page, 1) - 1 > maxPageIndex ? maxPageIndex : Math.max(page, 1) - 1;
+  const pagination = useMemo<PaginationState>(
+    () => ({ pageIndex, pageSize }),
+    [pageIndex, pageSize]
+  );
+  const sorting = useMemo<SortingState>(() => {
+    return sort ? [{ id: sort, desc }] : [];
+  }, [desc, sort]);
+  const querySignature = useMemo(
+    () => JSON.stringify({ search, sort, desc: sort ? desc : false }),
+    [desc, search, sort]
+  );
 
-  const sortField = sorting.length > 0 ? sorting[0].id : undefined;
-  const sortDesc = sorting.length > 0 ? sorting[0].desc : undefined;
+  const sortField = sort ?? undefined;
+  const sortDesc = sort ? desc : undefined;
 
   const cursor = cursorStack[pageIndex] ?? null;
 
   const pageResult = useAuthQuery(api.computers.listPaginated, {
-    filter: filter || undefined,
+    filter: search || undefined,
     sortField,
     sortDesc,
     paginationOpts: {
@@ -241,8 +314,7 @@ export function RustDeskTable() {
 
   const isFetching = pageResult === undefined;
 
-  const resetQueryState = useCallback((nextPageSize: number) => {
-    setPagination({ pageIndex: 0, pageSize: nextPageSize });
+  const resetPaginationState = useCallback(() => {
     setPageCache({});
     setCursorStack([null]);
     setTotal(undefined);
@@ -270,23 +342,36 @@ export function RustDeskTable() {
   }, [pageIndex, pageResult]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setFilter((prev) => {
-        if (prev === inputValue) {
-          return prev;
-        }
+    setInputValue((prev) => (prev === search ? prev : search));
+  }, [search]);
 
-        resetQueryState(pageSize);
-        return inputValue;
+  useEffect(() => {
+    if (lastInternalQueryChangeRef.current === querySignature) {
+      lastInternalQueryChangeRef.current = null;
+      return;
+    }
+
+    resetPaginationState();
+  }, [querySignature, resetPaginationState]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      if (search === inputValue) {
+        return;
+      }
+
+      resetPaginationState();
+      const nextSignature = JSON.stringify({
+        search: inputValue,
+        sort,
+        desc: sort ? desc : false,
       });
+      lastInternalQueryChangeRef.current = nextSignature;
+      void setQueryState({ page: 1, search: inputValue });
     }, 400);
 
     return () => window.clearTimeout(timeoutId);
-  }, [inputValue, pageSize, resetQueryState]);
-
-  useEffect(() => {
-    resetQueryState(pageSize);
-  }, [pageSize, resetQueryState]);
+  }, [desc, inputValue, resetPaginationState, search, setQueryState, sort]);
 
   const tableData = pageCache[pageIndex] ?? [];
 
@@ -296,21 +381,68 @@ export function RustDeskTable() {
     }
     return isDone ? pageIndex + 1 : pageIndex + 2;
   }, [isDone, pageIndex, pageSize, total]);
+  const hasActiveFilters = Boolean(search || sort || page !== 1);
 
   const handlePaginationChange = useCallback(
     (updater: Updater<PaginationState>) => {
-      setPagination((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
+      const next =
+        typeof updater === "function" ? updater(pagination) : updater;
+
+      if (next.pageSize !== pagination.pageSize) {
+        setPageSize(next.pageSize);
+        resetPaginationState();
+        lastInternalQueryChangeRef.current = querySignature;
+        void setQueryState({ page: 1 });
         return next;
-      });
+      }
+
+      if (next.pageIndex !== pagination.pageIndex) {
+        lastInternalQueryChangeRef.current = querySignature;
+        void setQueryState({ page: next.pageIndex + 1 });
+      }
+
+      return next;
     },
-    []
+    [pagination, querySignature, resetPaginationState, setQueryState]
   );
 
-  const handleSortingChange = useCallback((updater: Updater<SortingState>) => {
-    setSorting((prev) => (typeof updater === "function" ? updater(prev) : updater));
-    resetQueryState(pageSize);
-  }, [pageSize, resetQueryState]);
+  const handleSortingChange = useCallback(
+    (updater: Updater<SortingState>) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      const nextSort = next[0]?.id;
+      const nextSortField = nextSort && isSortField(nextSort) ? nextSort : null;
+      const nextDesc = next[0]?.desc ?? false;
+
+      resetPaginationState();
+      lastInternalQueryChangeRef.current = JSON.stringify({
+        search,
+        sort: nextSortField,
+        desc: nextSortField ? nextDesc : false,
+      });
+      void setQueryState({
+        page: 1,
+        sort: nextSortField,
+        desc: nextSortField ? nextDesc : false,
+      });
+    },
+    [resetPaginationState, search, setQueryState, sorting]
+  );
+
+  const handleResetFilters = useCallback(() => {
+    resetPaginationState();
+    setInputValue("");
+    lastInternalQueryChangeRef.current = JSON.stringify({
+      search: "",
+      sort: null,
+      desc: false,
+    });
+    void setQueryState({
+      page: 1,
+      search: "",
+      sort: null,
+      desc: false,
+    });
+  }, [resetPaginationState, setQueryState]);
 
   return (
     <DataTable
@@ -323,6 +455,8 @@ export function RustDeskTable() {
       onSortingChange={handleSortingChange}
       filter={inputValue}
       onFilterChange={setInputValue}
+      onResetFilters={handleResetFilters}
+      hasActiveFilters={hasActiveFilters}
       isLoading={isFetching}
       total={total}
     />
