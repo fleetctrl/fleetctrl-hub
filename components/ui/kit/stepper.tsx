@@ -199,7 +199,7 @@ function StepDivider({
 
       <div
         className={
-          "divider h-[1px] w-full bg-gray-200 transition-colors" +
+          "divider h-px w-full bg-gray-200 transition-colors" +
           " dark:bg-border hidden group-last:hidden sm:flex"
         }
       />

@@ -48,7 +48,7 @@ export const columns: ColumnDef<GroupRow>[] = [
             <Badge
               key={member.id}
               variant="outline"
-              className="max-w-[10rem] truncate"
+              className="max-w-40 truncate"
             >
               {member.name}
             </Badge>

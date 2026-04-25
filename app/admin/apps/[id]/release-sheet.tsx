@@ -610,7 +610,7 @@ export function ReleaseSheet({
                             </div>
 
                             <div className="flex-1 relative overflow-hidden">
-                                <div className="pointer-events-none absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-background to-transparent z-10" />
+                                <div className="pointer-events-none absolute top-0 left-0 right-0 h-6 bg-linear-to-b from-background to-transparent z-10" />
 
                                 <div className="h-full overflow-y-auto px-6 py-6 pb-12">
                                     <TabsContent value="details" className="space-y-4 m-0">
@@ -657,7 +657,7 @@ export function ReleaseSheet({
                                             control={form.control}
                                             name="disabled"
                                             render={({ field }) => (
-                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-xs">
                                                     <div className="space-y-0.5">
                                                         <FormLabel>Disabled</FormLabel>
                                                         <FormDescription>
@@ -749,7 +749,7 @@ export function ReleaseSheet({
                                                     control={form.control}
                                                     name="preScript.runAsSystem"
                                                     render={({ field }) => (
-                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-xs">
                                                             <div className="space-y-0.5">
                                                                 <FormLabel>Run as System</FormLabel>
                                                             </div>
@@ -838,7 +838,7 @@ export function ReleaseSheet({
                                                     control={form.control}
                                                     name="postScript.runAsSystem"
                                                     render={({ field }) => (
-                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-xs">
                                                             <div className="space-y-0.5">
                                                                 <FormLabel>Run as System</FormLabel>
                                                             </div>
@@ -952,7 +952,7 @@ export function ReleaseSheet({
                                                 control={form.control}
                                                 name="uninstall_previous"
                                                 render={({ field }) => (
-                                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-xs">
                                                         <div className="space-y-0.5">
                                                             <FormLabel>Uninstall Previous</FormLabel>
                                                             <FormDescription>
@@ -1047,7 +1047,7 @@ export function ReleaseSheet({
                                                 control={form.control}
                                                 name="requirements.runAsSystem"
                                                 render={({ field }) => (
-                                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-xs">
                                                         <div className="space-y-0.5">
                                                             <FormLabel>Run as System</FormLabel>
                                                         </div>
@@ -1288,7 +1288,7 @@ export function ReleaseSheet({
                                         </div>
                                     </TabsContent>
                                 </div>
-                                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-background to-transparent z-10" />
+                                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-linear-to-t from-background to-transparent z-10" />
                             </div>
                         </Tabs>
                     </form>

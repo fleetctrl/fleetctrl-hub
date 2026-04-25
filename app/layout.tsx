@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
@@ -31,15 +32,17 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ConvexClientProvider initialToken={initialToken}>
-          <Toaster />
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
+          <NuqsAdapter>
+            <Toaster />
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+            </ThemeProvider>
+          </NuqsAdapter>
         </ConvexClientProvider>
       </body>
     </html>
