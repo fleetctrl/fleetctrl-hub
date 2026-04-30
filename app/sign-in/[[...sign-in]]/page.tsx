@@ -195,14 +195,6 @@ export default function SignInPage() {
                                     <FormItem>
                                         <div className="flex items-center justify-between">
                                             <FormLabel>Password</FormLabel>
-                                            {step === "signIn" && (
-                                                <Link
-                                                    href="#"
-                                                    className="ml-auto inline-block text-sm underline"
-                                                >
-                                                    Forgot your password?
-                                                </Link>
-                                            )}
                                         </div>
                                         <FormControl>
                                             <Input
