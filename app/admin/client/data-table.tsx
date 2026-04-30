@@ -31,8 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { columns, type ClientUpdateRow, type ClientUpdatesTableMeta } from "./columns";
-import { useMutation } from "convex/react";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import { uploadFileToConvex } from "@/lib/convex-upload";
@@ -43,7 +42,7 @@ const formatDateTime = (timestamp: number) =>
         timeStyle: "short",
     });
 
-export function ClientUpdatesTable() {
+export function ClientUpdatesTable({ data }: { data: Preloaded<typeof api.clientUpdates.getAll>; }) {
     const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -51,7 +50,7 @@ export function ClientUpdatesTable() {
     const [notes, setNotes] = useState("");
 
     // Convex queries
-    const clientUpdates = useAuthQuery(api.clientUpdates.getAll);
+    const clientUpdates = usePreloadedQuery(data);
 
     // Convex mutations
     const generateUploadUrl = useMutation(api.clientUpdates.generateUploadUrl);
@@ -146,10 +145,10 @@ export function ClientUpdatesTable() {
             <div className="flex flex-col items-center gap-1 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h2 className="text-lg font-semibold">FleetCtrl Client Updates</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Manage client versions for automatic updates on enrolled computers.
+                    <p className="text-sm text-muted-foreground flex flex-col">
+                        <span>Manage client versions for automatic updates on enrolled computers.</span>
                         {activeVersion && (
-                            <span className="ml-2 font-medium text-green-600">
+                            <span className="font-medium text-green-600">
                                 Active: {activeVersion.version}
                             </span>
                         )}

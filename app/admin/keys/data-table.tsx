@@ -27,6 +27,7 @@ import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { columns } from "./columns";
 import CreateNewKeyDialog from "./createNewKeyDialog";
+import { Preloaded, usePreloadedQuery } from "convex/react";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -132,11 +133,11 @@ export function DataTable<TData, TValue>({
   );
 }
 
-export function KeysTable() {
+export function KeysTable({ data }: { data: Preloaded<typeof api.enrollmentTokens.list>; }) {
   // Convex auth query is automatically reactive!
-  const data = useAuthQuery(api.enrollmentTokens.list);
+  const queryData = usePreloadedQuery(data);
 
   return (
-    <DataTable columns={columns} data={data ?? []} />
+    <DataTable columns={columns} data={queryData ?? []} />
   );
 }
