@@ -1,4 +1,5 @@
 import PageWrapper from "@/components/page-wrapper";
+import { DashboardContent } from "./dashboard-content";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -19,7 +20,7 @@ export default function Dashboard() {
         </Breadcrumb>
       }
     >
-      dashboard
+      <DashboardContent />
     </PageWrapper>
   );
 }
