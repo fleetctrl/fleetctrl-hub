@@ -22,13 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ReleasesTable } from "./releases-table";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-import { EditAppSheet } from "./edit-app-sheet";
-import { ReleaseSheet } from "./release-sheet";
+import { EditAppSheet } from "../../../modules/apps/detail/releases/sheet/app-edit-app-sheet";
 import { Pen, Plus } from "lucide-react";
+import { AppReleaseSheet } from "@/app/modules/apps/detail/releases/sheet/app-release-sheet";
+import { AppReleasesTable } from "@/app/modules/apps/detail/releases/table/app-releases-table";
 
 type InstallStatus =
   | "PENDING"
@@ -292,7 +292,7 @@ export default function AppDetailPage() {
                       Loading releases...
                     </div>
                   ) : (
-                    <ReleasesTable
+                    <AppReleasesTable
                       releases={releases ?? []}
                       appId={appId}
                       isAutoUpdate={app.auto_update}
@@ -301,7 +301,7 @@ export default function AppDetailPage() {
                 </CardContent>
               </Card>
 
-              <ReleaseSheet
+              <AppReleaseSheet
                 appId={appId}
                 isAutoUpdate={app.auto_update}
                 open={showCreateReleaseSheet}

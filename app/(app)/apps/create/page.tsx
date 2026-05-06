@@ -7,7 +7,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import PageWrapper from "@/components/page-wrapper";
-import { CreateForm } from "./create-form";
+import { AppCreateForm } from "@/app/modules/apps/create/form/app-create-form";
 
 export default function GroupsPage() {
   return (
@@ -26,7 +26,7 @@ export default function GroupsPage() {
         </Breadcrumb>
       }
     >
-      <CreateForm />
+      <AppCreateForm />
     </PageWrapper>
   );
 }

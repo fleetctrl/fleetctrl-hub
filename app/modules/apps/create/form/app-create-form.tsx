@@ -108,7 +108,7 @@ const toDropzonePreview = (
   ];
 };
 
-export function CreateForm() {
+export function AppCreateForm() {
   const router = useRouter();
   const createMutation = useMutation(api.apps.create);
 
