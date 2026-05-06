@@ -1,5 +1,7 @@
-import { ProfileForm } from "./profile-form";
-import { PasswordForm } from "./password-form";
+"use server";
+
+import { AccountPasswordForm } from "@/app/modules/account/form/account-password-form";
+import { AccountProfileForm } from "@/app/modules/account/form/account-profile-form";
 import PageWrapper from "@/components/page-wrapper";
 import {
   Breadcrumb,
@@ -8,7 +10,7 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 
-export default function Account() {
+export default async function Account() {
   return (
     <PageWrapper
       siteHeader={
@@ -23,8 +25,8 @@ export default function Account() {
     >
       <div className="flex flex-col items-center">
         <div className="w-full space-y-6 px-4 pb-10">
-          <ProfileForm />
-          <PasswordForm />
+          <AccountProfileForm />
+          <AccountPasswordForm />
         </div>
       </div>
     </PageWrapper>
