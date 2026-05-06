@@ -29,14 +29,14 @@ import Link from "next/link";
 
 type RowOptionsProps = {
   appId: string;
-  onEdit?: () => void;
-  onActionComplete?: () => Promise<unknown> | void;
+  onEditAction?: () => void;
+  onCompleteAction?: () => Promise<unknown> | void;
 };
 
-export default function RowOptions({
+export default function AppsRowOptions({
   appId,
-  onEdit,
-  onActionComplete,
+  onEditAction,
+  onCompleteAction,
 }: RowOptionsProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const deleteApp = useMutation(api.apps.remove);
@@ -45,16 +45,17 @@ export default function RowOptions({
     try {
       await deleteApp({ id: appId as Id<"apps"> });
       toast.success("App deleted");
-      await onActionComplete?.();
+      await onCompleteAction?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to delete app";
+      const message =
+        error instanceof Error ? error.message : "Failed to delete app";
       toast.error(message);
     }
     setDeleteDialogOpen(false);
   }
 
   function handleEdit() {
-    onEdit?.();
+    onEditAction?.();
   }
 
   return (
@@ -85,8 +86,8 @@ export default function RowOptions({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the
-              app and remove your data from our servers.
+              This action cannot be undone. This will permanently delete the app
+              and remove your data from our servers.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

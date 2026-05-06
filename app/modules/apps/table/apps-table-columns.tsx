@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 
 import { Badge } from "@/components/ui/badge";
-import RowOptions from "./rowOptions";
+import RowOptions from "./apps-row-options";
 
 export type AppRow = {
   id: string;
@@ -24,7 +24,7 @@ export type AppsTableMeta = {
   onActionComplete?: () => Promise<unknown> | void;
 };
 
-export const columns: ColumnDef<AppRow>[] = [
+export const appsTableColumns: ColumnDef<AppRow>[] = [
   {
     accessorKey: "displayName",
     header: "Name",
@@ -89,8 +89,8 @@ export const columns: ColumnDef<AppRow>[] = [
       return (
         <RowOptions
           appId={row.original.id}
-          onEdit={onEdit ? () => onEdit(row.original.id) : undefined}
-          onActionComplete={onActionComplete}
+          onEditAction={onEdit ? () => onEdit(row.original.id) : undefined}
+          onCompleteAction={onActionComplete}
         />
       );
     },

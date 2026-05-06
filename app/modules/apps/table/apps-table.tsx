@@ -18,7 +18,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { columns, type AppRow, type AppsTableMeta } from "./columns";
+import {
+  appsTableColumns,
+  type AppRow,
+  type AppsTableMeta,
+} from "./apps-table-columns";
 import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
@@ -59,7 +63,7 @@ export function AppsTable({
 
   const table = useReactTable<AppRow>({
     data: appRows,
-    columns,
+    columns: appsTableColumns,
     getCoreRowModel: getCoreRowModel(),
     meta: {
       onEdit: openEditDialog,
