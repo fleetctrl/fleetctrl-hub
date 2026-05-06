@@ -51,7 +51,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { useMutation } from "convex/react";
+import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
 import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -89,9 +89,9 @@ const groupFormSchema = z.object({
 
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
-export function DynamicGroupsTable() {
+export function DynamicGroupsTable({ preloaded }: { preloaded: { groups: Preloaded<typeof api.groups.getAll>; } }) {
     // Convex queries - automatically reactive!
-    const groups = useAuthQuery(api.groups.getAll);
+    const groups = usePreloadedQuery(preloaded.groups);
 
     // Convex mutations
     const createGroup = useMutation(api.groups.createDynamicGroup);

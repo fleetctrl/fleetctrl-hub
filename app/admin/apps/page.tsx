@@ -1,3 +1,4 @@
+"use server";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -6,8 +7,17 @@ import {
 } from "@/components/ui/breadcrumb";
 import { AppsTable } from "./data-table";
 import PageWrapper from "@/components/page-wrapper";
+import { preloadQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
+import { getToken } from "@/lib/auth-server";
 
-export default function GroupsPage() {
+export default async function AppsPage() {
+  const initialToken = await getToken();
+  const apps = await preloadQuery(
+    api.apps.getTableData,
+    {},
+    initialToken ? { token: initialToken } : undefined
+  );
   return (
     <PageWrapper
       siteHeader={
@@ -20,7 +30,7 @@ export default function GroupsPage() {
         </Breadcrumb>
       }
     >
-      <AppsTable />
+      <AppsTable data={apps} />
     </PageWrapper>
   );
 }

@@ -1,3 +1,4 @@
+"use server";
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -6,8 +7,17 @@ import {
 } from "@/components/ui/breadcrumb";
 import { DynamicGroupsTable } from "./data-table";
 import PageWrapper from "@/components/page-wrapper";
+import { getToken } from "@/lib/auth-server";
+import { preloadQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
 
-export default function DynamicGroupsPage() {
+export default async function DynamicGroupsPage() {
+    const initialToken = await getToken();
+    const groups = await preloadQuery(
+        api.groups.getAll,
+        {},
+        initialToken ? { token: initialToken } : undefined
+    );
     return (
         <PageWrapper
             siteHeader={
@@ -20,7 +30,7 @@ export default function DynamicGroupsPage() {
                 </Breadcrumb>
             }
         >
-            <DynamicGroupsTable />
+            <DynamicGroupsTable preloaded={{ groups }} />
         </PageWrapper>
     );
 }

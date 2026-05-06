@@ -6,8 +6,17 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
+import { getToken } from "@/lib/auth-server";
+import { preloadQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
 
 export default async function Keys() {
+  const initialToken = await getToken();
+  const clients = await preloadQuery(
+    api.enrollmentTokens.list,
+    {},
+    initialToken ? { token: initialToken } : undefined
+  );
   return (
     <PageWrapper
       siteHeader={
@@ -20,7 +29,7 @@ export default async function Keys() {
         </Breadcrumb>
       }
     >
-      <KeysTable />
+      <KeysTable data={clients} />
     </PageWrapper>
   );
 }

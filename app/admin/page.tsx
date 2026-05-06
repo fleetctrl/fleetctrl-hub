@@ -1,3 +1,4 @@
+"use server";
 import PageWrapper from "@/components/page-wrapper";
 import { DashboardContent } from "./dashboard-content";
 import {
@@ -7,7 +8,7 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 
-export default function Dashboard() {
+export default async function Dashboard() {
   return (
     <PageWrapper
       siteHeader={
