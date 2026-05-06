@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated as betterAuthIsAuthenticated } from "@/lib/auth-server";
 
 // Routes that don't require authentication
-const publicRoutes = ["/", "/sign-in", "/sign-up"];
+const publicRoutes = ["/sign-in", "/sign-up"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -18,14 +18,19 @@ export async function proxy(request: NextRequest) {
   // );
 
   // Check if this is an admin route
-  const isAdminRoute = pathname.startsWith("/admin");
+  const isAdminRoute = !publicRoutes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
 
   // If it's an admin route, check authentication
   const isAuthenticated = await betterAuthIsAuthenticated();
 
   // Redirect authenticated users away from sign-in/sign-up pages
-  if (isAuthenticated && (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up"))) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+  if (
+    isAuthenticated &&
+    (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up"))
+  ) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   // Protect admin routes
