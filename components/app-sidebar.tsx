@@ -29,34 +29,34 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/admin",
+      url: "/",
       icon: IconDashboard,
     },
     {
       title: "RustDesk",
-      url: "/admin/rustdesk",
+      url: "/rustdesk",
       icon: IconWorldSearch,
     },
     {
       title: "Groups",
-      url: "/admin/groups/static",
+      url: "/groups/static",
       icon: IconUsers,
     },
     {
       title: "Apps",
-      url: "/admin/apps",
+      url: "/apps",
       icon: IconApps,
     },
   ],
   navSecondary: [
     {
       title: "Enroll Keys",
-      url: "/admin/keys",
+      url: "/keys",
       icon: IconKey,
     },
     {
       title: "Client versions",
-      url: "/admin/client",
+      url: "/client",
       icon: IconRefresh,
     },
   ],

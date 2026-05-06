@@ -55,7 +55,7 @@ export const columns: ColumnDef<RustDesk>[] = [
     },
     cell: ({ row }) => (
       <Link
-        href={`/admin/rustdesk/computer/${row.original.id}`}
+        href={`/rustdesk/computer/${row.original.id}`}
         className="font-medium hover:underline"
       >
         {row.original.name}
@@ -108,7 +108,12 @@ export const columns: ColumnDef<RustDesk>[] = [
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      return <RowOptions rustdeskId={row.original.rustdeskID} computerId={row.original.id} />;
+      return (
+        <RowOptions
+          rustdeskId={row.original.rustdeskID}
+          computerId={row.original.id}
+        />
+      );
     },
   },
 ];

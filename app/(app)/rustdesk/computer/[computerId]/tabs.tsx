@@ -68,12 +68,16 @@ export const passwordFormSchema = z
 
 type ChangePassworFormValues = z.infer<typeof passwordFormSchema>;
 
-const changeNetworkStringSchema = z.object({ networkString: z.string().min(1, { message: "Network string is required" }) });
+const changeNetworkStringSchema = z.object({
+  networkString: z.string().min(1, { message: "Network string is required" }),
+});
 
 type ChangeNetworkStringSchema = z.infer<typeof changeNetworkStringSchema>;
 
 // Define a type for the computer data returned by the query
-type ComputerData = NonNullable<ReturnType<typeof useAuthQuery<typeof api.computers.getById>>>;
+type ComputerData = NonNullable<
+  ReturnType<typeof useAuthQuery<typeof api.computers.getById>>
+>;
 
 export default function Tabs({ computerId }: Props) {
   const [openChangePassword, setOpenChangePassword] = useState(false);
@@ -92,10 +96,12 @@ export default function Tabs({ computerId }: Props) {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink href="/admin/rustdesk">RustDesk</BreadcrumbLink>
+                <BreadcrumbLink href="/rustdesk">RustDesk</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
-              <BreadcrumbItem><Skeleton className="h-4 w-24" /></BreadcrumbItem>
+              <BreadcrumbItem>
+                <Skeleton className="h-4 w-24" />
+              </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
         </SiteHeader>
@@ -114,7 +120,7 @@ export default function Tabs({ computerId }: Props) {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink href="/admin/rustdesk">RustDesk</BreadcrumbLink>
+                <BreadcrumbLink href="/rustdesk">RustDesk</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>Not Found</BreadcrumbItem>
@@ -134,7 +140,7 @@ export default function Tabs({ computerId }: Props) {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink href="/admin/rustdesk">RustDesk</BreadcrumbLink>
+              <BreadcrumbLink href="/rustdesk">RustDesk</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>{computer?.name ?? ""}</BreadcrumbItem>
@@ -160,7 +166,8 @@ export default function Tabs({ computerId }: Props) {
                     computer={computer}
                     open={openChangeNetwork}
                     setOpen={setOpenChangeNetwork}
-                    createTask={createTask} />
+                    createTask={createTask}
+                  />
                 </div>
                 <hr />
 
@@ -172,18 +179,20 @@ export default function Tabs({ computerId }: Props) {
                         value={computer.rustdeskId?.toString() ?? ""}
                       />
                       {computer.intuneId && (
-                        <TableRow
-                          name="Intune ID"
-                          value={computer.intuneId}
-                        />
+                        <TableRow name="Intune ID" value={computer.intuneId} />
                       )}
-                      <TableRow name="Computer name" value={computer?.name ?? ""} />
+                      <TableRow
+                        name="Computer name"
+                        value={computer?.name ?? ""}
+                      />
                       <TableRow name="Computer IP" value={computer.ip ?? ""} />
                       <TableRow name="User" value={computer.loginUser ?? ""} />
                       {computer.lastConnection && (
                         <TableRow
                           name="Last check-in time"
-                          value={new Date(computer.lastConnection).toLocaleString("cs")}
+                          value={new Date(
+                            computer.lastConnection,
+                          ).toLocaleString("cs")}
                         />
                       )}
                       <TableRow name="Windows type" value={computer.os ?? ""} />
@@ -213,8 +222,12 @@ export default function Tabs({ computerId }: Props) {
                         {tasks?.map((task) => {
                           return (
                             <tr key={task.id}>
-                              <td className="px-5 py-2 text-left">{task.taskType}</td>
-                              <td className="px-5 py-2 text-left">{task.status}</td>
+                              <td className="px-5 py-2 text-left">
+                                {task.taskType}
+                              </td>
+                              <td className="px-5 py-2 text-left">
+                                {task.status}
+                              </td>
                               <td className="px-5 py-2 text-left">
                                 {new Date(task.createdAt).toLocaleString("cs")}
                               </td>
@@ -253,12 +266,12 @@ function ChangePasswordDialog({
   computer,
   open,
   setOpen,
-  createTask
+  createTask,
 }: {
   computer: ComputerData;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  createTask: any // Typing mutations is tricky without inferred types, 'any' is safe here if usage is correct
+  createTask: any; // Typing mutations is tricky without inferred types, 'any' is safe here if usage is correct
 }) {
   const form = useForm<ChangePassworFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -360,7 +373,7 @@ function ChangeNetworkStringDialog({
   computer: ComputerData;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  createTask: any
+  createTask: any;
 }) {
   const form = useForm<ChangeNetworkStringSchema>({
     resolver: zodResolver(changeNetworkStringSchema),

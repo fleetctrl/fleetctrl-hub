@@ -30,7 +30,11 @@ const formatDateTime = (timestamp: number) =>
     timeStyle: "short",
   });
 
-export function AppsTable({ data }: { data: Preloaded<typeof api.apps.getTableData>; }) {
+export function AppsTable({
+  data,
+}: {
+  data: Preloaded<typeof api.apps.getTableData>;
+}) {
   // Convex auth query is automatically reactive!
   const apps = usePreloadedQuery(data);
 
@@ -50,7 +54,7 @@ export function AppsTable({ data }: { data: Preloaded<typeof api.apps.getTableDa
   }, [apps]);
 
   const openEditDialog = (appId: string) => {
-    window.location.href = `/admin/apps/${appId}`;
+    window.location.href = `/apps/${appId}`;
   };
 
   const table = useReactTable<AppRow>({
@@ -77,7 +81,7 @@ export function AppsTable({ data }: { data: Preloaded<typeof api.apps.getTableDa
           </p>
         </div>
         <Button asChild>
-          <Link href="/admin/apps/create">Create app</Link>
+          <Link href="/apps/create">Create app</Link>
         </Button>
       </div>
       {hasApps ? (
@@ -92,9 +96,9 @@ export function AppsTable({ data }: { data: Preloaded<typeof api.apps.getTableDa
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -107,7 +111,7 @@ export function AppsTable({ data }: { data: Preloaded<typeof api.apps.getTableDa
                       <TableCell key={cell.id}>
                         {flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )}
                       </TableCell>
                     ))}

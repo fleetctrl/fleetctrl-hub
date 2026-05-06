@@ -92,7 +92,7 @@ const useCreateAppFormContext = () =>
 
 // Helper for dropzone preview - adapted for Convex StoredFile
 const toDropzonePreview = (
-  file?: { name: string; size: number; type?: string | null } | null
+  file?: { name: string; size: number; type?: string | null } | null,
 ): File[] | undefined => {
   if (!file) {
     return undefined;
@@ -109,7 +109,7 @@ const toDropzonePreview = (
 };
 
 export function CreateForm() {
-  const router = useRouter()
+  const router = useRouter();
   const createMutation = useMutation(api.apps.create);
 
   const form = useForm<CreateAppFormValues>({
@@ -171,43 +171,68 @@ export function CreateForm() {
         ...data,
         release: {
           ...data.release,
-          installBinary: data.release.installBinary ? {
-            ...data.release.installBinary,
-            storageId: data.release.installBinary.storageId as Id<"_storage">,
-            type: data.release.installBinary.type ?? "application/octet-stream"
-          } : undefined
+          installBinary: data.release.installBinary
+            ? {
+                ...data.release.installBinary,
+                storageId: data.release.installBinary
+                  .storageId as Id<"_storage">,
+                type:
+                  data.release.installBinary.type ?? "application/octet-stream",
+              }
+            : undefined,
         },
-        requirement: data.requirement ? {
-          ...data.requirement,
-          requirementScriptBinary: data.requirement.requirementScriptBinary ? {
-            ...data.requirement.requirementScriptBinary,
-            storageId: data.requirement.requirementScriptBinary.storageId as Id<"_storage">,
-            type: data.requirement.requirementScriptBinary.type ?? "application/octet-stream"
-          } : undefined
-        } : undefined,
-        preScript: data.preScript ? {
-          ...data.preScript,
-          engine: "powershell" as const,
-          scriptBinary: data.preScript.scriptBinary ? {
-            ...data.preScript.scriptBinary,
-            storageId: data.preScript.scriptBinary.storageId as Id<"_storage">,
-            type: data.preScript.scriptBinary.type ?? "application/octet-stream"
-          } : undefined
-        } : undefined,
-        postScript: data.postScript ? {
-          ...data.postScript,
-          engine: "powershell" as const,
-          scriptBinary: data.postScript.scriptBinary ? {
-            ...data.postScript.scriptBinary,
-            storageId: data.postScript.scriptBinary.storageId as Id<"_storage">,
-            type: data.postScript.scriptBinary.type ?? "application/octet-stream"
-          } : undefined
-        } : undefined
+        requirement: data.requirement
+          ? {
+              ...data.requirement,
+              requirementScriptBinary: data.requirement.requirementScriptBinary
+                ? {
+                    ...data.requirement.requirementScriptBinary,
+                    storageId: data.requirement.requirementScriptBinary
+                      .storageId as Id<"_storage">,
+                    type:
+                      data.requirement.requirementScriptBinary.type ??
+                      "application/octet-stream",
+                  }
+                : undefined,
+            }
+          : undefined,
+        preScript: data.preScript
+          ? {
+              ...data.preScript,
+              engine: "powershell" as const,
+              scriptBinary: data.preScript.scriptBinary
+                ? {
+                    ...data.preScript.scriptBinary,
+                    storageId: data.preScript.scriptBinary
+                      .storageId as Id<"_storage">,
+                    type:
+                      data.preScript.scriptBinary.type ??
+                      "application/octet-stream",
+                  }
+                : undefined,
+            }
+          : undefined,
+        postScript: data.postScript
+          ? {
+              ...data.postScript,
+              engine: "powershell" as const,
+              scriptBinary: data.postScript.scriptBinary
+                ? {
+                    ...data.postScript.scriptBinary,
+                    storageId: data.postScript.scriptBinary
+                      .storageId as Id<"_storage">,
+                    type:
+                      data.postScript.scriptBinary.type ??
+                      "application/octet-stream",
+                  }
+                : undefined,
+            }
+          : undefined,
       };
 
       await createMutation(transformedData);
       toast.success("App created");
-      router.push("/admin/apps");
+      router.push("/apps");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error(message);
@@ -229,12 +254,12 @@ export function CreateForm() {
                 form.watch("release.type") === "winget"
                   ? ["appInfo", "release", "requirement", "assignment"]
                   : [
-                    "appInfo",
-                    "release",
-                    "requirement",
-                    "detection",
-                    "assignment",
-                  ]
+                      "appInfo",
+                      "release",
+                      "requirement",
+                      "detection",
+                      "assignment",
+                    ]
               }
               currentStep={currentStepIndex}
             />
@@ -315,8 +340,6 @@ function AppInfoStep() {
               )}
             />
 
-
-
             <div className="flex gap-3">
               <Button onClick={nextStep} disabled={!!errors.appInfo}>
                 Next
@@ -333,7 +356,7 @@ function ReleaseStep() {
   const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
   const [type, setType] = useState(form.getValues("release").type);
   const [autoUpdate, setAutoUpdate] = useState(
-    form.getValues("release").autoUpdate
+    form.getValues("release").autoUpdate,
   );
   const watchedReleaseType = form.watch("release.type");
   const watchedAutoUpdate = form.watch("release.autoUpdate");
@@ -434,7 +457,10 @@ function ReleaseStep() {
                       setIsUploadingBinary(true);
                       void (async () => {
                         try {
-                          const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                          const uploaded = await uploadFileToConvex(
+                            file,
+                            generateUploadUrl,
+                          );
                           field.onChange(uploaded);
                           toast.success("Installer uploaded");
                         } catch (uploadError) {
@@ -442,7 +468,7 @@ function ReleaseStep() {
                           toast.error(
                             uploadError instanceof Error
                               ? uploadError.message
-                              : "Unable to upload installer"
+                              : "Unable to upload installer",
                           );
                         } finally {
                           setIsUploadingBinary(false);
@@ -453,7 +479,7 @@ function ReleaseStep() {
                       toast.error(
                         err instanceof Error
                           ? err.message
-                          : "File rejected by dropzone"
+                          : "File rejected by dropzone",
                       )
                     }
                   >
@@ -531,7 +557,7 @@ function ReleaseStep() {
                 <FormItem
                   className={cn(
                     "flex flex-row items-center justify-between rounded-lg border p-4",
-                    { hidden: type !== "win32" || autoUpdate }
+                    { hidden: type !== "win32" || autoUpdate },
                   )}
                 >
                   <div className="space-y-0.5">
@@ -569,7 +595,7 @@ function ReleaseStep() {
                 <FormItem
                   className={cn(
                     "flex flex-row items-center justify-between rounded-lg border p-4",
-                    { hidden: type !== "win32" || autoUpdate }
+                    { hidden: type !== "win32" || autoUpdate },
                   )}
                 >
                   <div className="space-y-0.5">
@@ -632,7 +658,7 @@ function RequirementStep() {
                       toast.error(
                         err instanceof Error
                           ? err.message
-                          : "File rejected by dropzone"
+                          : "File rejected by dropzone",
                       )
                     }
                     onDrop={(files) => {
@@ -644,7 +670,10 @@ function RequirementStep() {
                       setIsUploadingRequirement(true);
                       void (async () => {
                         try {
-                          const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                          const uploaded = await uploadFileToConvex(
+                            file,
+                            generateUploadUrl,
+                          );
                           field.onChange(uploaded);
                           toast.success("Requirement script uploaded");
                         } catch (uploadError) {
@@ -652,7 +681,7 @@ function RequirementStep() {
                           toast.error(
                             uploadError instanceof Error
                               ? uploadError.message
-                              : "Unable to upload requirement script"
+                              : "Unable to upload requirement script",
                           );
                         } finally {
                           setIsUploadingRequirement(false);
@@ -730,12 +759,20 @@ function RequirementStep() {
                         setIsUploadingPreScript(true);
                         void (async () => {
                           try {
-                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                            const uploaded = await uploadFileToConvex(
+                              file,
+                              generateUploadUrl,
+                            );
                             field.onChange(uploaded);
                             toast.success("Pre-Install script uploaded");
                           } catch (err: unknown) {
-                            const message = err instanceof Error ? err.message : "Unknown error";
-                            toast.error(`Failed to upload pre-install script: ${message}`);
+                            const message =
+                              err instanceof Error
+                                ? err.message
+                                : "Unknown error";
+                            toast.error(
+                              `Failed to upload pre-install script: ${message}`,
+                            );
                             console.error(err);
                           } finally {
                             setIsUploadingPreScript(false);
@@ -758,7 +795,14 @@ function RequirementStep() {
                     <FormItem>
                       <FormLabel>Timeout (s)</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? 60}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value))
+                          }
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -773,7 +817,10 @@ function RequirementStep() {
                         <FormLabel>Run as System</FormLabel>
                       </div>
                       <FormControl>
-                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                        <Switch
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -819,12 +866,20 @@ function RequirementStep() {
                         setIsUploadingPostScript(true);
                         void (async () => {
                           try {
-                            const uploaded = await uploadFileToConvex(file, generateUploadUrl);
+                            const uploaded = await uploadFileToConvex(
+                              file,
+                              generateUploadUrl,
+                            );
                             field.onChange(uploaded);
                             toast.success("Post-Install script uploaded");
                           } catch (err: unknown) {
-                            const message = err instanceof Error ? err.message : "Unknown error";
-                            toast.error(`Failed to upload post-install script: ${message}`);
+                            const message =
+                              err instanceof Error
+                                ? err.message
+                                : "Unknown error";
+                            toast.error(
+                              `Failed to upload post-install script: ${message}`,
+                            );
                             console.error(err);
                           } finally {
                             setIsUploadingPostScript(false);
@@ -847,7 +902,14 @@ function RequirementStep() {
                     <FormItem>
                       <FormLabel>Timeout (s)</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? 60} onChange={e => field.onChange(parseInt(e.target.value))} />
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? 60}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value))
+                          }
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -862,7 +924,10 @@ function RequirementStep() {
                         <FormLabel>Run as System</FormLabel>
                       </div>
                       <FormControl>
-                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                        <Switch
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -937,7 +1002,7 @@ function DetectionListForm({
   const [type, setType] = useState(popupForm.watch("type"));
   const [fileType, setFileType] = useState(popupForm.watch("fileType"));
   const [registryType, setRegistryType] = useState(
-    popupForm.watch("registryType")
+    popupForm.watch("registryType"),
   );
 
   const popupType = popupForm.watch("type");
@@ -998,7 +1063,7 @@ function DetectionListForm({
     },
     (errors) => {
       console.error("Detection form validation failed:", errors);
-    }
+    },
   );
 
   const formatConditionLabel = (raw?: string | null) => {
@@ -1099,9 +1164,7 @@ function DetectionListForm({
                       <p className="text-muted-foreground">
                         {isFile ? "Expected value" : "Value"}
                       </p>
-                      <p className="font-medium break-all">
-                        {conditionValue}
-                      </p>
+                      <p className="font-medium break-all">{conditionValue}</p>
                     </div>
                   ) : null}
                   {isFile && !conditionValue && conditionLabel === "exists" ? (
@@ -1396,8 +1459,16 @@ function AssignmentStep() {
   const dynamicGroups = useAuthQuery(api.groups.getAll);
 
   const groups = [
-    ...(staticGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "static" as const })),
-    ...(dynamicGroups || []).map(g => ({ id: g.id, displayName: g.displayName, type: "dynamic" as const })),
+    ...(staticGroups || []).map((g) => ({
+      id: g.id,
+      displayName: g.displayName,
+      type: "static" as const,
+    })),
+    ...(dynamicGroups || []).map((g) => ({
+      id: g.id,
+      displayName: g.displayName,
+      type: "dynamic" as const,
+    })),
   ];
 
   const [sheetState, setSheetState] = useState<{
@@ -1438,7 +1509,7 @@ function AssignmentStep() {
 
       const isDuplicate = (
         list: typeof installValues,
-        type: "install" | "uninstall"
+        type: "install" | "uninstall",
       ) =>
         list?.some((entry: { groupId: string }, idx: number | null) => {
           if (sheetState?.type === type && skipIndex === idx) {
@@ -1476,7 +1547,7 @@ function AssignmentStep() {
     },
     (errors) => {
       console.error("Assignment form validation failed:", errors);
-    }
+    },
   );
 
   const openSheet = (type: "install" | "uninstall", index: number | null) => {
@@ -1484,9 +1555,7 @@ function AssignmentStep() {
     if (index !== null) {
       const source =
         type === "install" ? installValues?.[index] : uninstallValues?.[index];
-      assignmentForm.reset(
-        source ?? DEFAULT_ASSIGNMENT_VALUE
-      );
+      assignmentForm.reset(source ?? DEFAULT_ASSIGNMENT_VALUE);
     } else {
       assignmentForm.reset(DEFAULT_ASSIGNMENT_VALUE);
     }
@@ -1497,7 +1566,7 @@ function AssignmentStep() {
   const renderGroupCard = (
     type: "install" | "uninstall",
     fields: typeof installFields,
-    values: typeof installValues
+    values: typeof installValues,
   ) => {
     const title = type === "install" ? "Install" : "Uninstall";
     const description =
@@ -1604,7 +1673,7 @@ function AssignmentStep() {
               <Button variant={"ghost"} type="button" onClick={prevStep}>
                 Back
               </Button>
-              <Button type={'submit'} disabled={isSubmitting}>
+              <Button type={"submit"} disabled={isSubmitting}>
                 {isSubmitting ? "Saving..." : "Create app"}
               </Button>
             </div>
@@ -1647,9 +1716,14 @@ function AssignmentStep() {
                         <Select
                           onValueChange={(val) => {
                             field.onChange(val);
-                            const selectedGroup = groups.find((g) => g.id === val);
+                            const selectedGroup = groups.find(
+                              (g) => g.id === val,
+                            );
                             if (selectedGroup) {
-                              assignmentForm.setValue("groupType", selectedGroup.type);
+                              assignmentForm.setValue(
+                                "groupType",
+                                selectedGroup.type,
+                              );
                             }
                           }}
                           value={field.value}
@@ -1664,7 +1738,9 @@ function AssignmentStep() {
                               <SelectItem key={group.id} value={group.id}>
                                 <span className="flex items-center gap-2">
                                   {group.displayName}
-                                  <span className={`text-xs px-1.5 py-0.5 rounded ${group.type === 'dynamic' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                  <span
+                                    className={`text-xs px-1.5 py-0.5 rounded ${group.type === "dynamic" ? "bg-blue-500/20 text-blue-400" : "bg-gray-500/20 text-gray-400"}`}
+                                  >
                                     {group.type}
                                   </span>
                                 </span>

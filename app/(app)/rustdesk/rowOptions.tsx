@@ -79,7 +79,7 @@ export default function RowOptions({
           <DropdownMenuItem onClick={handleCopy}>
             Connection string
           </DropdownMenuItem>
-          <Link href={`/admin/rustdesk/computer/${computerId}`}>
+          <Link href={`/rustdesk/computer/${computerId}`}>
             <DropdownMenuItem>Computer info</DropdownMenuItem>
           </Link>
           <DropdownMenuSeparator />

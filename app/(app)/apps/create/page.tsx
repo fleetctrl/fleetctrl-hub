@@ -16,7 +16,7 @@ export default function GroupsPage() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink href="/admin/apps">Apps</BreadcrumbLink>
+              <BreadcrumbLink href="/apps">Apps</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>

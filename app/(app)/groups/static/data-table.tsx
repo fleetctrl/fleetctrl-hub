@@ -67,7 +67,14 @@ const groupFormSchema = z.object({
 
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
-export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<typeof api.staticGroups.getTableData>; computers: Preloaded<typeof api.staticGroups.getComputersForGroups>; } }) {
+export function GroupsTable({
+  preloaded,
+}: {
+  preloaded: {
+    groups: Preloaded<typeof api.staticGroups.getTableData>;
+    computers: Preloaded<typeof api.staticGroups.getComputersForGroups>;
+  };
+}) {
   // Convex queries - automatically reactive!
   const computers = usePreloadedQuery(preloaded.computers);
   const groups = usePreloadedQuery(preloaded.groups);
@@ -135,7 +142,9 @@ export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<type
   };
 
   const onSubmit = async (values: GroupFormValues) => {
-    const dedupedMembers = Array.from(new Set(values.memberIds)) as Id<"computers">[];
+    const dedupedMembers = Array.from(
+      new Set(values.memberIds),
+    ) as Id<"computers">[];
 
     try {
       if (dialogState?.mode === "create") {
@@ -155,7 +164,8 @@ export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<type
         toast.success("Group updated");
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "An error occurred";
+      const message =
+        error instanceof Error ? error.message : "An error occurred";
       toast.error(message);
     } finally {
       setIsCreating(false);
@@ -186,13 +196,13 @@ export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<type
       {/* Tab navigation */}
       <div className="flex gap-1 border-b">
         <a
-          href="/admin/groups/static"
+          href="/groups/static"
           className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
         >
           Static Groups
         </a>
         <a
-          href="/admin/groups/dynamic"
+          href="/groups/dynamic"
           className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
           Dynamic Groups
@@ -268,7 +278,9 @@ export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<type
                   const members = field.value ?? [];
                   const filteredComputers =
                     computers?.filter((c: { id: string; name: string }) =>
-                      c.name?.toLowerCase().includes(memberSearch.toLowerCase())
+                      c.name
+                        ?.toLowerCase()
+                        .includes(memberSearch.toLowerCase()),
                     ) ?? [];
 
                   return (
@@ -302,8 +314,8 @@ export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<type
                                   const next = shouldInclude
                                     ? [...members, computer.id]
                                     : members.filter(
-                                      (id) => id !== computer.id
-                                    );
+                                        (id) => id !== computer.id,
+                                      );
                                   field.onChange(Array.from(new Set(next)));
                                 }}
                               />
@@ -356,9 +368,9 @@ export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<type
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -371,7 +383,7 @@ export function GroupsTable({ preloaded }: { preloaded: { groups: Preloaded<type
                       <TableCell key={cell.id}>
                         {flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )}
                       </TableCell>
                     ))}

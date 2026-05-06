@@ -30,7 +30,7 @@ export const columns: ColumnDef<AppRow>[] = [
     header: "Name",
     cell: ({ row }) => (
       <Link
-        href={`/admin/apps/${row.original.id}`}
+        href={`/apps/${row.original.id}`}
         className="font-medium hover:underline"
       >
         {row.original.displayName}

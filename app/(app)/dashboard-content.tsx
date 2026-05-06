@@ -157,21 +157,25 @@ export function DashboardContent() {
 
   const totalComputers = computerRows.length;
   const onlineComputers = computerRows.filter((computer) =>
-    isComputerOnline(computer.lastConnection)
+    isComputerOnline(computer.lastConnection),
   ).length;
   const onlinePercentage =
-    totalComputers > 0 ? Math.round((onlineComputers / totalComputers) * 100) : 0;
+    totalComputers > 0
+      ? Math.round((onlineComputers / totalComputers) * 100)
+      : 0;
 
   const totalGroups = staticGroupRows.length + dynamicGroupRows.length;
   const totalInstalls = appRows.reduce(
     (total, app) => total + (app.installedCount ?? 0),
-    0
+    0,
   );
-  const activeClientUpdate = clientUpdateRows.find((update) => update.is_active);
+  const activeClientUpdate = clientUpdateRows.find(
+    (update) => update.is_active,
+  );
   const outdatedComputers = activeClientUpdate
     ? computerRows.filter(
-      (computer) => computer.clientVersion !== activeClientUpdate.version
-    ).length
+        (computer) => computer.clientVersion !== activeClientUpdate.version,
+      ).length
     : 0;
   const activeEnrollmentTokens = enrollmentTokenRows.filter((token) => {
     const hasUses = token.remainingUses === -1 || token.remainingUses > 0;
@@ -193,19 +197,19 @@ export function DashboardContent() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
-            <Link href="/admin/rustdesk">
+            <Link href="/rustdesk">
               <MonitorIcon data-icon="inline-start" />
               Devices
             </Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/admin/groups/static">
+            <Link href="/groups/static">
               <UsersIcon data-icon="inline-start" />
               Groups
             </Link>
           </Button>
           {/* <Button asChild>
-            <Link href="/admin/apps/create">
+            <Link href="/apps/create">
               <AppWindowIcon data-icon="inline-start" />
               Create app
             </Link>
@@ -332,7 +336,9 @@ export function DashboardContent() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>{computer.clientVersion ?? "Unknown"}</TableCell>
+                      <TableCell>
+                        {computer.clientVersion ?? "Unknown"}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={

@@ -5,22 +5,22 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import PageWrapper from "@/components/page-wrapper";
 import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { ReleasesTable } from "./releases-table";
 import { useParams } from "next/navigation";
@@ -30,329 +30,422 @@ import { EditAppSheet } from "./edit-app-sheet";
 import { ReleaseSheet } from "./release-sheet";
 import { Pen, Plus } from "lucide-react";
 
-type InstallStatus = "PENDING" | "INSTALLING" | "INSTALLED" | "ERROR" | "UNINSTALLED";
+type InstallStatus =
+  | "PENDING"
+  | "INSTALLING"
+  | "INSTALLED"
+  | "ERROR"
+  | "UNINSTALLED";
 
 const formatDateTime = (value?: number) => {
-    if (!value) return "-";
-    return new Date(value).toLocaleString("cs-CZ", {
-        dateStyle: "medium",
-        timeStyle: "short",
-    });
+  if (!value) return "-";
+  return new Date(value).toLocaleString("cs-CZ", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 };
 
-const statusBadgeVariant: Record<InstallStatus, "secondary" | "destructive" | "outline-solid"> = {
-    PENDING: "secondary",
-    INSTALLING: "secondary",
-    INSTALLED: "outline-solid",
-    ERROR: "destructive",
-    UNINSTALLED: "secondary",
+const statusBadgeVariant: Record<
+  InstallStatus,
+  "secondary" | "destructive" | "outline-solid"
+> = {
+  PENDING: "secondary",
+  INSTALLING: "secondary",
+  INSTALLED: "outline-solid",
+  ERROR: "destructive",
+  UNINSTALLED: "secondary",
 };
 
 export default function AppDetailPage() {
-    const params = useParams();
-    const appId = params.id as string;
+  const params = useParams();
+  const appId = params.id as string;
 
-    const app = useAuthQuery(api.apps.getById, { id: appId as Id<"apps"> });
-    const releases = useAuthQuery(api.apps.getReleases, { appId: appId as Id<"apps"> });
-    const deviceInstallStatus = useAuthQuery(api.apps.getDeviceInstallStatus, {
-        appId: appId as Id<"apps">,
-    });
+  const app = useAuthQuery(api.apps.getById, { id: appId as Id<"apps"> });
+  const releases = useAuthQuery(api.apps.getReleases, {
+    appId: appId as Id<"apps">,
+  });
+  const deviceInstallStatus = useAuthQuery(api.apps.getDeviceInstallStatus, {
+    appId: appId as Id<"apps">,
+  });
 
-    console.log("Device install status:", deviceInstallStatus);
+  console.log("Device install status:", deviceInstallStatus);
 
-    const isLoading = app === undefined;
-    const releasesLoading = releases === undefined;
-    const deviceInstallStatusLoading = deviceInstallStatus === undefined;
-    const error = app === null;
+  const isLoading = app === undefined;
+  const releasesLoading = releases === undefined;
+  const deviceInstallStatusLoading = deviceInstallStatus === undefined;
+  const error = app === null;
 
-    const [activeView, setActiveView] = useState<"overview" | "properties" | "deviceStatus">("overview");
-    const [showEditSheet, setShowEditSheet] = useState(false);
-    const [showCreateReleaseSheet, setShowCreateReleaseSheet] = useState(false);
+  const [activeView, setActiveView] = useState<
+    "overview" | "properties" | "deviceStatus"
+  >("overview");
+  const [showEditSheet, setShowEditSheet] = useState(false);
+  const [showCreateReleaseSheet, setShowCreateReleaseSheet] = useState(false);
 
-    // Determine if we can add a new release
-    // For autoupdate apps, only 1 release is allowed
-    const canAddRelease = !app?.auto_update || (releases?.length ?? 0) === 0;
+  // Determine if we can add a new release
+  // For autoupdate apps, only 1 release is allowed
+  const canAddRelease = !app?.auto_update || (releases?.length ?? 0) === 0;
 
-    if (isLoading) {
-        return (
-            <PageWrapper
-                siteHeader={
-                    <Breadcrumb>
-                        <BreadcrumbList>
-                            <BreadcrumbItem>
-                                <BreadcrumbLink href="/admin/apps">Apps</BreadcrumbLink>
-                            </BreadcrumbItem>
-                            <BreadcrumbSeparator />
-                            <BreadcrumbItem>
-                                <BreadcrumbPage>Loading...</BreadcrumbPage>
-                            </BreadcrumbItem>
-                        </BreadcrumbList>
-                    </Breadcrumb>
-                }
-            >
-                <div className="flex items-center justify-center h-full">
-                    Loading...
-                </div>
-            </PageWrapper>
-        );
-    }
-
-    if (error || !app) {
-        return (
-            <PageWrapper
-                siteHeader={
-                    <Breadcrumb>
-                        <BreadcrumbList>
-                            <BreadcrumbItem>
-                                <BreadcrumbLink href="/admin/apps">Apps</BreadcrumbLink>
-                            </BreadcrumbItem>
-                            <BreadcrumbSeparator />
-                            <BreadcrumbItem>
-                                <BreadcrumbPage>Error</BreadcrumbPage>
-                            </BreadcrumbItem>
-                        </BreadcrumbList>
-                    </Breadcrumb>
-                }
-            >
-                <div className="flex items-center justify-center h-full text-destructive">
-                    Error loading app details.
-                </div>
-            </PageWrapper>
-        );
-    }
-
+  if (isLoading) {
     return (
-        <PageWrapper
-            siteHeader={
-                <Breadcrumb>
-                    <BreadcrumbList>
-                        <BreadcrumbItem>
-                            <BreadcrumbLink href="/admin/apps">Apps</BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <BreadcrumbPage>{app.display_name}</BreadcrumbPage>
-                        </BreadcrumbItem>
-                    </BreadcrumbList>
-                </Breadcrumb>
-            }
-        >
-            <div className="flex flex-col md:flex-row gap-6 w-full h-full items-start">
-                {/* Sidebar */}
-                <div className="w-full md:w-64 shrink-0 space-y-1">
-                    <div className="font-semibold text-lg px-4 py-2 mb-2 wrap-break-word">{app.display_name}</div>
-                    <nav className="flex flex-col space-y-1">
-                        <Button
-                            variant={activeView === "overview" ? "secondary" : "ghost"}
-                            className="justify-start w-full"
-                            onClick={() => setActiveView("overview")}
-                        >
-                            Overview
-                        </Button>
-                        <Button
-                            variant={activeView === "deviceStatus" ? "secondary" : "ghost"}
-                            className="justify-start w-full"
-                            onClick={() => setActiveView("deviceStatus")}
-                        >
-                            Device install status
-                        </Button>
-                        <Button
-                            variant={activeView === "properties" ? "secondary" : "ghost"}
-                            className="justify-start w-full"
-                            onClick={() => setActiveView("properties")}
-                        >
-                            Properties
-                        </Button>
-                        <Button variant="ghost" className="justify-start w-full" disabled>
-                            User install status
-                        </Button>
-                    </nav>
-                </div>
-
-                {/* Main Content */}
-                <div className="flex-1 space-y-6 w-full">
-                    {activeView === "overview" && (
-                        <>
-                            {/* Essentials Section */}
-                            <Card className="border-none shadow-none bg-transparent">
-                                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-xl font-semibold">Essentials</CardTitle>
-                                    <Button variant="outline" size="sm" onClick={() => setShowEditSheet(true)}>
-                                        <Pen className="w-4 h-4 mr-2" />
-                                        Edit
-                                    </Button>
-                                </CardHeader>
-                                <CardContent className="px-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
-                                    <div>
-                                        <div className="text-sm text-muted-foreground">Publisher</div>
-                                        <div className="font-medium">{app.publisher || "-"}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-muted-foreground">Operating system</div>
-                                        <div className="font-medium">Windows</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-muted-foreground">App created</div>
-                                        <div className="font-medium">{new Date(app.created_at).toLocaleString("cs-CZ")}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-muted-foreground">Last modified</div>
-                                        <div className="font-medium">{new Date(app.updated_at).toLocaleString("cs-CZ")}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-muted-foreground">Auto update</div>
-                                        <div className="font-medium">
-                                            {app.auto_update ? "Yes" : "No"}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-muted-foreground">Allow multiple versions</div>
-                                        <div className="font-medium">
-                                            {app.allow_multiple_versions ? "Yes" : "No"}
-                                        </div>
-                                    </div>
-                                    <div className="col-span-1 md:col-span-2 lg:col-span-3">
-                                        <div className="text-sm text-muted-foreground">Description</div>
-                                        <div className="font-medium whitespace-pre-wrap">{app.description || "-"}</div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <EditAppSheet
-                                app={{
-                                    id: app.id,
-                                    display_name: app.display_name,
-                                    description: app.description,
-                                    publisher: app.publisher
-                                }}
-                                open={showEditSheet}
-                                onOpenChange={setShowEditSheet}
-                            />
-
-                            {/* Releases Section */}
-                            <Card className="border-none shadow-none bg-transparent">
-                                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-xl font-semibold">Releases</CardTitle>
-                                    {canAddRelease && (
-                                        <Button variant="outline" size="sm" onClick={() => setShowCreateReleaseSheet(true)}>
-                                            <Plus className="w-4 h-4 mr-2" />
-                                            Add Release
-                                        </Button>
-                                    )}
-                                </CardHeader>
-                                <CardContent className="px-0">
-                                    {releasesLoading ? (
-                                        <div className="text-muted-foreground">Loading releases...</div>
-                                    ) : (
-                                        <ReleasesTable releases={releases ?? []} appId={appId} isAutoUpdate={app.auto_update} />
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            <ReleaseSheet
-                                appId={appId}
-                                isAutoUpdate={app.auto_update}
-                                open={showCreateReleaseSheet}
-                                onOpenChange={setShowCreateReleaseSheet}
-                            />
-                        </>
-                    )}
-
-                    {activeView === "deviceStatus" && (
-                        <Card className="border-none shadow-none bg-transparent">
-                            <CardHeader className="px-0 pt-0 pb-2">
-                                <CardTitle>Device install status</CardTitle>
-                            </CardHeader>
-                            <CardContent className="px-0 space-y-4">
-                                {deviceInstallStatusLoading ? (
-                                    <div className="text-sm text-muted-foreground">Loading device install status...</div>
-                                ) : (
-                                    <>
-                                        <div className="grid grid-cols-2 gap-y-4 gap-x-8 md:grid-cols-3 lg:grid-cols-6">
-                                            <div>
-                                                <div className="text-sm text-muted-foreground">Total</div>
-                                                <div className="font-medium">{deviceInstallStatus?.total ?? 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-muted-foreground">Installed</div>
-                                                <div className="font-medium">{deviceInstallStatus?.byStatus.INSTALLED ?? 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-muted-foreground">Installing</div>
-                                                <div className="font-medium">{deviceInstallStatus?.byStatus.INSTALLING ?? 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-muted-foreground">Pending</div>
-                                                <div className="font-medium">{deviceInstallStatus?.byStatus.PENDING ?? 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-muted-foreground">Error</div>
-                                                <div className="font-medium">{deviceInstallStatus?.byStatus.ERROR ?? 0}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-muted-foreground">Uninstalled</div>
-                                                <div className="font-medium">{deviceInstallStatus?.byStatus.UNINSTALLED ?? 0}</div>
-                                            </div>
-                                        </div>
-                                        <Card className="shadow-none">
-                                            <CardContent className="p-0">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                                            <TableHead>Computer</TableHead>
-                                                            <TableHead>Release</TableHead>
-                                                            <TableHead>Status</TableHead>
-                                                            <TableHead>Installed at</TableHead>
-                                                            <TableHead>Last seen</TableHead>
-                                                            <TableHead>Status updated</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {deviceInstallStatus?.items.length ? (
-                                                            deviceInstallStatus.items.map((item) => (
-                                                                <TableRow key={item.id}>
-                                                                    <TableCell className="font-medium">{item.computerName}</TableCell>
-                                                                    <TableCell>{item.releaseVersion}</TableCell>
-                                                                    <TableCell>
-                                                                        <Badge variant={statusBadgeVariant[item.status]}>
-                                                                            {item.status}
-                                                                        </Badge>
-                                                                    </TableCell>
-                                                                    <TableCell>{formatDateTime(item.installedAt)}</TableCell>
-                                                                    <TableCell>{formatDateTime(item.lastSeenAt)}</TableCell>
-                                                                    <TableCell>{formatDateTime(item.statusUpdatedAt)}</TableCell>
-                                                                </TableRow>
-                                                            ))
-                                                        ) : (
-                                                            <TableRow>
-                                                                <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
-                                                                    No device install data for this app yet.
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        )}
-                                                    </TableBody>
-                                                </Table>
-                                            </CardContent>
-                                        </Card>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {activeView === "properties" && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Properties</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-muted-foreground">App properties configuration will be here.</p>
-                                {/* TODO: Add form to edit app properties */}
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            </div>
-        </PageWrapper>
+      <PageWrapper
+        siteHeader={
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/apps">Apps</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Loading...</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        }
+      >
+        <div className="flex items-center justify-center h-full">
+          Loading...
+        </div>
+      </PageWrapper>
     );
+  }
+
+  if (error || !app) {
+    return (
+      <PageWrapper
+        siteHeader={
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/apps">Apps</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Error</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        }
+      >
+        <div className="flex items-center justify-center h-full text-destructive">
+          Error loading app details.
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  return (
+    <PageWrapper
+      siteHeader={
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/apps">Apps</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{app.display_name}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      }
+    >
+      <div className="flex flex-col md:flex-row gap-6 w-full h-full items-start">
+        {/* Sidebar */}
+        <div className="w-full md:w-64 shrink-0 space-y-1">
+          <div className="font-semibold text-lg px-4 py-2 mb-2 wrap-break-word">
+            {app.display_name}
+          </div>
+          <nav className="flex flex-col space-y-1">
+            <Button
+              variant={activeView === "overview" ? "secondary" : "ghost"}
+              className="justify-start w-full"
+              onClick={() => setActiveView("overview")}
+            >
+              Overview
+            </Button>
+            <Button
+              variant={activeView === "deviceStatus" ? "secondary" : "ghost"}
+              className="justify-start w-full"
+              onClick={() => setActiveView("deviceStatus")}
+            >
+              Device install status
+            </Button>
+            <Button
+              variant={activeView === "properties" ? "secondary" : "ghost"}
+              className="justify-start w-full"
+              onClick={() => setActiveView("properties")}
+            >
+              Properties
+            </Button>
+            <Button variant="ghost" className="justify-start w-full" disabled>
+              User install status
+            </Button>
+          </nav>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 space-y-6 w-full">
+          {activeView === "overview" && (
+            <>
+              {/* Essentials Section */}
+              <Card className="border-none shadow-none bg-transparent">
+                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-xl font-semibold">
+                    Essentials
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowEditSheet(true)}
+                  >
+                    <Pen className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                </CardHeader>
+                <CardContent className="px-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
+                  <div>
+                    <div className="text-sm text-muted-foreground">
+                      Publisher
+                    </div>
+                    <div className="font-medium">{app.publisher || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">
+                      Operating system
+                    </div>
+                    <div className="font-medium">Windows</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">
+                      App created
+                    </div>
+                    <div className="font-medium">
+                      {new Date(app.created_at).toLocaleString("cs-CZ")}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">
+                      Last modified
+                    </div>
+                    <div className="font-medium">
+                      {new Date(app.updated_at).toLocaleString("cs-CZ")}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">
+                      Auto update
+                    </div>
+                    <div className="font-medium">
+                      {app.auto_update ? "Yes" : "No"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">
+                      Allow multiple versions
+                    </div>
+                    <div className="font-medium">
+                      {app.allow_multiple_versions ? "Yes" : "No"}
+                    </div>
+                  </div>
+                  <div className="col-span-1 md:col-span-2 lg:col-span-3">
+                    <div className="text-sm text-muted-foreground">
+                      Description
+                    </div>
+                    <div className="font-medium whitespace-pre-wrap">
+                      {app.description || "-"}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <EditAppSheet
+                app={{
+                  id: app.id,
+                  display_name: app.display_name,
+                  description: app.description,
+                  publisher: app.publisher,
+                }}
+                open={showEditSheet}
+                onOpenChange={setShowEditSheet}
+              />
+
+              {/* Releases Section */}
+              <Card className="border-none shadow-none bg-transparent">
+                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-xl font-semibold">
+                    Releases
+                  </CardTitle>
+                  {canAddRelease && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCreateReleaseSheet(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Release
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent className="px-0">
+                  {releasesLoading ? (
+                    <div className="text-muted-foreground">
+                      Loading releases...
+                    </div>
+                  ) : (
+                    <ReleasesTable
+                      releases={releases ?? []}
+                      appId={appId}
+                      isAutoUpdate={app.auto_update}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              <ReleaseSheet
+                appId={appId}
+                isAutoUpdate={app.auto_update}
+                open={showCreateReleaseSheet}
+                onOpenChange={setShowCreateReleaseSheet}
+              />
+            </>
+          )}
+
+          {activeView === "deviceStatus" && (
+            <Card className="border-none shadow-none bg-transparent">
+              <CardHeader className="px-0 pt-0 pb-2">
+                <CardTitle>Device install status</CardTitle>
+              </CardHeader>
+              <CardContent className="px-0 space-y-4">
+                {deviceInstallStatusLoading ? (
+                  <div className="text-sm text-muted-foreground">
+                    Loading device install status...
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-8 md:grid-cols-3 lg:grid-cols-6">
+                      <div>
+                        <div className="text-sm text-muted-foreground">
+                          Total
+                        </div>
+                        <div className="font-medium">
+                          {deviceInstallStatus?.total ?? 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">
+                          Installed
+                        </div>
+                        <div className="font-medium">
+                          {deviceInstallStatus?.byStatus.INSTALLED ?? 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">
+                          Installing
+                        </div>
+                        <div className="font-medium">
+                          {deviceInstallStatus?.byStatus.INSTALLING ?? 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">
+                          Pending
+                        </div>
+                        <div className="font-medium">
+                          {deviceInstallStatus?.byStatus.PENDING ?? 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">
+                          Error
+                        </div>
+                        <div className="font-medium">
+                          {deviceInstallStatus?.byStatus.ERROR ?? 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">
+                          Uninstalled
+                        </div>
+                        <div className="font-medium">
+                          {deviceInstallStatus?.byStatus.UNINSTALLED ?? 0}
+                        </div>
+                      </div>
+                    </div>
+                    <Card className="shadow-none">
+                      <CardContent className="p-0">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                              <TableHead>Computer</TableHead>
+                              <TableHead>Release</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Installed at</TableHead>
+                              <TableHead>Last seen</TableHead>
+                              <TableHead>Status updated</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {deviceInstallStatus?.items.length ? (
+                              deviceInstallStatus.items.map((item) => (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium">
+                                    {item.computerName}
+                                  </TableCell>
+                                  <TableCell>{item.releaseVersion}</TableCell>
+                                  <TableCell>
+                                    <Badge
+                                      variant={statusBadgeVariant[item.status]}
+                                    >
+                                      {item.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {formatDateTime(item.installedAt)}
+                                  </TableCell>
+                                  <TableCell>
+                                    {formatDateTime(item.lastSeenAt)}
+                                  </TableCell>
+                                  <TableCell>
+                                    {formatDateTime(item.statusUpdatedAt)}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            ) : (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={6}
+                                  className="h-20 text-center text-muted-foreground"
+                                >
+                                  No device install data for this app yet.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeView === "properties" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Properties</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  App properties configuration will be here.
+                </p>
+                {/* TODO: Add form to edit app properties */}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </PageWrapper>
+  );
 }
