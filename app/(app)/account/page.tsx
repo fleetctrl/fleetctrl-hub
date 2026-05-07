@@ -1,6 +1,6 @@
 "use server";
 
-import { AccountPasswordForm } from "@/app/modules/account/form/account-password-form";
+import { AccountPasswordForm } from "@/app/modules/account/account-password-form";
 import { AccountProfileForm } from "@/app/modules/account/form/account-profile-form";
 import PageWrapper from "@/components/page-wrapper";
 import {

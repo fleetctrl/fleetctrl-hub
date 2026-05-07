@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
-import { AppReleaseSheet } from "../sheet/app-release-sheet";
+import { AppReleaseSheet } from "./app-release-sheet";
 import { MoreHorizontal, Pen, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
