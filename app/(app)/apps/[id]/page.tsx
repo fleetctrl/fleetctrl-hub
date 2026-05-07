@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 
 import { EditAppSheet } from "../../../modules/apps/detail/releases/app-edit-app-sheet";
 import { Pen, Plus } from "lucide-react";
-import { AppReleaseSheet } from "@/app/modules/apps/detail/releases/sheet/app-release-sheet";
+import { AppReleaseSheet } from "@/app/modules/apps/detail/releases/app-release-sheet";
 import { AppReleasesTable } from "@/app/modules/apps/detail/releases/app-releases-table";
 
 type InstallStatus =
