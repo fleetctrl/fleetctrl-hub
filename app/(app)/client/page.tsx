@@ -5,7 +5,7 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
-import { ClientUpdatesTable } from "../../modules/client/table/client-data-table";
+import { ClientUpdatesTable } from "@/modules/client/table/client-data-table";
 import PageWrapper from "@/components/page-wrapper";
 import { getToken } from "@/lib/auth-server";
 import { preloadQuery } from "convex/nextjs";
