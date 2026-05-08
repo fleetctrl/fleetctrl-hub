@@ -8,7 +8,7 @@ import {
 import PageWrapper from "@/components/page-wrapper";
 import { preloadQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
-import { getToken } from "@/lib/auth-server";
+import { convexServerQueryOptions, getToken } from "@/lib/auth-server";
 import { AppsTable } from "@/modules/apps/table/apps-table";
 
 export default async function AppsPage() {
@@ -16,7 +16,7 @@ export default async function AppsPage() {
   const apps = await preloadQuery(
     api.apps.getTableData,
     {},
-    initialToken ? { token: initialToken } : undefined,
+    convexServerQueryOptions(initialToken),
   );
   return (
     <PageWrapper

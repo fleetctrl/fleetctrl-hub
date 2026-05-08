@@ -1,5 +1,6 @@
 import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";
 import { getToken as getRequestToken } from "@convex-dev/better-auth/utils";
+import type { NextjsOptions } from "convex/nextjs";
 import { env } from "./env";
 
 // In Docker:
@@ -75,4 +76,12 @@ export async function getToken() {
             return null;
         }
     }
+}
+
+export function convexServerQueryOptions(token?: string | null): NextjsOptions {
+    return {
+        ...(token ? { token } : {}),
+        url: serverConvexUrl,
+        skipConvexDeploymentUrlCheck: true,
+    };
 }
