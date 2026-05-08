@@ -11,7 +11,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { verifyDPoP, computeATH } from "./lib/dpop";
-import { checkAndStoreJti } from "../lib/jtiStore";
+import { checkAndStoreJti } from "../src/lib/jtiStore";
 import { verifyAccessToken } from "./lib/jwt";
 import { authComponent, createAuth } from "./auth";
 import { createMiddleware } from "hono/factory";

@@ -12,7 +12,7 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// JTI Anti-Replay is handled in-memory (see lib/jtiStore.ts)
+// JTI Anti-Replay is handled in-memory (see src/lib/jtiStore.ts)
 
 // ========================================
 // Refresh Token Cleanup

@@ -8,5 +8,5 @@
 - do not add new heavy dependencies without approval
 
 ### Project structure
-- see `@/components/app-sidebar` for the sidebar
+- see `src/components/app-sidebar.tsx` for the sidebar
 - components live in `@/components`

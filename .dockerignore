@@ -1,11 +1,22 @@
 # Dependencies
 node_modules
+.pnpm-store
 .pnp
 .pnp.js
 
 # Next.js build output
 .next
 out
+tsconfig.tsbuildinfo
+.tmp
+
+# Local Convex state
+.convex
+
+# Environment files
+.env
+.env.*
+!.env.example
 
 # Docker related
 docker/caddy_data
