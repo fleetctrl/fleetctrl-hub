@@ -12,6 +12,7 @@ tsconfig.tsbuildinfo
 
 # Local Convex state
 .convex
+convex/backups
 
 # Environment files
 .env
