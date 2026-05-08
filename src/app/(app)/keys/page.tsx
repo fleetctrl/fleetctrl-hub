@@ -15,7 +15,7 @@ export default async function Keys() {
   const clients = await preloadQuery(
     api.enrollmentTokens.list,
     {},
-    initialToken ? { token: initialToken } : undefined
+    convexServerQueryOptions(initialToken),
   );
   return (
     <PageWrapper
