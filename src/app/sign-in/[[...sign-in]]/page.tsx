@@ -22,7 +22,6 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
-import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { env } from "@/lib/env";
 
@@ -74,7 +73,7 @@ export default function SignInPage() {
     // Redirect when authenticated
     useEffect(() => {
         if (!isCheckingSession && session?.user) {
-            router.replace("/admin");
+            router.replace("/");
         }
     }, [isCheckingSession, session, router]);
 
@@ -103,7 +102,7 @@ export default function SignInPage() {
                 }
 
                 // Redirect after successful sign up
-                router.replace("/admin");
+                router.replace("/");
                 return;
             } else {
                 const result = await authClient.signIn.email({
@@ -118,7 +117,7 @@ export default function SignInPage() {
                 }
 
                 // Redirect after successful sign in
-                router.replace("/admin");
+                router.replace("/");
                 return;
             }
         } catch {

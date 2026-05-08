@@ -58,7 +58,7 @@ export default defineSchema({
         .index("by_computer_status", ["computer_id", "status"])
         .index("by_status_expires_at", ["status", "expires_at"]),
 
-    // JTI anti-replay is now handled in-memory (see lib/jtiStore.ts)
+    // JTI anti-replay is now handled in-memory (see src/lib/jtiStore.ts)
 
     // ========================================
     // TASKS

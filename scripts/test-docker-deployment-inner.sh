@@ -37,7 +37,7 @@ SIGNUP_HEADERS="${RUN_DIR}/signup.headers"
 SIGNUP_BODY="${RUN_DIR}/signup.body"
 SIGNIN_HEADERS="${RUN_DIR}/signin.headers"
 SIGNIN_BODY="${RUN_DIR}/signin.body"
-ADMIN_HEADERS="${RUN_DIR}/admin.headers"
+PROTECTED_HEADERS="${RUN_DIR}/protected.headers"
 ANON_HEADERS="${RUN_DIR}/anon.headers"
 PAGE_HEADERS="${RUN_DIR}/page.headers"
 PAGE_BODY="${RUN_DIR}/page.body"
@@ -57,7 +57,7 @@ STEP_SIGNIN_PAGE="[ ]"
 STEP_ANON_REDIRECT="[ ]"
 STEP_SIGNUP="[ ]"
 STEP_SIGNIN="[ ]"
-STEP_AUTH_ADMIN="[ ]"
+STEP_AUTH_PROTECTED="[ ]"
 
 # The ephemeral curl container may run as a non-root user, so make the mounted
 # artifact directory writable before using -D/-o with bind-mounted paths.
@@ -67,7 +67,7 @@ touch \
   "${SIGNUP_BODY}" \
   "${SIGNIN_HEADERS}" \
   "${SIGNIN_BODY}" \
-  "${ADMIN_HEADERS}" \
+  "${PROTECTED_HEADERS}" \
   "${ANON_HEADERS}" \
   "${PAGE_HEADERS}" \
   "${PAGE_BODY}" \
@@ -77,7 +77,7 @@ chmod 0666 \
   "${SIGNUP_BODY}" \
   "${SIGNIN_HEADERS}" \
   "${SIGNIN_BODY}" \
-  "${ADMIN_HEADERS}" \
+  "${PROTECTED_HEADERS}" \
   "${ANON_HEADERS}" \
   "${PAGE_HEADERS}" \
   "${PAGE_BODY}" \
@@ -260,7 +260,7 @@ print_success_summary() {
   printf '  %s %s Anonymous access redirected\n' "${GREEN}" "${STEP_ANON_REDIRECT}${RESET}"
   printf '  %s %s User registration works\n' "${GREEN}" "${STEP_SIGNUP}${RESET}"
   printf '  %s %s Sign-in persists session cookie\n' "${GREEN}" "${STEP_SIGNIN}${RESET}"
-  printf '  %s %s Authenticated admin access works\n' "${GREEN}" "${STEP_AUTH_ADMIN}${RESET}"
+  printf '  %s %s Authenticated protected access works\n' "${GREEN}" "${STEP_AUTH_PROTECTED}${RESET}"
   printf '\n'
 }
 
@@ -303,12 +303,12 @@ assert_contains "${PAGE_HEADERS}" "content-type: text/html" "Sign-in response he
 STEP_SIGNIN_PAGE="[x]"
 
 echo "Checking anonymous access redirects away from protected routes..."
-anon_code="$(curl_run -ksS -D "${ANON_HEADERS}" -o /dev/null -w '%{http_code}' "${BASE_URL}/admin")"
+anon_code="$(curl_run -ksS -D "${ANON_HEADERS}" -o /dev/null -w '%{http_code}' "${BASE_URL}/")"
 if [ "${anon_code}" != "302" ] && [ "${anon_code}" != "303" ] && [ "${anon_code}" != "307" ]; then
-  echo "Anonymous access to /admin should redirect, got HTTP ${anon_code}" >&2
+  echo "Anonymous access to / should redirect, got HTTP ${anon_code}" >&2
   exit 1
 fi
-assert_contains "${ANON_HEADERS}" "sign-in" "Anonymous admin redirect"
+assert_contains "${ANON_HEADERS}" "sign-in" "Anonymous protected route redirect"
 STEP_ANON_REDIRECT="[x]"
 
 TEST_EMAIL="docker-smoke-${PROJECT_NAME}@example.com"
@@ -348,14 +348,14 @@ fi
 STEP_SIGNIN="[x]"
 
 echo "Checking authenticated access to protected routes..."
-admin_code="$(curl_run -ksS \
+protected_code="$(curl_run -ksS \
   -b "${COOKIE_JAR}" \
-  -D "${ADMIN_HEADERS}" \
+  -D "${PROTECTED_HEADERS}" \
   -o /dev/null \
   -H "Origin: ${BASE_URL}" \
   -w '%{http_code}' \
-  "${BASE_URL}/admin")"
-assert_http_code "${admin_code}" "200" "Authenticated admin request"
-STEP_AUTH_ADMIN="[x]"
+  "${BASE_URL}/")"
+assert_http_code "${protected_code}" "200" "Authenticated protected request"
+STEP_AUTH_PROTECTED="[x]"
 
 print_success_summary
