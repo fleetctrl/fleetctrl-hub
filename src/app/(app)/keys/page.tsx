@@ -6,7 +6,7 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
-import { getToken } from "@/lib/auth-server";
+import { convexServerQueryOptions, getToken } from "@/lib/auth-server";
 import { preloadQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 
