@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { ClientUpdatesTable } from "@/modules/client/table/client-data-table";
 import PageWrapper from "@/components/page-wrapper";
-import { getToken } from "@/lib/auth-server";
+import { convexServerQueryOptions, getToken } from "@/lib/auth-server";
 import { preloadQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 
@@ -16,7 +16,7 @@ export default async function ClientUpdatesPage() {
   const clients = await preloadQuery(
     api.clientUpdates.getAll,
     {},
-    initialToken ? { token: initialToken } : undefined,
+    convexServerQueryOptions(initialToken),
   );
   return (
     <PageWrapper

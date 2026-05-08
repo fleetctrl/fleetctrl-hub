@@ -293,6 +293,7 @@ cmd_setup() {
   NEXT_PUBLIC_CONVEX_SITE_URL="${SITE_URL}"
   NEXT_PUBLIC_SITE_URL="${SITE_URL}"
   CONVEX_SITE_URL="${SITE_URL}"
+  CONVEX_URL="http://convex:3210"
   CONVEX_SITE_INTERNAL_URL="http://convex:3211"
 
   read -p "$(echo -e ${BOLD} Allow user registration? [Y/n]: ${NC})" ALLOW_REGISTRATION_INPUT
@@ -372,6 +373,7 @@ cmd_setup() {
   fi
 
   upsert_env "SITE_URL" "$SITE_URL" .env
+  upsert_env "CONVEX_URL" "$CONVEX_URL" .env
   upsert_env "NEXT_PUBLIC_SITE_URL" "$NEXT_PUBLIC_SITE_URL" .env
   upsert_env "NEXT_PUBLIC_CONVEX_URL" "$NEXT_PUBLIC_CONVEX_URL" .env
   upsert_env "NEXT_PUBLIC_CONVEX_SITE_URL" "$NEXT_PUBLIC_CONVEX_SITE_URL" .env
@@ -573,6 +575,7 @@ cmd_update() {
   fi
 
   ensure_env_value "POSTGRES_PASSWORD" "changeme" .env
+  ensure_env_value "CONVEX_URL" "http://convex:3210" .env
   ensure_env_value "POSTGRES_DATA_DIR" "postgres_data" .env
   ensure_env_value "RUSTFS_ACCESS_KEY" "rustfsadmin" .env
   ensure_env_value "RUSTFS_SECRET_KEY" "rustfsadmin" .env
