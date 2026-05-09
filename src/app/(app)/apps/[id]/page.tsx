@@ -29,6 +29,7 @@ import { EditAppSheet } from "@/modules/apps/detail/releases/app-edit-app-sheet"
 import { Pen, Plus } from "lucide-react";
 import { AppReleaseSheet } from "@/modules/apps/detail/releases/app-release-sheet";
 import { AppReleasesTable } from "@/modules/apps/detail/releases/app-releases-table";
+import { parseAsString, useQueryStates } from "nuqs";
 
 type InstallStatus =
   | "PENDING"
@@ -68,16 +69,21 @@ export default function AppDetailPage() {
     appId: appId as Id<"apps">,
   });
 
-  console.log("Device install status:", deviceInstallStatus);
+  // console.log("Device install status:", deviceInstallStatus);
 
   const isLoading = app === undefined;
   const releasesLoading = releases === undefined;
   const deviceInstallStatusLoading = deviceInstallStatus === undefined;
   const error = app === null;
 
-  const [activeView, setActiveView] = useState<
-    "overview" | "properties" | "deviceStatus"
-  >("overview");
+  const [{ view: activeView }, setQueryState] = useQueryStates({
+    view: parseAsString.withDefault("overview").withOptions({
+      shallow: true,
+      clearOnDefault: true,
+      history: "replace",
+    }),
+  });
+
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [showCreateReleaseSheet, setShowCreateReleaseSheet] = useState(false);
 
@@ -159,18 +165,18 @@ export default function AppDetailPage() {
             <Button
               variant={activeView === "overview" ? "secondary" : "ghost"}
               className="justify-start w-full"
-              onClick={() => setActiveView("overview")}
+              onClick={() => setQueryState({ view: "overview" })}
             >
               Overview
             </Button>
             <Button
               variant={activeView === "deviceStatus" ? "secondary" : "ghost"}
               className="justify-start w-full"
-              onClick={() => setActiveView("deviceStatus")}
+              onClick={() => setQueryState({ view: "deviceStatus" })}
             >
               Device install status
             </Button>
-            <Button
+            {/*<Button
               variant={activeView === "properties" ? "secondary" : "ghost"}
               className="justify-start w-full"
               onClick={() => setActiveView("properties")}
@@ -179,7 +185,7 @@ export default function AppDetailPage() {
             </Button>
             <Button variant="ghost" className="justify-start w-full" disabled>
               User install status
-            </Button>
+            </Button>*/}
           </nav>
         </div>
 
