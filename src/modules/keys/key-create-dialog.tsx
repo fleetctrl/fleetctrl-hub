@@ -41,7 +41,7 @@ const createNewKeySchema = z.object({
       const t = Date.parse(val);
       return Number.isFinite(t) && t >= Date.now();
     },
-    { message: "Expiration must be in the future" }
+    { message: "Expiration must be in the future" },
   ),
   remaining_uses: z.coerce
     .number({ message: "Must be a number" })
@@ -52,20 +52,20 @@ const createNewKeySchema = z.object({
 });
 type CreateNewKeyFormRaw = z.input<typeof createNewKeySchema>;
 
-export default function CreateNewKeyDialog() {
+export default function KeyCreateDialog() {
   const router = useRouter();
   const createToken = useMutation(api.enrollmentTokens.create);
 
   const [open, setOpen] = useState(false);
   const [openCalendar, setOpenCalendar] = useState(false);
   const [date, setDate] = useState<Date | undefined>(
-    new Date(Date.now() + 24 * 60 * 60 * 1000)
+    new Date(Date.now() + 24 * 60 * 60 * 1000),
   );
   const [time, setTime] = useState<string>(() => {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(
-      now.getSeconds()
+      now.getSeconds(),
     )}`;
   });
   const [usesText, setUsesText] = useState<string>("1");
@@ -92,7 +92,9 @@ export default function CreateNewKeyDialog() {
       const result = await createToken({
         name: values.name,
         expiresAt: new Date(values.expires_at).getTime(),
-        remainingUses: Number.parseInt(values?.remaining_uses?.toString() || "1"),
+        remainingUses: Number.parseInt(
+          values?.remaining_uses?.toString() || "1",
+        ),
       });
       setGeneratedToken(result.token);
       toast.success("Generated token");
@@ -251,14 +253,14 @@ export default function CreateNewKeyDialog() {
                                       d.getDate(),
                                       Number(hh),
                                       Number(mm),
-                                      Number(ss)
+                                      Number(ss),
                                     );
                                     // If today, clamp to now
                                     const now = new Date();
                                     const todayStart = new Date(
                                       now.getFullYear(),
                                       now.getMonth(),
-                                      now.getDate()
+                                      now.getDate(),
                                     );
                                     if (
                                       combined >= todayStart &&
@@ -267,9 +269,9 @@ export default function CreateNewKeyDialog() {
                                       const pad = (n: number) =>
                                         String(n).padStart(2, "0");
                                       const nowStr = `${pad(
-                                        now.getHours()
+                                        now.getHours(),
                                       )}:${pad(now.getMinutes())}:${pad(
-                                        now.getSeconds()
+                                        now.getSeconds(),
                                       )}`;
                                       setTime(nowStr);
                                       const fixed = new Date(
@@ -278,7 +280,7 @@ export default function CreateNewKeyDialog() {
                                         d.getDate(),
                                         now.getHours(),
                                         now.getMinutes(),
-                                        now.getSeconds()
+                                        now.getSeconds(),
                                       );
                                       setDate(fixed);
                                       field.onChange(fixed.toISOString());
@@ -303,22 +305,22 @@ export default function CreateNewKeyDialog() {
                               value={time}
                               min={
                                 date &&
+                                new Date(
+                                  date.getFullYear(),
+                                  date.getMonth(),
+                                  date.getDate(),
+                                ).getTime() ===
                                   new Date(
-                                    date.getFullYear(),
-                                    date.getMonth(),
-                                    date.getDate()
-                                  ).getTime() ===
-                                  new Date(
-                                    new Date().setHours(0, 0, 0, 0)
+                                    new Date().setHours(0, 0, 0, 0),
                                   ).getTime()
                                   ? (() => {
-                                    const n = new Date();
-                                    const p = (x: number) =>
-                                      String(x).padStart(2, "0");
-                                    return `${p(n.getHours())}:${p(
-                                      n.getMinutes()
-                                    )}:${p(n.getSeconds())}`;
-                                  })()
+                                      const n = new Date();
+                                      const p = (x: number) =>
+                                        String(x).padStart(2, "0");
+                                      return `${p(n.getHours())}:${p(
+                                        n.getMinutes(),
+                                      )}:${p(n.getSeconds())}`;
+                                    })()
                                   : undefined
                               }
                               onChange={(e) => {
@@ -327,17 +329,17 @@ export default function CreateNewKeyDialog() {
                                 const pad = (n: number) =>
                                   String(n).padStart(2, "0");
                                 const nowStr = `${pad(now.getHours())}:${pad(
-                                  now.getMinutes()
+                                  now.getMinutes(),
                                 )}:${pad(now.getSeconds())}`;
                                 if (date) {
                                   const isToday =
                                     new Date(
                                       date.getFullYear(),
                                       date.getMonth(),
-                                      date.getDate()
+                                      date.getDate(),
                                     ).getTime() ===
                                     new Date(
-                                      new Date().setHours(0, 0, 0, 0)
+                                      new Date().setHours(0, 0, 0, 0),
                                     ).getTime();
                                   if (isToday && val < nowStr) {
                                     val = nowStr;
@@ -351,7 +353,7 @@ export default function CreateNewKeyDialog() {
                                     date.getDate(),
                                     Number(hh),
                                     Number(mm),
-                                    Number(ss)
+                                    Number(ss),
                                   );
                                   setDate(next);
                                   field.onChange(next.toISOString());

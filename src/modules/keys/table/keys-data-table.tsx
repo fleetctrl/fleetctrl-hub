@@ -24,8 +24,8 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import React from "react";
 import { api } from "@/convex/_generated/api";
-import { columns } from "./columns";
-import CreateNewKeyDialog from "./createNewKeyDialog";
+import { keysColumns } from "./keys-columns";
+import CreateNewKeyDialog from "../key-create-dialog";
 import { Preloaded, usePreloadedQuery } from "convex/react";
 
 interface DataTableProps<TData, TValue> {
@@ -140,5 +140,5 @@ export function KeysTable({
   // Convex auth query is automatically reactive!
   const queryData = usePreloadedQuery(data);
 
-  return <DataTable columns={columns} data={queryData ?? []} />;
+  return <DataTable columns={keysColumns} data={queryData ?? []} />;
 }

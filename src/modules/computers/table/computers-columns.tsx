@@ -2,8 +2,8 @@
 import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
-import RowOptions from "./rowOptions";
-export type RustDesk = {
+import RowOptions from "./computers-row-options";
+export type computer = {
   id: string;
   rustdeskID?: number;
   name?: string;
@@ -20,7 +20,7 @@ import Link from "next/link";
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
 
-export const columns: ColumnDef<RustDesk>[] = [
+export const computersColumns: ColumnDef<computer>[] = [
   {
     accessorKey: "lastConnection",
     header: "",
@@ -55,7 +55,7 @@ export const columns: ColumnDef<RustDesk>[] = [
     },
     cell: ({ row }) => (
       <Link
-        href={`/rustdesk/computer/${row.original.id}`}
+        href={`/computers/${row.original.id}`}
         className="font-medium hover:underline"
       >
         {row.original.name}

@@ -13,7 +13,14 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   parseAsBoolean,
   parseAsInteger,
@@ -34,7 +41,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
-import { columns, RustDesk } from "./columns";
+import { computersColumns, computer } from "./computers-columns";
 import {
   InputGroup,
   InputGroupAddon,
@@ -65,7 +72,10 @@ function isSortField(value: string): value is SortField {
 }
 
 function isComputerOnline(lastConnection?: number) {
-  return typeof lastConnection === "number" && Date.now() - lastConnection < ONLINE_THRESHOLD_MS;
+  return (
+    typeof lastConnection === "number" &&
+    Date.now() - lastConnection < ONLINE_THRESHOLD_MS
+  );
 }
 
 interface DataTableProps<TData, TValue> {
@@ -84,7 +94,7 @@ interface DataTableProps<TData, TValue> {
   total?: number;
 }
 
-function DataTable<TData, TValue>({
+function ComputersDataTable<TData, TValue>({
   columns,
   data,
   pagination,
@@ -102,10 +112,10 @@ function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (
-    updater
+    updater,
   ) => {
     setColumnFilters((prev) =>
-      typeof updater === "function" ? updater(prev) : updater
+      typeof updater === "function" ? updater(prev) : updater,
     );
     onPaginationChange((prev) => ({ ...prev, pageIndex: 0 }));
   };
@@ -172,9 +182,9 @@ function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -194,10 +204,14 @@ function DataTable<TData, TValue>({
                             <div
                               className={cn("w-3 h-3 rounded-[50%]", {
                                 "bg-red-400": !isComputerOnline(
-                                  cell.getContext().getValue() as number | undefined
+                                  cell.getContext().getValue() as
+                                    | number
+                                    | undefined,
                                 ),
                                 "bg-green-400": isComputerOnline(
-                                  cell.getContext().getValue() as number | undefined
+                                  cell.getContext().getValue() as
+                                    | number
+                                    | undefined,
                                 ),
                               })}
                             />
@@ -206,7 +220,7 @@ function DataTable<TData, TValue>({
                           <TableCell>
                             {flexRender(
                               cell.column.columnDef.cell,
-                              cell.getContext()
+                              cell.getContext(),
                             )}
                           </TableCell>
                         )}
@@ -256,7 +270,7 @@ function DataTable<TData, TValue>({
   );
 }
 
-export function RustDeskTable() {
+export function ComputersTable() {
   const [{ page, search, sort, desc }, setQueryState] = useQueryStates({
     page: parseAsInteger.withDefault(1).withOptions({
       clearOnDefault: true,
@@ -277,25 +291,31 @@ export function RustDeskTable() {
   });
   const [pageSize, setPageSize] = useState(10);
   const [inputValue, setInputValue] = useState<string>(search);
-  const [pageCache, setPageCache] = useState<Record<number, RustDesk[]>>({});
+  const [pageCache, setPageCache] = useState<Record<number, computer[]>>({});
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const [total, setTotal] = useState<number | undefined>(undefined);
   const [isDone, setIsDone] = useState(false);
   const lastInternalQueryChangeRef = useRef<string | null>(null);
 
-  const maxPageIndex = total ? Math.max(0, Math.ceil(total / pageSize) - 1) : Infinity;
+  const maxPageIndex = total
+    ? Math.max(0, Math.ceil(total / pageSize) - 1)
+    : Infinity;
   const rawPageIndex = Math.max(page, 1) - 1;
-  const pageIndex = Math.min(rawPageIndex, maxPageIndex, cursorStack.length - 1);
+  const pageIndex = Math.min(
+    rawPageIndex,
+    maxPageIndex,
+    cursorStack.length - 1,
+  );
   const pagination = useMemo<PaginationState>(
     () => ({ pageIndex, pageSize }),
-    [pageIndex, pageSize]
+    [pageIndex, pageSize],
   );
   const sorting = useMemo<SortingState>(() => {
     return sort ? [{ id: sort, desc }] : [];
   }, [desc, sort]);
   const querySignature = useMemo(
     () => JSON.stringify({ search, sort, desc: sort ? desc : false }),
-    [desc, search, sort]
+    [desc, search, sort],
   );
 
   const sortField = sort ?? undefined;
@@ -308,7 +328,8 @@ export function RustDeskTable() {
   // While bootstrapping a deep-link, we intentionally let page 1 load first so its
   // continueCursor can extend the stack and unlock later pages.
   useEffect(() => {
-    const requestedPageIsTemporarilyClamped = rawPageIndex > pageIndex && canAdvanceCursorStack;
+    const requestedPageIsTemporarilyClamped =
+      rawPageIndex > pageIndex && canAdvanceCursorStack;
 
     if (!requestedPageIsTemporarilyClamped && rawPageIndex !== pageIndex) {
       void setQueryState({ page: pageIndex + 1 });
@@ -416,7 +437,7 @@ export function RustDeskTable() {
 
       return next;
     },
-    [pagination, querySignature, resetPaginationState, setQueryState]
+    [pagination, querySignature, resetPaginationState, setQueryState],
   );
 
   const handleSortingChange = useCallback(
@@ -438,7 +459,7 @@ export function RustDeskTable() {
         desc: nextSortField ? nextDesc : false,
       });
     },
-    [resetPaginationState, search, setQueryState, sorting]
+    [resetPaginationState, search, setQueryState, sorting],
   );
 
   const handleResetFilters = useCallback(() => {
@@ -458,8 +479,8 @@ export function RustDeskTable() {
   }, [resetPaginationState, setQueryState]);
 
   return (
-    <DataTable
-      columns={columns}
+    <ComputersDataTable
+      columns={computersColumns}
       data={tableData}
       pagination={pagination}
       pageCount={pageCount}
