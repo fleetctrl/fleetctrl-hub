@@ -23,7 +23,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import React from "react";
-import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { columns } from "./columns";
 import CreateNewKeyDialog from "./createNewKeyDialog";
@@ -70,9 +69,9 @@ export function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                     </TableHead>
                   );
                 })}
@@ -91,7 +90,7 @@ export function DataTable<TData, TValue>({
                       <TableCell>
                         {flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )}
                       </TableCell>
                     </React.Fragment>
@@ -133,11 +132,13 @@ export function DataTable<TData, TValue>({
   );
 }
 
-export function KeysTable({ data }: { data: Preloaded<typeof api.enrollmentTokens.list>; }) {
+export function KeysTable({
+  data,
+}: {
+  data: Preloaded<typeof api.enrollmentTokens.list>;
+}) {
   // Convex auth query is automatically reactive!
   const queryData = usePreloadedQuery(data);
 
-  return (
-    <DataTable columns={columns} data={queryData ?? []} />
-  );
+  return <DataTable columns={columns} data={queryData ?? []} />;
 }

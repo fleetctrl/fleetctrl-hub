@@ -1,9 +1,12 @@
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { cookies } from "next/headers"
+import { cookies } from "next/headers";
+import { Metadata } from "next";
+import { globalMetaTitle } from "@/lib/meta";
+
+export const metadata: Metadata = {
+  title: `Dashboard - ${globalMetaTitle}`,
+};
 
 export default async function ProtectedLayout({
   children,
@@ -12,15 +15,14 @@ export default async function ProtectedLayout({
 }) {
   // Authentication is now handled by middleware (convexAuthNextjsMiddleware)
   // No need to check auth here - protected routes redirect to sign-in automatically
-  const cookieStore = await cookies()
-  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true" || true; // Default to open if cookie is not set
+  const cookieStore = await cookies();
+  const defaultOpen =
+    cookieStore.get("sidebar_state")?.value === "true" || true; // Default to open if cookie is not set
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <AppSidebar />
-      <SidebarInset>
-        {children}
-      </SidebarInset>
+      <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>
   );
 }
