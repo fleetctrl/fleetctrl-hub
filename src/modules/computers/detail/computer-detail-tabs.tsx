@@ -79,7 +79,7 @@ type ComputerData = NonNullable<
   ReturnType<typeof useAuthQuery<typeof api.computers.getById>>
 >;
 
-export default function Tabs({ computerId }: Props) {
+export default function ComputerDetailTabs({ computerId }: Props) {
   const [openChangePassword, setOpenChangePassword] = useState(false);
   const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
 

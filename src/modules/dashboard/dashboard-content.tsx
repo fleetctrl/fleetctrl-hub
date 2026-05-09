@@ -197,7 +197,7 @@ export function DashboardContent() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
-            <Link href="/rustdesk">
+            <Link href="/computers">
               <MonitorIcon data-icon="inline-start" />
               Devices
             </Link>

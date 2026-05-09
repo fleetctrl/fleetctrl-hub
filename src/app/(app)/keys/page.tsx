@@ -1,4 +1,4 @@
-import { KeysTable } from "./data-table";
+import { KeysTable } from "../../../modules/keys/table/keys-data-table";
 import PageWrapper from "@/components/page-wrapper";
 import {
   Breadcrumb,

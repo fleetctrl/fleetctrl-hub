@@ -6,13 +6,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
+import Link from "next/link";
+import { toast } from "sonner";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { MoreHorizontal } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,22 +26,40 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
 
 type RowOptionsProps = {
-  tokenID: string;
+  rustdeskId?: number;
+  computerId: string;
 };
-
-export default function RowOptions({ tokenID }: RowOptionsProps) {
+export default function ComputersRowOptions({
+  rustdeskId,
+  computerId,
+}: RowOptionsProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const deleteToken = useMutation(api.enrollmentTokens.remove);
+  const deleteComputer = useMutation(api.computers.remove);
+
+  async function handleCopy() {
+    const connectionString = `"C:\\Program Files\\RustDesk\\RustDesk.exe" --connect ${rustdeskId}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(connectionString);
+        toast.success("Copied successfully");
+      } else {
+        toast.error("Copy failed");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Copy failed");
+    }
+  }
 
   async function handleDelete() {
     try {
-      await deleteToken({ id: tokenID as Id<"enrollment_tokens"> });
-      toast.success("Key deleted");
-    } catch {
-      toast.error("Unable to delete key");
+      await deleteComputer({ id: computerId as Id<"computers"> });
+      toast.success("Computer deleted");
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to delete computer");
     }
     setDeleteDialogOpen(false);
   }
@@ -54,6 +75,14 @@ export default function RowOptions({ tokenID }: RowOptionsProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleCopy}>
+            Connection string
+          </DropdownMenuItem>
+          <Link href={`/rustdesk/computer/${computerId}`}>
+            <DropdownMenuItem>Computer info</DropdownMenuItem>
+          </Link>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
             onClick={() => setDeleteDialogOpen(true)}
@@ -69,7 +98,7 @@ export default function RowOptions({ tokenID }: RowOptionsProps) {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
-              app and remove your data from our servers.
+              computer and remove your data from our servers.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

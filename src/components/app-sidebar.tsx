@@ -33,8 +33,8 @@ const data = {
       icon: IconDashboard,
     },
     {
-      title: "RustDesk",
-      url: "/rustdesk",
+      title: "Computers",
+      url: "/computers",
       icon: IconWorldSearch,
     },
     {
