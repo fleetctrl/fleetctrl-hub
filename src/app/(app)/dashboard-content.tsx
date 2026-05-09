@@ -203,7 +203,7 @@ export function DashboardContent() {
             </Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/groups/static">
+            <Link href="/groups">
               <UsersIcon data-icon="inline-start" />
               Groups
             </Link>

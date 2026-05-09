@@ -14,7 +14,7 @@ const defaultUrl = env.VERCEL_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "FleetCtrl",
-  description: "Fleet management for RustDesk clients",
+  description: "Computer management for windows",
   icons: {
     icon: "/favicon.png",
   },

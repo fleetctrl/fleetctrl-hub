@@ -27,7 +27,7 @@ export type DynamicGroupsTableMeta = {
     onViewMembers: (groupId: string) => void;
 };
 
-export const columns: ColumnDef<DynamicGroupRow>[] = [
+export const dynamicGroupsTableColumns: ColumnDef<DynamicGroupRow>[] = [
     {
         accessorKey: "displayName",
         header: "Name",

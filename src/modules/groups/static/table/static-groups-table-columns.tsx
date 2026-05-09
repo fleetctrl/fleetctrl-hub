@@ -3,9 +3,9 @@
 import { ColumnDef } from "@tanstack/react-table";
 
 import { Badge } from "@/components/ui/badge";
-import RowOptions from "./rowOptions";
+import StaticGroupsRowOptions from "./static-groups-row-options";
 
-export type GroupRow = {
+export type StaticGroupRow = {
   id: string;
   displayName: string;
   members: {
@@ -17,12 +17,12 @@ export type GroupRow = {
   updatedAtFormatted: string;
 };
 
-export type GroupsTableMeta = {
+export type StaticGroupsTableMeta = {
   onEdit: (groupId: string) => void;
   onActionComplete?: () => Promise<unknown> | void;
 };
 
-export const columns: ColumnDef<GroupRow>[] = [
+export const staticGroupsTableColumns: ColumnDef<StaticGroupRow>[] = [
   {
     accessorKey: "displayName",
     header: "Name",
@@ -72,12 +72,12 @@ export const columns: ColumnDef<GroupRow>[] = [
     id: "actions",
     header: "",
     cell: ({ row, table }) => {
-      const meta = table.options.meta as GroupsTableMeta | undefined;
+      const meta = table.options.meta as StaticGroupsTableMeta | undefined;
       const onEdit = meta?.onEdit;
       const onActionComplete = meta?.onActionComplete;
 
       return (
-        <RowOptions
+        <StaticGroupsRowOptions
           groupId={row.original.id}
           onEdit={onEdit ? () => onEdit(row.original.id) : undefined}
           onActionComplete={onActionComplete}
