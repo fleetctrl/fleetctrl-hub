@@ -662,7 +662,7 @@ export function AppReleaseSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-[500px]">
+      <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-125">
         <SheetHeader className="px-6 pt-6 pb-4 shrink-0">
           <SheetTitle>{isEdit ? "Edit Release" : "Create Release"}</SheetTitle>
           <SheetDescription>
@@ -1392,41 +1392,43 @@ export function AppReleaseSheet({
                                 </FormItem>
                               )}
                             />
-                            <FormField
-                              control={form.control}
-                              name={`assignments.installGroups.${index}.mode`}
-                              render={({ field }) => (
-                                <FormItem className="w-24">
-                                  <Select
-                                    onValueChange={field.onChange}
-                                    value={field.value}
-                                  >
-                                    <FormControl>
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      <SelectItem value="include">
-                                        Include
-                                      </SelectItem>
-                                      <SelectItem value="exclude">
-                                        Exclude
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </FormItem>
-                              )}
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeInstall(index)}
-                              className="shrink-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                            <div className="flex gap-5">
+                              <FormField
+                                control={form.control}
+                                name={`assignments.installGroups.${index}.mode`}
+                                render={({ field }) => (
+                                  <FormItem className="w-24">
+                                    <Select
+                                      onValueChange={field.onChange}
+                                      value={field.value}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="include">
+                                          Include
+                                        </SelectItem>
+                                        <SelectItem value="exclude">
+                                          Exclude
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </FormItem>
+                                )}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeInstall(index)}
+                                className="shrink-0"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                         {installFields.length === 0 && (
