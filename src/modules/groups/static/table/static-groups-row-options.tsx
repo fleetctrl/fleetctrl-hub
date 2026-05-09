@@ -33,7 +33,7 @@ type RowOptionsProps = {
   onActionComplete?: () => Promise<unknown> | void;
 };
 
-export default function RowOptions({
+export default function StaticGroupsRowOptions({
   groupId,
   onEdit,
   onActionComplete,

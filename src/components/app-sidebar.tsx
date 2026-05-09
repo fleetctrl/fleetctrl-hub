@@ -39,7 +39,7 @@ const data = {
     },
     {
       title: "Groups",
-      url: "/groups/static",
+      url: "/groups",
       icon: IconUsers,
     },
     {

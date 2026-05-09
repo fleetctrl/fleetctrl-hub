@@ -56,10 +56,10 @@ import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
-  columns,
+  dynamicGroupsTableColumns,
   type DynamicGroupRow,
   type DynamicGroupsTableMeta,
-} from "./columns";
+} from "./dynamic-groups-table-columns";
 import {
   RuleBuilder,
   ruleExpressionFormSchema,
@@ -258,7 +258,7 @@ export function DynamicGroupsTable({
 
   const table = useReactTable<DynamicGroupRow>({
     data: groupRows,
-    columns,
+    columns: dynamicGroupsTableColumns,
     getCoreRowModel: getCoreRowModel(),
     meta: {
       onEdit: openEditDialog,
@@ -281,21 +281,6 @@ export function DynamicGroupsTable({
           onLoad={handleEditingGroupLoaded}
         />
       ) : null}
-      {/* Tab navigation */}
-      <div className="flex gap-1 border-b">
-        <a
-          href="/groups/static"
-          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-        >
-          Static Groups
-        </a>
-        <a
-          href="/groups/dynamic"
-          className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
-        >
-          Dynamic Groups
-        </a>
-      </div>
 
       {/* Create/Edit Dialog */}
       <Dialog
@@ -317,7 +302,8 @@ export function DynamicGroupsTable({
               disabled={isRefreshing}
             >
               <RefreshCw
-                className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+                data-icon="inline-start"
+                className={isRefreshing ? "animate-spin" : undefined}
               />
               Refresh
             </Button>

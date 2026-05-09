@@ -37,10 +37,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { columns, type GroupRow, type GroupsTableMeta } from "./columns";
+import {
+  staticGroupsTableColumns,
+  type StaticGroupRow,
+  type StaticGroupsTableMeta,
+} from "./static-groups-table-columns";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
-import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useForm } from "react-hook-form";
@@ -67,7 +70,7 @@ const groupFormSchema = z.object({
 
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
-export function GroupsTable({
+export function StaticGroupsTable({
   preloaded,
 }: {
   preloaded: {
@@ -83,7 +86,7 @@ export function GroupsTable({
   const createGroupMutation = useMutation(api.staticGroups.create);
   const editGroupMutation = useMutation(api.staticGroups.edit);
 
-  const groupRows: GroupRow[] = useMemo(() => {
+  const groupRows: StaticGroupRow[] = useMemo(() => {
     if (!groups) {
       return [];
     }
@@ -174,41 +177,26 @@ export function GroupsTable({
     closeDialog();
   };
 
-  const table = useReactTable<GroupRow>({
+  const table = useReactTable<StaticGroupRow>({
     data: groupRows,
-    columns,
+    columns: staticGroupsTableColumns,
     getCoreRowModel: getCoreRowModel(),
     meta: {
       onEdit: openEditDialog,
       onActionComplete: () => {
         // No-op - Convex is automatically reactive
       },
-    } satisfies GroupsTableMeta,
+    } satisfies StaticGroupsTableMeta,
   });
 
   const hasGroups = groupRows.length > 0;
   const isDialogOpen = dialogState !== null;
+  const isSaving = isCreating || isEditing;
 
   // Convex queries are automatically reactive - no Supabase subscription needed!
 
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
-      {/* Tab navigation */}
-      <div className="flex gap-1 border-b">
-        <a
-          href="/groups/static"
-          className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
-        >
-          Static Groups
-        </a>
-        <a
-          href="/groups/dynamic"
-          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-        >
-          Dynamic Groups
-        </a>
-      </div>
-
       <Dialog
         open={isDialogOpen}
         onOpenChange={(open) => !open && closeDialog()}
@@ -343,10 +331,15 @@ export function GroupsTable({
               />
 
               <DialogFooter className="sm:justify-between">
-                <Button type="button" variant="ghost" onClick={closeDialog}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={closeDialog}
+                  disabled={isSaving}
+                >
                   Cancel
                 </Button>
-                <Button type="submit">
+                <Button type="submit" disabled={isSaving}>
                   {dialogState?.mode === "edit"
                     ? "Save changes"
                     : "Create group"}
