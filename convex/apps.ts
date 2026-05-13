@@ -511,13 +511,6 @@ export const updateInstallState = internalMutation({
 // Admin Queries
 // ========================================
 
-const createStatusSummary = () =>
-    INSTALL_STATUSES.reduce(
-        (acc, status) => ({ ...acc, [status]: 0 }),
-        {} as Record<InstallStatus, number>
-    );
-
-
 /**
  * Get table data for admin UI.
  */
