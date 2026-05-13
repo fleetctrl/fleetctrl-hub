@@ -12,6 +12,9 @@ const compat = new FlatCompat({
 });
 
 export default defineConfig([
+  {
+    ignores: [".next/**", "out/**", "dist/**", "build/**", "convex/_generated/**"],
+  },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   ...convexPlugin.configs.recommended,
   {

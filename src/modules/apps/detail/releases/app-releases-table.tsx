@@ -106,13 +106,11 @@ function AssignmentsBadges({ release }: { release: Release }) {
     return <span className="text-sm text-muted-foreground">No groups</span>;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getGroupName = (cg: any) => {
     if (!cg) return "Unknown";
     return cg.display_name || "Unknown";
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function indexForID(cg: any) {
     if (!cg) return Math.random().toString();
     return cg._id || Math.random().toString();

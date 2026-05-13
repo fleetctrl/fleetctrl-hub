@@ -17,7 +17,7 @@ export function useAuthQuery<Query extends FunctionReference<"query">>(
     const queryArgs = args[0];
     const shouldSkip = isSessionPending || !session || queryArgs === "skip";
 
-    // @ts-ignore - "skip" is a valid argument for useAuthQuery but types make it hard to express generically
+    // @ts-expect-error - "skip" is a valid argument for useAuthQuery but types make it hard to express generically
     return useConvexQuery(query, shouldSkip ? "skip" : queryArgs);
 }
 
@@ -35,7 +35,6 @@ export function useAuthPaginatedQuery<Query extends FunctionReference<"query">>(
 
     return useConvexPaginatedQuery(
         query,
-        // @ts-ignore
         shouldSkip ? "skip" : args,
         options
     );

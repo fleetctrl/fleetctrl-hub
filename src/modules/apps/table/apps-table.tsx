@@ -23,10 +23,10 @@ import {
   type AppRow,
   type AppsTableMeta,
 } from "./apps-table-columns";
-import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import { Preloaded, usePreloadedQuery } from "convex/react";
+import { useRouter } from "next/navigation";
 
 const formatDateTime = (timestamp: number) =>
   new Date(timestamp).toLocaleString("cs-CZ", {
@@ -41,6 +41,7 @@ export function AppsTable({
 }) {
   // Convex auth query is automatically reactive!
   const apps = usePreloadedQuery(data);
+  const router = useRouter();
 
   const appRows: AppRow[] = useMemo(() => {
     if (!apps) {
@@ -58,7 +59,7 @@ export function AppsTable({
   }, [apps]);
 
   const openEditDialog = (appId: string) => {
-    window.location.href = `/apps/${appId}`;
+    router.push(`/apps/${appId}`);
   };
 
   const table = useReactTable<AppRow>({
@@ -100,9 +101,9 @@ export function AppsTable({
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                       </TableHead>
                     ))}
                   </TableRow>
