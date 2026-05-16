@@ -1,5 +1,5 @@
 "use client";
-import { Dispatch, SetStateAction, useState } from "react";
+import { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useMutation } from "convex/react";
 import { useAuthQuery } from "@/hooks/auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -36,6 +35,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { SiteHeader } from "@/components/site-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useComputerDetailTab } from "./hooks/use-computer-detail-tab";
 
 type Props = {
   computerId: Id<"computers">;
@@ -80,16 +80,9 @@ type ComputerData = NonNullable<
 >;
 
 export default function ComputerDetailTabs({ computerId }: Props) {
-  const [openChangePassword, setOpenChangePassword] = useState(false);
-  const [openChangeNetwork, setOpenChangeNetwork] = useState(false);
+  const detail = useComputerDetailTab(computerId);
 
-  const computer = useAuthQuery(api.computers.getById, { id: computerId });
-  const tasks = useAuthQuery(api.tasks.getByComputer, { computerId });
-  const createTask = useMutation(api.tasks.create);
-
-  const isLoading = computer === undefined;
-
-  if (isLoading) {
+  if (detail.status === "loading") {
     return (
       <>
         <SiteHeader>
@@ -113,7 +106,7 @@ export default function ComputerDetailTabs({ computerId }: Props) {
     );
   }
 
-  if (computer === null) {
+  if (detail.status === "notFound") {
     return (
       <>
         <SiteHeader>
@@ -134,6 +127,16 @@ export default function ComputerDetailTabs({ computerId }: Props) {
     );
   }
 
+  const {
+    openChangeNetwork,
+    setOpenChangeNetwork,
+    openChangePassword,
+    setOpenChangePassword,
+    computer,
+    createTask,
+    tasks,
+  } = detail;
+
   return (
     <>
       <SiteHeader>
@@ -143,14 +146,14 @@ export default function ComputerDetailTabs({ computerId }: Props) {
               <BreadcrumbLink href="/rustdesk">RustDesk</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
-            <BreadcrumbItem>{computer?.name ?? ""}</BreadcrumbItem>
+            <BreadcrumbItem>{computer.name}</BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
       </SiteHeader>
       <div className="container mx-auto w-full px-4 py-6">
         <div className="flex flex-col w-full gap-6">
           <div className="w-full">
-            <h1 className="text-3xl font-bold">{computer?.name ?? ""}</h1>
+            <h1 className="text-3xl font-bold">{computer.name}</h1>
           </div>
           <div className="flex w-full">
             <div className="flex gap-5 w-full">
@@ -183,7 +186,7 @@ export default function ComputerDetailTabs({ computerId }: Props) {
                       )}
                       <TableRow
                         name="Computer name"
-                        value={computer?.name ?? ""}
+                        value={computer.name}
                       />
                       <TableRow name="Computer IP" value={computer.ip ?? ""} />
                       <TableRow name="User" value={computer.loginUser ?? ""} />

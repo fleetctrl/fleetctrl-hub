@@ -15,19 +15,8 @@ import {
 } from "@tanstack/react-table";
 import {
   Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
   useState,
 } from "react";
-import {
-  parseAsBoolean,
-  parseAsInteger,
-  parseAsString,
-  parseAsStringLiteral,
-  useQueryStates,
-} from "nuqs";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,9 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { useAuthQuery } from "@/hooks/auth-query";
-import { api } from "@/convex/_generated/api";
-import { computersColumns, computer } from "./computers-columns";
+import { computersColumns } from "./computers-columns";
 import {
   InputGroup,
   InputGroupAddon,
@@ -54,22 +41,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useComputersTable } from "@/modules/apps/hooks/use-compters-table";
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
-const SORTABLE_FIELDS = [
-  "name",
-  "rustdeskID",
-  "ip",
-  "os",
-  "osVersion",
-  "loginUser",
-  "lastConnection",
-] as const;
-type SortField = (typeof SORTABLE_FIELDS)[number];
-
-function isSortField(value: string): value is SortField {
-  return (SORTABLE_FIELDS as readonly string[]).includes(value);
-}
 
 function isComputerOnline(lastConnection?: number) {
   return (
@@ -182,9 +156,9 @@ function ComputersDataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -205,13 +179,13 @@ function ComputersDataTable<TData, TValue>({
                               className={cn("w-3 h-3 rounded-[50%]", {
                                 "bg-red-400": !isComputerOnline(
                                   cell.getContext().getValue() as
-                                    | number
-                                    | undefined,
+                                  | number
+                                  | undefined,
                                 ),
                                 "bg-green-400": isComputerOnline(
                                   cell.getContext().getValue() as
-                                    | number
-                                    | undefined,
+                                  | number
+                                  | undefined,
                                 ),
                               })}
                             />
@@ -271,212 +245,20 @@ function ComputersDataTable<TData, TValue>({
 }
 
 export function ComputersTable() {
-  const [{ page, search, sort, desc }, setQueryState] = useQueryStates({
-    page: parseAsInteger.withDefault(1).withOptions({
-      clearOnDefault: true,
-      history: "push",
-    }),
-    search: parseAsString.withDefault("").withOptions({
-      clearOnDefault: true,
-      history: "replace",
-    }),
-    sort: parseAsStringLiteral(SORTABLE_FIELDS).withOptions({
-      clearOnDefault: true,
-      history: "push",
-    }),
-    desc: parseAsBoolean.withDefault(false).withOptions({
-      clearOnDefault: true,
-      history: "push",
-    }),
-  });
-  const [pageSize, setPageSize] = useState(10);
-  const [inputValue, setInputValue] = useState<string>(search);
-  const [pageCache, setPageCache] = useState<Record<number, computer[]>>({});
-  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
-  const [total, setTotal] = useState<number | undefined>(undefined);
-  const [isDone, setIsDone] = useState(false);
-  const lastInternalQueryChangeRef = useRef<string | null>(null);
-
-  const maxPageIndex = total
-    ? Math.max(0, Math.ceil(total / pageSize) - 1)
-    : Infinity;
-  const rawPageIndex = Math.max(page, 1) - 1;
-  const pageIndex = Math.min(
-    rawPageIndex,
-    maxPageIndex,
-    cursorStack.length - 1,
-  );
-  const pagination = useMemo<PaginationState>(
-    () => ({ pageIndex, pageSize }),
-    [pageIndex, pageSize],
-  );
-  const sorting = useMemo<SortingState>(() => {
-    return sort ? [{ id: sort, desc }] : [];
-  }, [desc, sort]);
-  const querySignature = useMemo(
-    () => JSON.stringify({ search, sort, desc: sort ? desc : false }),
-    [desc, search, sort],
-  );
-
-  const sortField = sort ?? undefined;
-  const sortDesc = sort ? desc : undefined;
-
-  const cursor = cursorStack[pageIndex] ?? null;
-  const canAdvanceCursorStack = pageIndex === cursorStack.length - 1 && !isDone;
-
-  // Only normalize the URL once the requested page is known to be unreachable.
-  // While bootstrapping a deep-link, we intentionally let page 1 load first so its
-  // continueCursor can extend the stack and unlock later pages.
-  useEffect(() => {
-    const requestedPageIsTemporarilyClamped =
-      rawPageIndex > pageIndex && canAdvanceCursorStack;
-
-    if (!requestedPageIsTemporarilyClamped && rawPageIndex !== pageIndex) {
-      void setQueryState({ page: pageIndex + 1 });
-    }
-  }, [canAdvanceCursorStack, pageIndex, rawPageIndex, setQueryState]);
-
-  const pageResult = useAuthQuery(api.computers.listPaginated, {
-    filter: search || undefined,
-    sortField,
-    sortDesc,
-    paginationOpts: {
-      numItems: pageSize,
-      cursor,
-    },
-  });
-
-  const isFetching = pageResult === undefined;
-
-  const resetPaginationState = useCallback(() => {
-    setPageCache({});
-    setCursorStack([null]);
-    setTotal(undefined);
-    setIsDone(false);
-  }, []);
-
-  useEffect(() => {
-    if (!pageResult) {
-      return;
-    }
-
-    setTotal(pageResult.total);
-    setIsDone(pageResult.isDone);
-
-    setPageCache((prev) => ({
-      ...prev,
-      [pageIndex]: pageResult.page,
-    }));
-
-    setCursorStack((prev) => {
-      const next = [...prev];
-      next[pageIndex + 1] = pageResult.continueCursor;
-      return next;
-    });
-  }, [pageIndex, pageResult]);
-
-  useEffect(() => {
-    setInputValue((prev) => (prev === search ? prev : search));
-  }, [search]);
-
-  useEffect(() => {
-    if (lastInternalQueryChangeRef.current === querySignature) {
-      lastInternalQueryChangeRef.current = null;
-      return;
-    }
-
-    resetPaginationState();
-  }, [querySignature, resetPaginationState]);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      if (search === inputValue) {
-        return;
-      }
-
-      resetPaginationState();
-      const nextSignature = JSON.stringify({
-        search: inputValue,
-        sort,
-        desc: sort ? desc : false,
-      });
-      lastInternalQueryChangeRef.current = nextSignature;
-      void setQueryState({ page: 1, search: inputValue });
-    }, 400);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [desc, inputValue, resetPaginationState, search, setQueryState, sort]);
-
-  const tableData = pageCache[pageIndex] ?? [];
-
-  const pageCount = useMemo(() => {
-    if (typeof total === "number") {
-      return Math.max(1, Math.ceil(total / pageSize));
-    }
-    return isDone ? pageIndex + 1 : pageIndex + 2;
-  }, [isDone, pageIndex, pageSize, total]);
-  const hasActiveFilters = Boolean(search || sort || page !== 1);
-
-  const handlePaginationChange = useCallback(
-    (updater: Updater<PaginationState>) => {
-      const next =
-        typeof updater === "function" ? updater(pagination) : updater;
-
-      if (next.pageSize !== pagination.pageSize) {
-        setPageSize(next.pageSize);
-        resetPaginationState();
-        lastInternalQueryChangeRef.current = querySignature;
-        void setQueryState({ page: 1 });
-        return next;
-      }
-
-      if (next.pageIndex !== pagination.pageIndex) {
-        lastInternalQueryChangeRef.current = querySignature;
-        void setQueryState({ page: next.pageIndex + 1 });
-      }
-
-      return next;
-    },
-    [pagination, querySignature, resetPaginationState, setQueryState],
-  );
-
-  const handleSortingChange = useCallback(
-    (updater: Updater<SortingState>) => {
-      const next = typeof updater === "function" ? updater(sorting) : updater;
-      const nextSort = next[0]?.id;
-      const nextSortField = nextSort && isSortField(nextSort) ? nextSort : null;
-      const nextDesc = next[0]?.desc ?? false;
-
-      resetPaginationState();
-      lastInternalQueryChangeRef.current = JSON.stringify({
-        search,
-        sort: nextSortField,
-        desc: nextSortField ? nextDesc : false,
-      });
-      void setQueryState({
-        page: 1,
-        sort: nextSortField,
-        desc: nextSortField ? nextDesc : false,
-      });
-    },
-    [resetPaginationState, search, setQueryState, sorting],
-  );
-
-  const handleResetFilters = useCallback(() => {
-    resetPaginationState();
-    setInputValue("");
-    lastInternalQueryChangeRef.current = JSON.stringify({
-      search: "",
-      sort: null,
-      desc: false,
-    });
-    void setQueryState({
-      page: 1,
-      search: "",
-      sort: null,
-      desc: false,
-    });
-  }, [resetPaginationState, setQueryState]);
+  const {
+    tableData,
+    pagination,
+    pageCount,
+    sorting,
+    inputValue,
+    setInputValue,
+    handlePaginationChange,
+    handleSortingChange,
+    handleResetFilters,
+    hasActiveFilters,
+    isFetching,
+    total,
+  } = useComputersTable();
 
   return (
     <ComputersDataTable
