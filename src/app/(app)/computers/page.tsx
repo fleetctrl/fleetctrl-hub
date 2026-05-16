@@ -14,7 +14,7 @@ export default async function ProtectedPage() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbPage>RustDesk</BreadcrumbPage>
+              <BreadcrumbPage>Computers</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>

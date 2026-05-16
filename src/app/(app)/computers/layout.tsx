@@ -3,6 +3,6 @@ import { globalMetaTitle } from "@/lib/meta";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: `RustDesk - ${globalMetaTitle}`,
+  title: `Computers - ${globalMetaTitle}`,
 };
 export default BlankLayout;
