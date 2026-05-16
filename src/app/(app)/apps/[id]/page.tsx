@@ -245,14 +245,6 @@ export default function AppDetailPage() {
                       {app.auto_update ? "Yes" : "No"}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Allow multiple versions
-                    </div>
-                    <div className="font-medium">
-                      {app.allow_multiple_versions ? "Yes" : "No"}
-                    </div>
-                  </div>
                   <div className="col-span-1 md:col-span-2 lg:col-span-3">
                     <div className="text-sm text-muted-foreground">
                       Description

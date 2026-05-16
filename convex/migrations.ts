@@ -37,6 +37,17 @@ export const backfillComputerCountAggregate = migrations.define({
     },
 });
 
+export const removeAppAllowMultipleVersions = migrations.define({
+    table: "apps",
+    migrateOne: async (ctx, app) => {
+        if (app.allow_multiple_versions !== undefined) {
+            await ctx.db.patch(app._id, {
+                allow_multiple_versions: undefined,
+            });
+        }
+    },
+});
+
 export const run = migrations.runner();
 
 export const runInstallAggregateBackfill = migrations.runner(
@@ -45,4 +56,8 @@ export const runInstallAggregateBackfill = migrations.runner(
 
 export const runComputerCountAggregateBackfill = migrations.runner(
     internal.migrations.backfillComputerCountAggregate
+);
+
+export const runRemoveAppAllowMultipleVersions = migrations.runner(
+    internal.migrations.removeAppAllowMultipleVersions
 );

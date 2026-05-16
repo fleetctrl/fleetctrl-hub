@@ -598,7 +598,6 @@ export const getById = withAuthQuery({
             display_name: app.display_name,
             description: app.description,
             publisher: app.publisher,
-            allow_multiple_versions: app.allow_multiple_versions,
             auto_update: app.auto_update,
             created_at: app._creationTime,
             updated_at: app._creationTime,
@@ -976,7 +975,6 @@ export const create = withAuthMutation({
             display_name: args.appInfo.name,
             description: args.appInfo.description,
             publisher: args.appInfo.publisher,
-            allow_multiple_versions: args.release.allowMultipleVersions,
             auto_update: args.release.autoUpdate,
         });
 
