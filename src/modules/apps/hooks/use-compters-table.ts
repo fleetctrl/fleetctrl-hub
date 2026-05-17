@@ -67,6 +67,7 @@ export function useComputersTable() {
     const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
     const [total, setTotal] = useState<number | undefined>(undefined);
     const [isDone, setIsDone] = useState(false);
+    const [visiblePageIndex, setVisiblePageIndex] = useState(0);
 
     const lastInternalQueryChangeRef = useRef<string | null>(null);
 
@@ -85,10 +86,10 @@ export function useComputersTable() {
 
     const pagination = useMemo<PaginationState>(
         () => ({
-            pageIndex,
+            pageIndex: visiblePageIndex,
             pageSize,
         }),
-        [pageIndex, pageSize],
+        [pageSize, visiblePageIndex],
     );
 
     const sorting = useMemo<SortingState>(() => {
@@ -111,8 +112,12 @@ export function useComputersTable() {
     const cursor = cursorStack[pageIndex] ?? null;
     const canAdvanceCursorStack = pageIndex === cursorStack.length - 1 && !isDone;
 
-    const resetPaginationState = useCallback(() => {
-        setPageCache({});
+    const resetPaginationState = useCallback((keepVisibleData = false) => {
+        if (!keepVisibleData) {
+            setPageCache({});
+            setVisiblePageIndex(0);
+        }
+
         setCursorStack([null]);
         setTotal(undefined);
         setIsDone(false);
@@ -154,6 +159,7 @@ export function useComputersTable() {
             ...prev,
             [pageIndex]: pageResult.page,
         }));
+        setVisiblePageIndex(pageIndex);
 
         setCursorStack((prev) => {
             const next = [...prev];
@@ -172,7 +178,7 @@ export function useComputersTable() {
             return;
         }
 
-        resetPaginationState();
+        resetPaginationState(true);
     }, [querySignature, resetPaginationState]);
 
     useEffect(() => {
@@ -181,7 +187,7 @@ export function useComputersTable() {
                 return;
             }
 
-            resetPaginationState();
+            resetPaginationState(true);
 
             const nextSignature = JSON.stringify({
                 search: inputValue,
@@ -200,15 +206,15 @@ export function useComputersTable() {
         return () => window.clearTimeout(timeoutId);
     }, [desc, inputValue, resetPaginationState, search, setQueryState, sort]);
 
-    const tableData = pageCache[pageIndex] ?? [];
+    const tableData = pageCache[visiblePageIndex] ?? [];
 
     const pageCount = useMemo(() => {
         if (typeof total === "number") {
             return Math.max(1, Math.ceil(total / pageSize));
         }
 
-        return isDone ? pageIndex + 1 : pageIndex + 2;
-    }, [isDone, pageIndex, pageSize, total]);
+        return isDone ? visiblePageIndex + 1 : visiblePageIndex + 2;
+    }, [isDone, pageSize, total, visiblePageIndex]);
 
     const hasActiveFilters = Boolean(search || sort || page !== 1);
 
@@ -241,7 +247,7 @@ export function useComputersTable() {
             const nextSortField = nextSort && isSortField(nextSort) ? nextSort : null;
             const nextDesc = next[0]?.desc ?? false;
 
-            resetPaginationState();
+            resetPaginationState(true);
 
             lastInternalQueryChangeRef.current = JSON.stringify({
                 search,
@@ -259,7 +265,7 @@ export function useComputersTable() {
     );
 
     const handleResetFilters = useCallback(() => {
-        resetPaginationState();
+        resetPaginationState(true);
         setInputValue("");
 
         lastInternalQueryChangeRef.current = JSON.stringify({
