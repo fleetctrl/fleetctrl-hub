@@ -354,7 +354,7 @@ protected_code="$(curl_run -ksS \
   -o /dev/null \
   -H "Origin: ${BASE_URL}" \
   -w '%{http_code}' \
-  "${BASE_URL}/")"
+  "${BASE_URL}/dashboard")"
 assert_http_code "${protected_code}" "200" "Authenticated protected request"
 STEP_AUTH_PROTECTED="[x]"
 

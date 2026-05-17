@@ -129,7 +129,7 @@ export default defineSchema({
         display_name: v.string(),
         description: v.optional(v.string()),
         publisher: v.string(),
-        allow_multiple_versions: v.boolean(),
+        allow_multiple_versions: v.optional(v.boolean()), // deprecated, kept for upgrades
         auto_update: v.boolean(),
     }).index("by_display_name", ["display_name"]),
 

@@ -129,7 +129,6 @@ export function AppCreateForm() {
         autoUpdate: false,
         version: "",
         uninstallPreviousVersion: false,
-        allowMultipleVersions: false,
       },
       requirement: {
         requirementScriptBinary: undefined,
@@ -173,60 +172,60 @@ export function AppCreateForm() {
           ...data.release,
           installBinary: data.release.installBinary
             ? {
-                ...data.release.installBinary,
-                storageId: data.release.installBinary
-                  .storageId as Id<"_storage">,
-                type:
-                  data.release.installBinary.type ?? "application/octet-stream",
-              }
+              ...data.release.installBinary,
+              storageId: data.release.installBinary
+                .storageId as Id<"_storage">,
+              type:
+                data.release.installBinary.type ?? "application/octet-stream",
+            }
             : undefined,
         },
         requirement: data.requirement
           ? {
-              ...data.requirement,
-              requirementScriptBinary: data.requirement.requirementScriptBinary
-                ? {
-                    ...data.requirement.requirementScriptBinary,
-                    storageId: data.requirement.requirementScriptBinary
-                      .storageId as Id<"_storage">,
-                    type:
-                      data.requirement.requirementScriptBinary.type ??
-                      "application/octet-stream",
-                  }
-                : undefined,
-            }
+            ...data.requirement,
+            requirementScriptBinary: data.requirement.requirementScriptBinary
+              ? {
+                ...data.requirement.requirementScriptBinary,
+                storageId: data.requirement.requirementScriptBinary
+                  .storageId as Id<"_storage">,
+                type:
+                  data.requirement.requirementScriptBinary.type ??
+                  "application/octet-stream",
+              }
+              : undefined,
+          }
           : undefined,
         preScript: data.preScript
           ? {
-              ...data.preScript,
-              engine: "powershell" as const,
-              scriptBinary: data.preScript.scriptBinary
-                ? {
-                    ...data.preScript.scriptBinary,
-                    storageId: data.preScript.scriptBinary
-                      .storageId as Id<"_storage">,
-                    type:
-                      data.preScript.scriptBinary.type ??
-                      "application/octet-stream",
-                  }
-                : undefined,
-            }
+            ...data.preScript,
+            engine: "powershell" as const,
+            scriptBinary: data.preScript.scriptBinary
+              ? {
+                ...data.preScript.scriptBinary,
+                storageId: data.preScript.scriptBinary
+                  .storageId as Id<"_storage">,
+                type:
+                  data.preScript.scriptBinary.type ??
+                  "application/octet-stream",
+              }
+              : undefined,
+          }
           : undefined,
         postScript: data.postScript
           ? {
-              ...data.postScript,
-              engine: "powershell" as const,
-              scriptBinary: data.postScript.scriptBinary
-                ? {
-                    ...data.postScript.scriptBinary,
-                    storageId: data.postScript.scriptBinary
-                      .storageId as Id<"_storage">,
-                    type:
-                      data.postScript.scriptBinary.type ??
-                      "application/octet-stream",
-                  }
-                : undefined,
-            }
+            ...data.postScript,
+            engine: "powershell" as const,
+            scriptBinary: data.postScript.scriptBinary
+              ? {
+                ...data.postScript.scriptBinary,
+                storageId: data.postScript.scriptBinary
+                  .storageId as Id<"_storage">,
+                type:
+                  data.postScript.scriptBinary.type ??
+                  "application/octet-stream",
+              }
+              : undefined,
+          }
           : undefined,
       };
 
@@ -254,12 +253,12 @@ export function AppCreateForm() {
                 form.watch("release.type") === "winget"
                   ? ["appInfo", "release", "requirement", "assignment"]
                   : [
-                      "appInfo",
-                      "release",
-                      "requirement",
-                      "detection",
-                      "assignment",
-                    ]
+                    "appInfo",
+                    "release",
+                    "requirement",
+                    "detection",
+                    "assignment",
+                  ]
               }
               currentStep={currentStepIndex}
             />
@@ -380,7 +379,6 @@ function ReleaseStep() {
       return;
     }
     form.setValue("release.installBinary", undefined);
-    form.setValue("release.allowMultipleVersions", false);
     form.setValue("release.uninstallPreviousVersion", false);
 
     // Note: We are not explicitly deleting the previous file from storage here as creating logic is simpler.
@@ -588,28 +586,6 @@ function ReleaseStep() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="release.allowMultipleVersions"
-              render={({ field }) => (
-                <FormItem
-                  className={cn(
-                    "flex flex-row items-center justify-between rounded-lg border p-4",
-                    { hidden: type !== "win32" || autoUpdate },
-                  )}
-                >
-                  <div className="space-y-0.5">
-                    <FormLabel>Allow multiple versions</FormLabel>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
             <div className="flex gap-3">
               <Button variant={"ghost"} onClick={prevStep}>
                 Back

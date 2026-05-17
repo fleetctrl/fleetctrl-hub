@@ -21,6 +21,23 @@ type ReleaseAssignment = {
 
 type AssignmentLookupCtx = Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">;
 
+// Resolve multiple group assignments for the same release deterministically.
+// Exclude always wins over include, independent of static/dynamic group order.
+function resolveAssignments(assignments: ReleaseAssignment[]): ReleaseAssignment[] {
+    const resolvedAssignments = new Map<string, ReleaseAssignment>();
+
+    for (const assignment of assignments) {
+        const releaseKey = assignment.release_id.toString();
+        const current = resolvedAssignments.get(releaseKey);
+
+        if (!current || (assignment.assign_type === "exclude" && current.assign_type !== "exclude")) {
+            resolvedAssignments.set(releaseKey, assignment);
+        }
+    }
+
+    return [...resolvedAssignments.values()];
+}
+
 async function getReleaseAssignmentsForComputer(
     ctx: AssignmentLookupCtx,
     computerId: Id<"computers">
@@ -55,20 +72,13 @@ async function getReleaseAssignmentsForComputer(
         ),
     ]);
 
-    const dedupedAssignments = new Map<string, ReleaseAssignment>();
-
-    for (const assignment of [...staticAssignments.flat(), ...dynamicAssignments.flat()]) {
-        const releaseKey = assignment.release_id.toString();
-        if (!dedupedAssignments.has(releaseKey)) {
-            dedupedAssignments.set(releaseKey, {
-                release_id: assignment.release_id,
-                assign_type: assignment.assign_type,
-                action: assignment.action,
-            });
-        }
-    }
-
-    return [...dedupedAssignments.values()];
+    return resolveAssignments(
+        [...staticAssignments.flat(), ...dynamicAssignments.flat()].map((assignment) => ({
+            release_id: assignment.release_id,
+            assign_type: assignment.assign_type,
+            action: assignment.action,
+        }))
+    );
 }
 
 async function hasAssignedReleaseAccess(
@@ -78,7 +88,9 @@ async function hasAssignedReleaseAccess(
 ) {
     const assignments = await getReleaseAssignmentsForComputer(ctx, computerId);
     return assignments.some(
-        (assignment) => assignment.release_id.toString() === releaseId.toString()
+        (assignment) =>
+            assignment.release_id.toString() === releaseId.toString() &&
+            assignment.assign_type !== "exclude"
     );
 }
 
@@ -102,14 +114,17 @@ export const getAssigned = internalQuery({
             ctx,
             normalizedComputerId
         );
+        const includedReleaseAssignments = releaseAssignments.filter(
+            (assignment) => assignment.assign_type !== "exclude"
+        );
 
-        if (releaseAssignments.length === 0) {
+        if (includedReleaseAssignments.length === 0) {
             return [];
         }
 
         const releases = (
             await Promise.all(
-                releaseAssignments.map(({ release_id }) =>
+                includedReleaseAssignments.map(({ release_id }) =>
                     ctx.db.get("releases", release_id)
                 )
             )
@@ -598,7 +613,6 @@ export const getById = withAuthQuery({
             display_name: app.display_name,
             description: app.description,
             publisher: app.publisher,
-            allow_multiple_versions: app.allow_multiple_versions,
             auto_update: app.auto_update,
             created_at: app._creationTime,
             updated_at: app._creationTime,
@@ -976,7 +990,6 @@ export const create = withAuthMutation({
             display_name: args.appInfo.name,
             description: args.appInfo.description,
             publisher: args.appInfo.publisher,
-            allow_multiple_versions: args.release.allowMultipleVersions,
             auto_update: args.release.autoUpdate,
         });
 

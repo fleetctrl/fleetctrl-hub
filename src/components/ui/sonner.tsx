@@ -1,26 +1,23 @@
-"use client"
+"use client";
 
-import { useTheme } from "next-themes"
-import { Toaster as Sonner, ToasterProps } from "sonner"
+import { useTheme } from "next-themes";
+import { Toaster as Sonner, ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+	const { theme = "system" } = useTheme();
 
-  return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
-      style={
-        {
-          // Match Tailwind's HSL CSS variable usage so the toast background resolves correctly
-          "--normal-bg": "hsl(var(--popover))",
-          "--normal-text": "hsl(var(--popover-foreground))",
-          "--normal-border": "hsl(var(--border))",
-        } as React.CSSProperties
-      }
-      {...props}
-    />
-  )
-}
+	return (
+		<Sonner
+			theme={theme as ToasterProps["theme"]}
+			className="toaster group"
+			toastOptions={{
+				classNames: {
+					toast: "!rounded-sm !border-2 !border-border !shadow-md",
+				},
+			}}
+			{...props}
+		/>
+	);
+};
 
-export { Toaster }
+export { Toaster };
