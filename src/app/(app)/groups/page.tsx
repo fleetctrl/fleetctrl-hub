@@ -13,9 +13,8 @@ import { GroupsTabs } from "@/modules/groups/groups-tabs";
 export default async function GroupsPage() {
   const initialToken = await getToken();
   const queryOptions = convexServerQueryOptions(initialToken);
-  const [staticGroups, staticComputers, dynamicGroups] = await Promise.all([
+  const [staticGroups, dynamicGroups] = await Promise.all([
     preloadQuery(api.staticGroups.getTableData, {}, queryOptions),
-    preloadQuery(api.staticGroups.getComputersForGroups, {}, queryOptions),
     preloadQuery(api.groups.getAll, {}, queryOptions),
   ]);
 
@@ -34,7 +33,6 @@ export default async function GroupsPage() {
       <GroupsTabs
         preloaded={{
           staticGroups,
-          staticComputers,
           dynamicGroups,
         }}
       />

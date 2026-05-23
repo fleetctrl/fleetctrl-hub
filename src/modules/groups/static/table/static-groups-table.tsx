@@ -1,11 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
+import { flexRender } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,163 +32,34 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import {
-  staticGroupsTableColumns,
-  type StaticGroupRow,
-  type StaticGroupsTableMeta,
-} from "./static-groups-table-columns";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
+import { Preloaded } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import z from "zod";
-import { toast } from "sonner";
-
-type DialogState = { mode: "create" } | { mode: "edit"; groupId: string };
-
-const formatDateTime = (timestamp: number) =>
-  new Date(timestamp).toLocaleString("cs-CZ", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-
-const groupFormSchema = z.object({
-  id: z.string().optional(),
-  displayName: z
-    .string()
-    .trim()
-    .min(1, { message: "Please provide a group name." }),
-  memberIds: z.array(z.string()),
-});
-
-type GroupFormValues = z.infer<typeof groupFormSchema>;
+import { useStaticGroupsTable } from "./hooks/use-static-groups-table";
 
 export function StaticGroupsTable({
   preloaded,
 }: {
   preloaded: {
     groups: Preloaded<typeof api.staticGroups.getTableData>;
-    computers: Preloaded<typeof api.staticGroups.getComputersForGroups>;
   };
 }) {
-  // Convex queries - automatically reactive!
-  const computers = usePreloadedQuery(preloaded.computers);
-  const groups = usePreloadedQuery(preloaded.groups);
-
-  // Convex mutations
-  const createGroupMutation = useMutation(api.staticGroups.create);
-  const editGroupMutation = useMutation(api.staticGroups.edit);
-
-  const groupRows: StaticGroupRow[] = useMemo(() => {
-    if (!groups) {
-      return [];
-    }
-    return groups.map((group) => ({
-      id: group.id,
-      displayName: group.displayName,
-      members: group.members.filter(Boolean) as { id: string; name: string }[],
-      memberCount: group.members.length ?? 0,
-      createdAtFormatted: formatDateTime(group.createdAt),
-      updatedAtFormatted: formatDateTime(group.createdAt),
-    }));
-  }, [groups]);
-
-  const [dialogState, setDialogState] = useState<DialogState | null>(null);
-  const [memberSearch, setMemberSearch] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const form = useForm<GroupFormValues>({
-    resolver: zodResolver(groupFormSchema),
-    defaultValues: {
-      displayName: "",
-      memberIds: [],
-    },
-  });
-
-  const openCreateDialog = () => {
-    form.reset({
-      displayName: "",
-      memberIds: [],
-    });
-    setMemberSearch("");
-    setDialogState({ mode: "create" });
-  };
-
-  const openEditDialog = (groupId: string) => {
-    const group = groups?.find((item) => item.id === groupId);
-    if (!group) {
-      return;
-    }
-    form.reset({
-      id: group.id,
-      displayName: group.displayName,
-      memberIds: [...group.members.filter(Boolean).map((c) => c?.id ?? "")],
-    });
-    setMemberSearch("");
-    setDialogState({ mode: "edit", groupId });
-  };
-
-  const closeDialog = () => {
-    setDialogState(null);
-    setMemberSearch("");
-    form.reset({
-      displayName: "",
-      memberIds: [],
-    });
-  };
-
-  const onSubmit = async (values: GroupFormValues) => {
-    const dedupedMembers = Array.from(
-      new Set(values.memberIds),
-    ) as Id<"computers">[];
-
-    try {
-      if (dialogState?.mode === "create") {
-        setIsCreating(true);
-        await createGroupMutation({
-          displayName: values.displayName,
-          memberIds: dedupedMembers,
-        });
-        toast.success("Group created");
-      } else if (dialogState?.mode === "edit" && values.id) {
-        setIsEditing(true);
-        await editGroupMutation({
-          id: values.id as Id<"computer_groups">,
-          displayName: values.displayName,
-          memberIds: dedupedMembers,
-        });
-        toast.success("Group updated");
-      }
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "An error occurred";
-      toast.error(message);
-    } finally {
-      setIsCreating(false);
-      setIsEditing(false);
-    }
-    closeDialog();
-  };
-
-  const table = useReactTable<StaticGroupRow>({
-    data: groupRows,
-    columns: staticGroupsTableColumns,
-    getCoreRowModel: getCoreRowModel(),
-    meta: {
-      onEdit: openEditDialog,
-      onActionComplete: () => {
-        // No-op - Convex is automatically reactive
-      },
-    } satisfies StaticGroupsTableMeta,
-  });
-
-  const hasGroups = groupRows.length > 0;
-  const isDialogOpen = dialogState !== null;
-  const isSaving = isCreating || isEditing;
-
-  // Convex queries are automatically reactive - no Supabase subscription needed!
+  const {
+    computers,
+    closeDialog,
+    dialogState,
+    form,
+    handleMembersScroll,
+    hasGroups,
+    isDialogOpen,
+    isLoadingComputers,
+    isSaving,
+    memberSearch,
+    onSubmit,
+    openCreateDialog,
+    setMemberSearch,
+    table,
+  } = useStaticGroupsTable({ preloaded });
 
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
@@ -264,12 +130,6 @@ export function StaticGroupsTable({
                 name="memberIds"
                 render={({ field }) => {
                   const members = field.value ?? [];
-                  const filteredComputers =
-                    computers?.filter((c: { id: string; name: string }) =>
-                      c.name
-                        ?.toLowerCase()
-                        .includes(memberSearch.toLowerCase()),
-                    ) ?? [];
 
                   return (
                     <FormItem className="space-y-3">
@@ -285,8 +145,11 @@ export function StaticGroupsTable({
                         value={memberSearch}
                         onChange={(e) => setMemberSearch(e.target.value)}
                       />
-                      <div className="grid max-h-[400px] gap-2 overflow-y-auto">
-                        {filteredComputers.map((computer) => {
+                      <div
+                        className="grid h-95 content-start gap-2 overflow-y-scroll [scrollbar-gutter:stable]"
+                        onScroll={handleMembersScroll}
+                      >
+                        {computers.map((computer) => {
                           const checkboxId = `member-${computer.id}`;
                           const isChecked = members.includes(computer.id);
                           return (
@@ -302,8 +165,8 @@ export function StaticGroupsTable({
                                   const next = shouldInclude
                                     ? [...members, computer.id]
                                     : members.filter(
-                                        (id) => id !== computer.id,
-                                      );
+                                      (id) => id !== computer.id,
+                                    );
                                   field.onChange(Array.from(new Set(next)));
                                 }}
                               />
@@ -318,6 +181,16 @@ export function StaticGroupsTable({
                             </div>
                           );
                         })}
+                        {isLoadingComputers && (
+                          <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                            Loading computers...
+                          </div>
+                        )}
+                        {!isLoadingComputers && computers.length === 0 && (
+                          <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                            No computers found.
+                          </div>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {members.length}{" "}
@@ -361,9 +234,9 @@ export function StaticGroupsTable({
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                       </TableHead>
                     ))}
                   </TableRow>
