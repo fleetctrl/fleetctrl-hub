@@ -15,7 +15,6 @@ export function GroupsTabs({
 }: {
   preloaded: {
     staticGroups: Preloaded<typeof api.staticGroups.getTableData>;
-    staticComputers: Preloaded<typeof api.staticGroups.getComputersForGroups>;
     dynamicGroups: Preloaded<typeof api.groups.getAll>;
   };
 }) {
@@ -43,7 +42,6 @@ export function GroupsTabs({
         <StaticGroupsTable
           preloaded={{
             groups: preloaded.staticGroups,
-            computers: preloaded.staticComputers,
           }}
         />
       </TabsContent>

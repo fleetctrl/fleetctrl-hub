@@ -20,7 +20,8 @@ export default defineSchema({
         intune_id: v.optional(v.string()),
     })
         .index("by_jkt", ["jkt"])
-        .index("by_rustdesk_id", ["rustdesk_id"]),
+        .index("by_rustdesk_id", ["rustdesk_id"])
+        .searchIndex("search_name", { searchField: "name" }),
 
     // ========================================
     // AUTH TABLES

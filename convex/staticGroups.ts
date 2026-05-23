@@ -6,6 +6,7 @@
 
 
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 
 // ========================================
@@ -131,6 +132,56 @@ export const getComputersForGroups = withAuthQuery({
             os: c.os,
             ip: c.ip,
         }));
+    },
+});
+
+/**
+ * Get computers for group assignment, loading page by page.
+ */
+export const getComputersForGroupsPaginated = withAuthQuery({
+    args: {
+        search: v.optional(v.string()),
+        paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { search, paginationOpts }) => {
+        const trimmedSearch = search?.trim().toLowerCase();
+        const pageSize = paginationOpts.numItems;
+
+        if (trimmedSearch) {
+            const { page, continueCursor, isDone } = await ctx.db
+                .query("computers")
+                .withSearchIndex("search_name", (q) => q.search("name", trimmedSearch))
+                .paginate({
+                    numItems: pageSize,
+                    cursor: paginationOpts.cursor,
+                });
+
+            return {
+                page: page.map((c) => ({
+                    id: c._id,
+                    name: c.name,
+                    os: c.os,
+                    ip: c.ip,
+                })),
+                isDone,
+                continueCursor,
+            };
+        }
+
+        const { page, continueCursor, isDone } = await ctx.db
+            .query("computers")
+            .paginate(paginationOpts);
+
+        return {
+            page: page.map((c) => ({
+                id: c._id,
+                name: c.name,
+                os: c.os,
+                ip: c.ip,
+            })),
+            continueCursor,
+            isDone,
+        };
     },
 });
 
