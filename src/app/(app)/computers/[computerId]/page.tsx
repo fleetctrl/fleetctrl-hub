@@ -1,6 +1,6 @@
 "use client";
 import PageWrapper from "@/components/page-wrapper";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Id } from "@/convex/_generated/dataModel";
 import ComputerDetailTabs from "@/modules/computers/detail/computer-detail-tabs";
 import { useComputerDetailTab } from "@/modules/computers/detail/hooks/use-computer-detail-tab";
@@ -20,7 +20,7 @@ export default function Computer() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>Computers</BreadcrumbPage>
+                <BreadcrumbLink href="/computers">Computers</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
@@ -42,7 +42,7 @@ export default function Computer() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>Computers</BreadcrumbPage>
+                <BreadcrumbLink href="/computers">Computers</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
@@ -63,7 +63,7 @@ export default function Computer() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbPage>Computers</BreadcrumbPage>
+              <BreadcrumbLink href="/computers">Computers</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
