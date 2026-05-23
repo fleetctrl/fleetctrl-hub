@@ -234,6 +234,7 @@ export default defineSchema({
     })
         .index("by_computer_id", ["computer_id"])
         .index("by_app_id", ["app_id"])
+        .index("by_app_id_and_status_updated_at", ["app_id", "status_updated_at"])
         .index("by_release_id", ["release_id"])
         .index("by_computer_app", ["computer_id", "app_id"]),
 

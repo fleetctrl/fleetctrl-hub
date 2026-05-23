@@ -4,6 +4,7 @@
  * Handles app and release queries for computers.
  */
 
+import { paginationOptsValidator } from "convex/server";
 import { internalAction, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
@@ -842,6 +843,61 @@ export const getDeviceInstallStatus = withAuthQuery({
             total,
             byStatus,
             items: await Promise.all(items),
+        };
+    },
+});
+
+/**
+ * Get paginated install status per device for all releases of a given app.
+ */
+export const getDeviceInstallStatusPaginated = withAuthQuery({
+    args: {
+        appId: v.id("apps"),
+        paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { appId, paginationOpts }) => {
+        // Use aggregate for O(log n) status counts
+        const statusCounts = await installStatusAggregate.countBatch(
+            ctx,
+            INSTALL_STATUSES.map((status) => ({ namespace: [appId, status] as [typeof appId, InstallStatus] }))
+        );
+        const byStatus = INSTALL_STATUSES.reduce(
+            (acc, status, i) => ({ ...acc, [status]: statusCounts[i] }),
+            {} as Record<InstallStatus, number>
+        );
+        const total = statusCounts.reduce((sum, n) => sum + n, 0);
+
+        const installsPage = await ctx.db
+            .query("computer_apps_installs")
+            .withIndex("by_app_id_and_status_updated_at", (q) => q.eq("app_id", appId))
+            .order("desc")
+            .paginate(paginationOpts);
+
+        const items = await Promise.all(
+            installsPage.page.map(async (install) => {
+                const computer = await ctx.db.get("computers", install.computer_id);
+                const release = install.release_id != undefined ? await ctx.db.get("releases", install.release_id) : null;
+
+                return {
+                    id: install._id.toString(),
+                    computerId: install.computer_id.toString(),
+                    computerName: computer?.name ?? "Unknown computer",
+                    appId: install.app_id.toString(),
+                    releaseVersion: release?.version || "Unknown version",
+                    status: install.status as InstallStatus,
+                    installedAt: install.installed_at,
+                    lastSeenAt: install.last_seen_at,
+                    statusUpdatedAt: install.status_updated_at,
+                };
+            })
+        );
+
+        return {
+            total,
+            byStatus,
+            items,
+            isDone: installsPage.isDone,
+            continueCursor: installsPage.continueCursor,
         };
     },
 });
