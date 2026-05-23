@@ -10,6 +10,7 @@
     "test:docker-deployment": "bash ./scripts/test-docker-deployment.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "seed:mock-computers": "npx convex run mocks/mockComputers:add '{\"confirm\":\"ADD_MOCK_COMPUTERS\",\"count\":500,\"replaceExisting\":true}'",
     "codegen": "npx convex codegen"
   },
   "dependencies": {

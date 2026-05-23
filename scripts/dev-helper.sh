@@ -55,13 +55,15 @@ convex_env_set_if_missing() {
 run_choice() {
     case "$1" in
         1|sync\ convex\ env)   cmd_convex_env_sync;;
+        2|seed\ mock\ computers) cmd_seed_mock_computers;;
+        3|reset\ convex\ db) cmd_reset_convex_db;;
         q|Q|quit)
             echo -e "${YELLOW}Bye!${NC}"
             exit 0
         ;;
         *)
             echo -e "${RED}Invalid option '$1'.${NC}"
-            echo -e "Usage: $0 [--option <1-5>] [sync convex env|q|quit]"
+            echo -e "Usage: $0 [sync convex env|seed mock computers|reset convex db|q|quit]"
             exit 1
         ;;
     esac
@@ -109,9 +111,65 @@ cmd_convex_env_sync() {
     echo -e "${GREEN}Convex environment synced successfully!${NC}"
 }
 
+# ─────────────────────────────────────────────────────────
+# CMD: Seed mock computers
+# ─────────────────────────────────────────────────────────
+cmd_seed_mock_computers() {
+    show_banner
+    echo -e "${GREEN}Seeding mock computers...${NC}"
+    echo -e "${BLUE}▶ Adding 500 mock computers to the current Convex deployment.${NC}"
+
+    npx convex run mocks/mockComputers:add '{"confirm":"ADD_MOCK_COMPUTERS","count":500,"replaceExisting":true}'
+
+    echo ""
+    echo -e "${GREEN}Mock computers seeded successfully!${NC}"
+}
+
+# ─────────────────────────────────────────────────────────
+# CMD: Reset Convex database
+# ─────────────────────────────────────────────────────────
+cmd_reset_convex_db() {
+    show_banner
+    echo -e "${RED}${BOLD}This will delete all data in the current Convex deployment.${NC}"
+    echo -e "${YELLOW}This action uses 'npx convex import --replace-all' and cannot be undone.${NC}"
+    echo ""
+    read -p "$(echo -e ${BOLD}"Type RESET to continue: "${NC})" CONFIRM
+
+    if [ "$CONFIRM" != "RESET" ]; then
+        echo -e "${YELLOW}Reset cancelled.${NC}"
+        return
+    fi
+
+    local tmp_file
+    tmp_file="$(mktemp)"
+    printf '[]\n' > "$tmp_file"
+
+    echo -e "${BLUE}▶ Resetting Convex database...${NC}"
+    set +e
+    npx convex import --table computers --format jsonArray --replace-all --yes "$tmp_file"
+    local status=$?
+    set -e
+    rm -f "$tmp_file"
+
+    if [ "$status" -ne 0 ]; then
+        echo -e "${RED}Convex database reset failed.${NC}"
+        return "$status"
+    fi
+
+    echo ""
+    echo -e "${GREEN}Convex database reset successfully!${NC}"
+}
+
+if [ "$#" -gt 0 ]; then
+    run_choice "$*"
+    exit 0
+fi
+
 show_banner
 echo -e "${BOLD}What would you like to do?${NC}\n"
 echo -e "  [${CYAN}1${NC}] Sync Convex environment variables from .env files"
+echo -e "  [${CYAN}2${NC}] Seed 500 mock computers"
+echo -e "  [${CYAN}3${NC}] Reset Convex database"
 echo -e "  [${CYAN}q${NC}] Quit\n"
 
 read -p "$(echo -e ${BOLD}"Select an option: "${NC})" CHOICE
