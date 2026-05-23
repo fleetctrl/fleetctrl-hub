@@ -1,6 +1,6 @@
 /* eslint-disable @convex-dev/no-collect-in-query */
 import { v } from "convex/values";
-import { mutation } from "../functions";
+import { internalMutation } from "../functions";
 import { Id } from "../_generated/dataModel";
 import { MutationCtx } from "../_generated/server";
 
@@ -84,7 +84,7 @@ function makeComputerName(index: number) {
     const deviceType = pick(deviceTypes, number * 23);
     const code = hashNumber(number * 31).toString(36).slice(0, 4).toUpperCase().padStart(4, "0");
 
-    return `${location}-${department}-${deviceType}-${code}`;
+    return `${MOCK_NAME_PREFIX}${location}-${department}-${deviceType}-${code}`;
 }
 
 function makeLoginUser(index: number) {
@@ -138,7 +138,7 @@ async function deleteComputerReferences(ctx: MutationCtx, computerId: Id<"comput
     }
 }
 
-export const add = mutation({
+export const add = internalMutation({
     args: {
         confirm: v.string(),
         count: v.optional(v.number()),
