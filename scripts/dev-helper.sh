@@ -56,14 +56,16 @@ run_choice() {
     case "$1" in
         1|sync\ convex\ env)   cmd_convex_env_sync;;
         2|seed\ mock\ computers) cmd_seed_mock_computers;;
-        3|reset\ convex\ db) cmd_reset_convex_db;;
+        3|seed\ mock\ apps) cmd_seed_mock_apps;;
+        4|seed\ all\ mock\ data) cmd_seed_all_mock_data;;
+        5|reset\ convex\ db) cmd_reset_convex_db;;
         q|Q|quit)
             echo -e "${YELLOW}Bye!${NC}"
             exit 0
         ;;
         *)
             echo -e "${RED}Invalid option '$1'.${NC}"
-            echo -e "Usage: $0 [sync convex env|seed mock computers|reset convex db|q|quit]"
+            echo -e "Usage: $0 [sync convex env|seed mock computers|seed mock apps|seed all mock data|reset convex db|q|quit]"
             exit 1
         ;;
     esac
@@ -126,6 +128,35 @@ cmd_seed_mock_computers() {
 }
 
 # ─────────────────────────────────────────────────────────
+# CMD: Seed mock apps and installs
+# ─────────────────────────────────────────────────────────
+cmd_seed_mock_apps() {
+    show_banner
+    echo -e "${GREEN}Seeding mock apps and installs...${NC}"
+    echo -e "${BLUE}▶ Adding 12 mock apps and fake installs for existing computers.${NC}"
+
+    npx convex run mocks/mockApps:add '{"confirm":"ADD_MOCK_APPS","appCount":12,"installCoveragePercent":80,"replaceExisting":true}'
+
+    echo ""
+    echo -e "${GREEN}Mock apps and installs seeded successfully!${NC}"
+}
+
+# ─────────────────────────────────────────────────────────
+# CMD: Seed all mock data
+# ─────────────────────────────────────────────────────────
+cmd_seed_all_mock_data() {
+    show_banner
+    echo -e "${GREEN}Seeding all mock data...${NC}"
+    echo -e "${BLUE}▶ Adding mock computers first, then mock apps and installs.${NC}"
+
+    npx convex run mocks/mockComputers:add '{"confirm":"ADD_MOCK_COMPUTERS","count":500,"replaceExisting":true}'
+    npx convex run mocks/mockApps:add '{"confirm":"ADD_MOCK_APPS","appCount":12,"installCoveragePercent":80,"replaceExisting":true}'
+
+    echo ""
+    echo -e "${GREEN}All mock data seeded successfully!${NC}"
+}
+
+# ─────────────────────────────────────────────────────────
 # CMD: Reset Convex database
 # ─────────────────────────────────────────────────────────
 cmd_reset_convex_db() {
@@ -158,6 +189,7 @@ cmd_reset_convex_db() {
 
     echo ""
     echo -e "${GREEN}Convex database reset successfully!${NC}"
+    echo -e "${YELLOW}Existing browser sessions are now invalid. Sign out/in again or clear localhost cookies before using the app.${NC}"
 }
 
 if [ "$#" -gt 0 ]; then
@@ -169,7 +201,9 @@ show_banner
 echo -e "${BOLD}What would you like to do?${NC}\n"
 echo -e "  [${CYAN}1${NC}] Sync Convex environment variables from .env files"
 echo -e "  [${CYAN}2${NC}] Seed 500 mock computers"
-echo -e "  [${CYAN}3${NC}] Reset Convex database"
+echo -e "  [${CYAN}3${NC}] Seed 12 mock apps and fake installs"
+echo -e "  [${CYAN}4${NC}] Seed all mock data"
+echo -e "  [${CYAN}5${NC}] Reset Convex database"
 echo -e "  [${CYAN}q${NC}] Quit\n"
 
 read -p "$(echo -e ${BOLD}"Select an option: "${NC})" CHOICE
