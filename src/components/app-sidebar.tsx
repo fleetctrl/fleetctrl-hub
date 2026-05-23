@@ -6,7 +6,6 @@ import {
   IconInnerShadowTop,
   IconKey,
   IconRefresh,
-  IconWorldSearch,
   IconUsers,
   IconApps,
 } from "@tabler/icons-react";
@@ -24,6 +23,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
+import { MonitorIcon } from "lucide-react";
 
 const data = {
   navMain: [
@@ -35,7 +35,7 @@ const data = {
     {
       title: "Computers",
       url: "/computers",
-      icon: IconWorldSearch,
+      icon: MonitorIcon,
     },
     {
       title: "Groups",
