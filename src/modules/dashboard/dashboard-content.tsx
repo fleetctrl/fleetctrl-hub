@@ -174,8 +174,8 @@ export function DashboardContent() {
   );
   const outdatedComputers = activeClientUpdate
     ? computerRows.filter(
-        (computer) => computer.clientVersion !== activeClientUpdate.version,
-      ).length
+      (computer) => computer.clientVersion !== activeClientUpdate.version,
+    ).length
     : 0;
   const activeEnrollmentTokens = enrollmentTokenRows.filter((token) => {
     const hasUses = token.remainingUses === -1 || token.remainingUses > 0;
@@ -192,14 +192,14 @@ export function DashboardContent() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            Live fleet status across devices, apps, groups, and client updates.
+            Live fleet status across computers, apps, groups, and client updates.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link href="/computers">
               <MonitorIcon data-icon="inline-start" />
-              Devices
+              Computers
             </Link>
           </Button>
           <Button variant="outline" asChild>

@@ -1,5 +1,5 @@
 {
-  "version": "v2.2.0",
+  "version": "v2.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,8 @@
     "test:docker-deployment": "bash ./scripts/test-docker-deployment.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "seed:mock-computers": "npx convex run mocks/mockComputers:add '{\"confirm\":\"ADD_MOCK_COMPUTERS\",\"count\":500,\"replaceExisting\":true}'",
+    "seed:mock-apps": "npx convex run mocks/mockApps:add '{\"confirm\":\"ADD_MOCK_APPS\",\"appCount\":12,\"installCoveragePercent\":80,\"replaceExisting\":true}'",
     "codegen": "npx convex codegen"
   },
   "dependencies": {

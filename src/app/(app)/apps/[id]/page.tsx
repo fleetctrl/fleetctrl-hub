@@ -29,6 +29,7 @@ import { EditAppSheet } from "@/modules/apps/detail/releases/app-edit-app-sheet"
 import { Pen, Plus } from "lucide-react";
 import { AppReleaseSheet } from "@/modules/apps/detail/releases/app-release-sheet";
 import { AppReleasesTable } from "@/modules/apps/detail/releases/app-releases-table";
+import { useDeviceInstallStatus } from "@/modules/apps/hooks/use-device-install-status";
 import { parseAsString, useQueryStates } from "nuqs";
 
 type InstallStatus =
@@ -60,20 +61,18 @@ const statusBadgeVariant: Record<
 export default function AppDetailPage() {
   const params = useParams();
   const appId = params.id as string;
+  const normalizedAppId = appId as Id<"apps">;
 
-  const app = useAuthQuery(api.apps.getById, { id: appId as Id<"apps"> });
+  const app = useAuthQuery(api.apps.getById, { id: normalizedAppId });
   const releases = useAuthQuery(api.apps.getReleases, {
-    appId: appId as Id<"apps">,
+    appId: normalizedAppId,
   });
-  const deviceInstallStatus = useAuthQuery(api.apps.getDeviceInstallStatus, {
-    appId: appId as Id<"apps">,
-  });
+  const deviceInstallStatus = useDeviceInstallStatus(normalizedAppId);
 
   // console.log("Device install status:", deviceInstallStatus);
 
   const isLoading = app === undefined;
   const releasesLoading = releases === undefined;
-  const deviceInstallStatusLoading = deviceInstallStatus === undefined;
   const error = app === null;
 
   const [{ view: activeView }, setQueryState] = useQueryStates({
@@ -314,7 +313,7 @@ export default function AppDetailPage() {
                 <CardTitle>Device install status</CardTitle>
               </CardHeader>
               <CardContent className="px-0 space-y-4">
-                {deviceInstallStatusLoading ? (
+                {deviceInstallStatus.isLoading ? (
                   <div className="text-sm text-muted-foreground">
                     Loading device install status...
                   </div>
@@ -326,7 +325,7 @@ export default function AppDetailPage() {
                           Total
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus?.total ?? 0}
+                          {deviceInstallStatus.status?.total ?? 0}
                         </div>
                       </div>
                       <div>
@@ -334,7 +333,8 @@ export default function AppDetailPage() {
                           Installed
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus?.byStatus.INSTALLED ?? 0}
+                          {deviceInstallStatus.status?.byStatus.INSTALLED ??
+                            0}
                         </div>
                       </div>
                       <div>
@@ -342,7 +342,8 @@ export default function AppDetailPage() {
                           Installing
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus?.byStatus.INSTALLING ?? 0}
+                          {deviceInstallStatus.status?.byStatus.INSTALLING ??
+                            0}
                         </div>
                       </div>
                       <div>
@@ -350,7 +351,7 @@ export default function AppDetailPage() {
                           Pending
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus?.byStatus.PENDING ?? 0}
+                          {deviceInstallStatus.status?.byStatus.PENDING ?? 0}
                         </div>
                       </div>
                       <div>
@@ -358,7 +359,7 @@ export default function AppDetailPage() {
                           Error
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus?.byStatus.ERROR ?? 0}
+                          {deviceInstallStatus.status?.byStatus.ERROR ?? 0}
                         </div>
                       </div>
                       <div>
@@ -366,7 +367,8 @@ export default function AppDetailPage() {
                           Uninstalled
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus?.byStatus.UNINSTALLED ?? 0}
+                          {deviceInstallStatus.status?.byStatus.UNINSTALLED ??
+                            0}
                         </div>
                       </div>
                     </div>
@@ -378,14 +380,13 @@ export default function AppDetailPage() {
                               <TableHead>Computer</TableHead>
                               <TableHead>Release</TableHead>
                               <TableHead>Status</TableHead>
-                              <TableHead>Installed at</TableHead>
-                              <TableHead>Last seen</TableHead>
+                              {/* <TableHead>Installed at</TableHead> */}
                               <TableHead>Status updated</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {deviceInstallStatus?.items.length ? (
-                              deviceInstallStatus.items.map((item) => (
+                            {deviceInstallStatus.status?.items.length ? (
+                              deviceInstallStatus.status.items.map((item) => (
                                 <TableRow key={item.id}>
                                   <TableCell className="font-medium">
                                     {item.computerName}
@@ -398,12 +399,9 @@ export default function AppDetailPage() {
                                       {item.status}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell>
+                                  {/* <TableCell>
                                     {formatDateTime(item.installedAt)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatDateTime(item.lastSeenAt)}
-                                  </TableCell>
+                                  </TableCell> */}
                                   <TableCell>
                                     {formatDateTime(item.statusUpdatedAt)}
                                   </TableCell>
@@ -423,6 +421,36 @@ export default function AppDetailPage() {
                         </Table>
                       </CardContent>
                     </Card>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Page {deviceInstallStatus.pageIndex + 1} of{" "}
+                        {deviceInstallStatus.pageCount}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            deviceInstallStatus.isFetching ||
+                            !deviceInstallStatus.canGoToPreviousPage
+                          }
+                          onClick={() => deviceInstallStatus.previousPage()}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            deviceInstallStatus.isFetching ||
+                            !deviceInstallStatus.canGoToNextPage
+                          }
+                          onClick={() => deviceInstallStatus.nextPage()}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
                   </>
                 )}
               </CardContent>

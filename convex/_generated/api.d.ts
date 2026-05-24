@@ -28,6 +28,8 @@ import type * as lib_idNormalization from "../lib/idNormalization.js";
 import type * as lib_jwt from "../lib/jwt.js";
 import type * as lib_withAuth from "../lib/withAuth.js";
 import type * as migrations from "../migrations.js";
+import type * as mocks_mockApps from "../mocks/mockApps.js";
+import type * as mocks_mockComputers from "../mocks/mockComputers.js";
 import type * as staticGroups from "../staticGroups.js";
 import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
@@ -59,6 +61,8 @@ declare const fullApi: ApiFromModules<{
   "lib/jwt": typeof lib_jwt;
   "lib/withAuth": typeof lib_withAuth;
   migrations: typeof migrations;
+  "mocks/mockApps": typeof mocks_mockApps;
+  "mocks/mockComputers": typeof mocks_mockComputers;
   staticGroups: typeof staticGroups;
   tasks: typeof tasks;
   users: typeof users;
