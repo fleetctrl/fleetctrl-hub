@@ -245,6 +245,25 @@ cmd_convex_push() {
   done
   echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
 
+  echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
+  BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+  JWT_SECRET=${JWT_SECRET}
+  API_URL=${API_URL:-${SITE_URL}/api}
+  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+  CONVEX_SITE_INTERNAL_URL_FOR_CONVEX=${CONVEX_SITE_INTERNAL_URL_FOR_CONVEX:-http://127.0.0.1:3211}
+
+  for var in \
+    "SITE_URL=$SITE_URL" \
+    "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" \
+    "JWT_SECRET=$JWT_SECRET" \
+    "API_URL=$API_URL" \
+    "ALLOW_REGISTRATION=$ALLOW_REGISTRATION" \
+    "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL_FOR_CONVEX"; do
+    run_convex_migration npx convex env set "$var" \
+      --url "http://convex:3210" \
+      --admin-key "$ADMIN_KEY" > /dev/null
+  done
+
   echo -e "${BLUE}▶ Pushing Convex schema and functions...${NC}"
   run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
 
