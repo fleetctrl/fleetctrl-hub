@@ -133,9 +133,10 @@ Run the update command to update the environment, generate necessary keys, and d
 
 This script will:
 
-1. Pull the latest changes from the repository.
-2. Start all services.
-3. Deploy the Convex schema and functions from the local source code to the containerized backend.
+1. Check the Fleetctrl image tag pinned in `docker-compose.yml`.
+2. Pull fresh images automatically when the tag is `latest`, or offer to update pinned version tags when a newer release is available.
+3. Start all services.
+4. Deploy the Convex schema and functions to the containerized backend.
 
 To update only the management script itself, run:
 
