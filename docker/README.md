@@ -18,7 +18,7 @@ This directory contains a fully local setup for the Fleetctrl Hub, including a s
 
 ### Production Setup via curl
 
-If you only want to run the production Docker stack, use the bootstrap script. It downloads the required files into a fresh directory and then runs `manage.sh setup`.
+If you only want to run the production Docker stack, use the bootstrap script. It downloads the required files into a fresh directory and prints the setup command to run next.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | bash
@@ -26,9 +26,16 @@ curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker
 
 Notes:
 
-- The script creates a `fleetctrl-hub-docker` directory in your current location, downloads the required files into it, and runs `./manage.sh setup`.
+- The script creates a `fleetctrl-hub` directory in your current location and downloads the required files into it.
 - It stores `docker-compose.production.yml` as `docker-compose.yml`, because `manage.sh` expects Docker Compose's default filename.
 - It downloads both `Caddyfile.proxy` and `Caddyfile.standalone`; the setup flow copies the correct file to `Caddyfile`.
+
+Then run:
+
+```bash
+cd fleetctrl-hub
+./manage.sh setup
+```
 
 To change the installation directory:
 

@@ -4,7 +4,7 @@ set -eu
 REPO_OWNER=${REPO_OWNER:-fleetctrl}
 REPO_NAME=${REPO_NAME:-fleetctrl-hub}
 REPO_REF=${REPO_REF:-main}
-INSTALL_DIR=${INSTALL_DIR:-fleetctrl-hub-docker}
+INSTALL_DIR=${INSTALL_DIR:-fleetctrl-hub}
 BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}/docker"
 
 require_command() {
@@ -42,5 +42,8 @@ download_file ".env.example" ".env.example"
 
 chmod +x manage.sh
 
-echo "Starting FleetCtrl setup..."
-exec ./manage.sh setup
+echo ""
+echo "FleetCtrl files were downloaded successfully."
+echo "Next steps:"
+echo "  cd ${INSTALL_DIR}"
+echo "  ./manage.sh setup"

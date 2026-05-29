@@ -57,7 +57,7 @@ The application will then be available at [http://localhost:3000](http://localho
 
 ## Docker Production Setup
 
-For a production-style Docker deployment you do not need to clone the whole repository. Run the bootstrap script over `curl`; it downloads the required files and starts the interactive setup through `manage.sh`.
+For a production-style Docker deployment you do not need to clone the whole repository. Run the bootstrap script over `curl`; it downloads the required files and prints the setup command to run next.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | bash
@@ -65,9 +65,16 @@ curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker
 
 Notes:
 
-- The script creates a `fleetctrl-hub-docker` directory in your current location, downloads the required files into it, and runs `./manage.sh setup`.
+- The script creates a `fleetctrl-hub` directory in your current location and downloads the required files into it.
 - It saves `docker-compose.production.yml` as `docker-compose.yml`, because `manage.sh` uses `docker compose` without an explicit `-f` flag.
 - It downloads both `Caddyfile.proxy` and `Caddyfile.standalone`; the setup script selects the correct one based on your answers.
+
+Then run:
+
+```bash
+cd fleetctrl-hub
+./manage.sh setup
+```
 
 If you want a different target directory, run:
 
