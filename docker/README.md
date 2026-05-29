@@ -125,10 +125,10 @@ This script will:
 
 ## Update
 
-Run the update script to update the environment, generate necessary keys, and deploy the Convex schema automatically.
+Run the update command to update the environment, generate necessary keys, and deploy the Convex schema automatically.
 
 ```bash
-./update.sh
+./manage.sh update
 ```
 
 This script will:
@@ -137,12 +137,18 @@ This script will:
 2. Start all services.
 3. Deploy the Convex schema and functions from the local source code to the containerized backend.
 
+To update only the management script itself, run:
+
+```bash
+./manage.sh self-update
+```
+
 ## Convex Push
 
 Use this when you only need to deploy Convex schema and functions without running the full update or setup.
 
 ```bash
-./convex-push.sh
+./manage.sh push
 ```
 
 ## Configuration

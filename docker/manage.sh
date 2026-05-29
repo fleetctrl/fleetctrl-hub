@@ -11,6 +11,11 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+REPO_OWNER=${REPO_OWNER:-fleetctrl}
+REPO_NAME=${REPO_NAME:-fleetctrl-hub}
+REPO_REF=${REPO_REF:-main}
+BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}/docker"
+
 # Change directory to the script's location (docker directory)
 cd "$(dirname "$0")"
 
@@ -548,6 +553,39 @@ cmd_setup() {
 # ─────────────────────────────────────────────────────────
 # UPDATE
 # ─────────────────────────────────────────────────────────
+cmd_update_manager() {
+  if ! command -v curl &> /dev/null; then
+    echo -e "${YELLOW}Error: 'curl' is required but not installed.${NC}"
+    exit 1
+  fi
+
+  if ! command -v mktemp &> /dev/null; then
+    echo -e "${YELLOW}Error: 'mktemp' is required but not installed.${NC}"
+    exit 1
+  fi
+
+  local script_name
+  local temp_file
+  script_name=$(basename "$0")
+  temp_file=$(mktemp)
+  trap 'rm -f "$temp_file"' RETURN
+
+  echo -e "${BLUE}▶ Downloading latest ${script_name}...${NC}"
+  curl -fsSL "${BASE_URL}/manage.sh" -o "$temp_file"
+
+  if ! head -n 1 "$temp_file" | grep -q '^#!/bin/bash'; then
+    echo -e "${RED}Downloaded file does not look like manage.sh. Aborting.${NC}"
+    exit 1
+  fi
+
+  chmod +x "$temp_file"
+  mv "$temp_file" "./${script_name}"
+  trap - RETURN
+
+  echo -e "\n${GREEN}${BOLD}Manager script updated successfully!${NC}"
+  echo -e "${YELLOW}Run ./${script_name} again to use the updated version.${NC}\n"
+}
+
 cmd_update() {
   if ! command -v curl &> /dev/null; then
     echo -e "${YELLOW}Error: 'curl' is required but not installed.${NC}"
@@ -669,13 +707,14 @@ run_choice() {
     3|backup)  cmd_backup ;;
     4|restore) cmd_restore ;;
     5|push)    cmd_convex_push ;;
+    6|self-update|update-manager|manager-update) cmd_update_manager ;;
     q|Q|quit)
       echo -e "${YELLOW}Bye!${NC}"
       exit 0
       ;;
     *)
       echo -e "${RED}Invalid option '$1'.${NC}"
-      echo -e "Usage: $0 [--option <1-5>] [setup|update|backup|restore|push]"
+      echo -e "Usage: $0 [--option <1-6>] [setup|update|backup|restore|push|self-update]"
       exit 1
       ;;
   esac
@@ -705,6 +744,7 @@ else
   echo -e "  [${CYAN}3${NC}] Backup     — Export Convex data to a ZIP file"
   echo -e "  [${CYAN}4${NC}] Restore    — Import Convex data from a backup"
   echo -e "  [${CYAN}5${NC}] Push       — Redeploy Convex schema and functions only"
+  echo -e "  [${CYAN}6${NC}] Self-update — Update this management script"
   echo -e "  [${CYAN}q${NC}] Quit\n"
 
   read -p "$(echo -e ${BOLD}"Select an option: "${NC})" CHOICE
