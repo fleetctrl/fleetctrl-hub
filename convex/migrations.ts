@@ -48,16 +48,8 @@ export const removeAppAllowMultipleVersions = migrations.define({
     },
 });
 
-export const run = migrations.runner();
-
-export const runInstallAggregateBackfill = migrations.runner(
-    internal.migrations.backfillInstallStatusAggregate
-);
-
-export const runComputerCountAggregateBackfill = migrations.runner(
-    internal.migrations.backfillComputerCountAggregate
-);
-
-export const runRemoveAppAllowMultipleVersions = migrations.runner(
+export const runAll = migrations.runner([
+    internal.migrations.backfillInstallStatusAggregate,
+    internal.migrations.backfillComputerCountAggregate,
     internal.migrations.removeAppAllowMultipleVersions
-);
+]);
