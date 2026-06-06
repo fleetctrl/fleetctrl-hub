@@ -338,6 +338,7 @@ app.post("/token/refresh", async (c) => {
       internal.deviceAuth.refreshTokens,
       {
         refreshToken: refresh_token,
+        dpopJkt: dpopResult.jkt,
       },
     );
 
