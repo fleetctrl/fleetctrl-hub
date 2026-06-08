@@ -1,5 +1,10 @@
 "use client";
-import { useFieldArray, useForm, UseFormReturn } from "react-hook-form";
+import {
+  type FieldPath,
+  useFieldArray,
+  useForm,
+  type UseFormReturn,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -86,9 +91,33 @@ const DEFAULT_ASSIGNMENT_VALUE: z.infer<typeof assignmentTargetSchema> = {
 
 const FormSchema = createAppSchema;
 type CreateAppFormValues = z.infer<typeof FormSchema>;
+type CreateAppFieldPath = FieldPath<CreateAppFormValues>;
 
 const useCreateAppFormContext = () =>
   useMultiStepFormContext<typeof FormSchema>();
+
+function RequiredLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      {children}
+      <span className="align-super text-xs leading-none ml-0.5">*</span>
+    </>
+  );
+}
+
+const validateStepAndContinue = async (
+  e: SyntheticEvent,
+  form: UseFormReturn<CreateAppFormValues>,
+  nextStep: (e: SyntheticEvent) => void,
+  fields: CreateAppFieldPath[],
+) => {
+  e.preventDefault();
+
+  const isValid = await form.trigger(fields, { shouldFocus: true });
+  if (isValid) {
+    nextStep(e);
+  }
+};
 
 // Helper for dropzone preview - adapted for Convex StoredFile
 const toDropzonePreview = (
@@ -129,6 +158,7 @@ export function AppCreateForm() {
         autoUpdate: false,
         version: "",
         uninstallPreviousVersion: false,
+        allowMultipleVersions: false,
       },
       requirement: {
         requirementScriptBinary: undefined,
@@ -287,7 +317,14 @@ export function AppCreateForm() {
 }
 
 function AppInfoStep() {
-  const { form, nextStep, errors } = useCreateAppFormContext();
+  const { form, nextStep } = useCreateAppFormContext();
+  const handleNextStep = (e: SyntheticEvent) =>
+    void validateStepAndContinue(e, form, nextStep, [
+      "appInfo.name",
+      "appInfo.description",
+      "appInfo.publisher",
+    ]);
+
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -298,7 +335,9 @@ function AppInfoStep() {
               name="appInfo.name"
               render={({ field, fieldState }) => (
                 <FormItem>
-                  <FormLabel>Name *</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Name</RequiredLabel>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="" type="text" {...field} />
                   </FormControl>
@@ -330,7 +369,9 @@ function AppInfoStep() {
               name="appInfo.publisher"
               render={({ field, fieldState }) => (
                 <FormItem>
-                  <FormLabel>Publisher *</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Publisher</RequiredLabel>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="" type="text" {...field} />
                   </FormControl>
@@ -340,7 +381,7 @@ function AppInfoStep() {
             />
 
             <div className="flex gap-3">
-              <Button onClick={nextStep} disabled={!!errors.appInfo}>
+              <Button onClick={handleNextStep}>
                 Next
               </Button>
             </div>
@@ -352,7 +393,7 @@ function AppInfoStep() {
 }
 
 function ReleaseStep() {
-  const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
+  const { form, nextStep, prevStep } = useCreateAppFormContext();
   const [type, setType] = useState(form.getValues("release").type);
   const [autoUpdate, setAutoUpdate] = useState(
     form.getValues("release").autoUpdate,
@@ -385,6 +426,19 @@ function ReleaseStep() {
     // If needed, we could add a deleteFile mutation.
   }, [form, type]);
 
+  const handleNextStep = (e: SyntheticEvent) =>
+    void validateStepAndContinue(e, form, nextStep, [
+      "release.type",
+      "release.wingetId",
+      "release.installBinary",
+      "release.installScript",
+      "release.uninstallScript",
+      "release.autoUpdate",
+      "release.uninstallPreviousVersion",
+      "release.version",
+      "release.allowMultipleVersions",
+    ]);
+
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -395,7 +449,9 @@ function ReleaseStep() {
               name="release.type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Release type</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Release type</RequiredLabel>
+                  </FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
@@ -425,7 +481,9 @@ function ReleaseStep() {
                     hidden: type !== "winget",
                   })}
                 >
-                  <FormLabel>Winget ID</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Winget ID</RequiredLabel>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="" type="text" {...field} />
                   </FormControl>
@@ -439,7 +497,9 @@ function ReleaseStep() {
               name="release.installBinary"
               render={({ field }) => (
                 <FormItem className={cn("", { hidden: type !== "win32" })}>
-                  <FormLabel>Install binary</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Install binary</RequiredLabel>
+                  </FormLabel>
                   <Dropzone
                     src={toDropzonePreview(field.value)}
                     accept={{ "application/zip": [".zip"] }}
@@ -459,7 +519,12 @@ function ReleaseStep() {
                             file,
                             generateUploadUrl,
                           );
-                          field.onChange(uploaded);
+                          form.setValue("release.installBinary", uploaded, {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                            shouldValidate: true,
+                          });
+                          form.clearErrors("release.installBinary");
                           toast.success("Installer uploaded");
                         } catch (uploadError) {
                           console.error(uploadError);
@@ -503,7 +568,9 @@ function ReleaseStep() {
                     hidden: type !== "win32",
                   })}
                 >
-                  <FormLabel>Install script</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Install script</RequiredLabel>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="" type="text" {...field} />
                   </FormControl>
@@ -521,7 +588,9 @@ function ReleaseStep() {
                     hidden: type !== "win32",
                   })}
                 >
-                  <FormLabel>Uninstall script</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Uninstall script</RequiredLabel>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="" type="" {...field} />
                   </FormControl>
@@ -576,7 +645,9 @@ function ReleaseStep() {
               name="release.version"
               render={({ field }) => (
                 <FormItem className={cn("", { hidden: autoUpdate })}>
-                  <FormLabel>Version</FormLabel>
+                  <FormLabel>
+                    <RequiredLabel>Version</RequiredLabel>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="v1.0.0" type="text" {...field} />
                   </FormControl>
@@ -591,8 +662,8 @@ function ReleaseStep() {
                 Back
               </Button>
               <Button
-                onClick={nextStep}
-                disabled={!!errors.release || isUploadingBinary}
+                onClick={handleNextStep}
+                disabled={isUploadingBinary}
               >
                 Next
               </Button>
@@ -605,11 +676,28 @@ function ReleaseStep() {
 }
 
 function RequirementStep() {
-  const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
+  const { form, nextStep, prevStep } = useCreateAppFormContext();
   const [isUploadingRequirement, setIsUploadingRequirement] = useState(false);
   const [isUploadingPreScript, setIsUploadingPreScript] = useState(false);
   const [isUploadingPostScript, setIsUploadingPostScript] = useState(false);
   const generateUploadUrl = useMutation(api.apps.generateUploadUrl);
+  const isUploading =
+    isUploadingRequirement || isUploadingPreScript || isUploadingPostScript;
+  const handleNextStep = (e: SyntheticEvent) =>
+    void validateStepAndContinue(e, form, nextStep, [
+      "requirement.requirementScriptBinary",
+      "requirement.timeout",
+      "requirement.runAsSystem",
+      "preScript.scriptBinary",
+      "preScript.timeout",
+      "preScript.runAsSystem",
+      "preScript.engine",
+      "postScript.scriptBinary",
+      "postScript.timeout",
+      "postScript.runAsSystem",
+      "postScript.engine",
+    ]);
+
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -917,8 +1005,8 @@ function RequirementStep() {
                 Back
               </Button>
               <Button
-                onClick={nextStep}
-                disabled={!!errors.requirement || isUploadingRequirement}
+                onClick={handleNextStep}
+                disabled={isUploading}
               >
                 Next
               </Button>
@@ -931,7 +1019,7 @@ function RequirementStep() {
 }
 
 function DetectionStep() {
-  const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
+  const { form, nextStep, prevStep } = useCreateAppFormContext();
 
   const handleNextStep = (e: SyntheticEvent) => {
     if ((form.getValues("detection.detections") ?? []).length === 0) {
@@ -944,7 +1032,7 @@ function DetectionStep() {
       return;
     }
 
-    nextStep(e);
+    void validateStepAndContinue(e, form, nextStep, ["detection.detections"]);
   };
 
   return (
@@ -958,7 +1046,7 @@ function DetectionStep() {
               <Button variant={"ghost"} onClick={prevStep}>
                 Back
               </Button>
-              <Button onClick={handleNextStep} disabled={!!errors.detection}>
+              <Button onClick={handleNextStep}>
                 Next
               </Button>
             </div>
@@ -1219,7 +1307,9 @@ function DetectionListForm({
                     name="type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Type *</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Type</RequiredLabel>
+                        </FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           defaultValue={field.value}
@@ -1247,7 +1337,9 @@ function DetectionListForm({
                           hidden: !(type === "file" || type === "registry"),
                         })}
                       >
-                        <FormLabel>Path *</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Path</RequiredLabel>
+                        </FormLabel>
                         <FormControl>
                           <Input placeholder="" type="text" {...field} />
                         </FormControl>
@@ -1263,7 +1355,9 @@ function DetectionListForm({
                     name="fileType"
                     render={({ field }) => (
                       <FormItem className={cn({ hidden: type !== "file" })}>
-                        <FormLabel>File type *</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>File type</RequiredLabel>
+                        </FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           defaultValue={field.value}
@@ -1306,7 +1400,9 @@ function DetectionListForm({
                             !(type === "file") || !(fileType !== "exists"),
                         })}
                       >
-                        <FormLabel>Version *</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Version</RequiredLabel>
+                        </FormLabel>
                         <FormControl>
                           <Input placeholder="" type="text" {...field} />
                         </FormControl>
@@ -1326,7 +1422,9 @@ function DetectionListForm({
                           hidden: !(type === "registry"),
                         })}
                       >
-                        <FormLabel>Key *</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Key</RequiredLabel>
+                        </FormLabel>
                         <FormControl>
                           <Input placeholder="" type="text" {...field} />
                         </FormControl>
@@ -1341,7 +1439,9 @@ function DetectionListForm({
                     name="registryType"
                     render={({ field }) => (
                       <FormItem className={cn({ hidden: type !== "registry" })}>
-                        <FormLabel>Registry type *</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Registry type</RequiredLabel>
+                        </FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           defaultValue={field.value}
@@ -1387,7 +1487,9 @@ function DetectionListForm({
                             !(registryType !== "exists"),
                         })}
                       >
-                        <FormLabel>Value *</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Value</RequiredLabel>
+                        </FormLabel>
                         <FormControl>
                           <Input placeholder="" type="text" {...field} />
                         </FormControl>
@@ -1709,7 +1811,9 @@ function AssignmentStep() {
                     name="groupId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Group</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Group</RequiredLabel>
+                        </FormLabel>
                         <Select
                           onValueChange={(val) => {
                             field.onChange(val);
@@ -1754,7 +1858,9 @@ function AssignmentStep() {
                     name="mode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Mode</FormLabel>
+                        <FormLabel>
+                          <RequiredLabel>Mode</RequiredLabel>
+                        </FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={field.value}
