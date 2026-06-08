@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { type SyntheticEvent, useEffect, useState } from "react";
 import { Database, FileSearch, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Dropzone,
@@ -932,6 +932,21 @@ function RequirementStep() {
 
 function DetectionStep() {
   const { form, nextStep, prevStep, errors } = useCreateAppFormContext();
+
+  const handleNextStep = (e: SyntheticEvent) => {
+    if ((form.getValues("detection.detections") ?? []).length === 0) {
+      e.preventDefault();
+      form.setError("detection.detections", {
+        type: "manual",
+        message: "At least one detection is required",
+      });
+      toast.error("Add at least one detection before continuing");
+      return;
+    }
+
+    nextStep(e);
+  };
+
   return (
     <Item variant="outline">
       <ItemContent className="p-2">
@@ -943,7 +958,7 @@ function DetectionStep() {
               <Button variant={"ghost"} onClick={prevStep}>
                 Back
               </Button>
-              <Button onClick={nextStep} disabled={!!errors.detection}>
+              <Button onClick={handleNextStep} disabled={!!errors.detection}>
                 Next
               </Button>
             </div>
@@ -1032,6 +1047,7 @@ function DetectionListForm({
       } else {
         append(values);
       }
+      form.clearErrors("detection.detections");
 
       setEditingIndex(null);
       popupForm.reset(DEFAULT_DETECTION_VALUES);
@@ -1158,6 +1174,11 @@ function DetectionListForm({
             No detections yet. Add one to get started.
           </div>
         )}
+        {form.formState.errors.detection?.detections?.message ? (
+          <p className="text-sm font-medium text-destructive">
+            {form.formState.errors.detection.detections.message}
+          </p>
+        ) : null}
       </div>
 
       {/* Flyout Trigger */}
