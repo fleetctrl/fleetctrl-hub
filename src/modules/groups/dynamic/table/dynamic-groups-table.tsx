@@ -501,7 +501,7 @@ export function DynamicGroupsTable({
               Computers that match the group rules.
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-100 overflow-y-auto">
             {viewMembersGroupId ? (
               <MembersList
                 groupId={viewMembersGroupId as Id<"dynamic_computer_groups">}
