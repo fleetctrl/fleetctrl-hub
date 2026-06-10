@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

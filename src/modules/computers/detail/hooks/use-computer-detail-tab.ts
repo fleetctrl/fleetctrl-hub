@@ -1,6 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { useMutation } from "convex/react";
 import { useState } from "react";
 

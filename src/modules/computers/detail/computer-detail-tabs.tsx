@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useComputerDetailTab } from "./hooks/use-computer-detail-tab";

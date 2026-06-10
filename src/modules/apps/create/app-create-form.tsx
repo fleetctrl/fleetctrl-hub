@@ -62,7 +62,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { useMutation } from "convex/react";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {

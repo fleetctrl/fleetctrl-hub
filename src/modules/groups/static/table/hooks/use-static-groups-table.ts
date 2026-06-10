@@ -11,7 +11,7 @@ import z from "zod";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useAuthPaginatedQuery } from "@/hooks/auth-query";
+import { useAuthPaginatedQuery } from "@/hooks/use-auth-query";
 
 import {
   staticGroupsTableColumns,

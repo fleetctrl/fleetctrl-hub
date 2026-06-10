@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { useMutation } from "convex/react";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -67,8 +67,8 @@ const createFormSchema = (isAutoUpdate: boolean) =>
     version: isAutoUpdate
       ? z.string().optional()
       : z.string().min(1, {
-          message: "Version is required.",
-        }),
+        message: "Version is required.",
+      }),
     uninstall_previous: z.boolean(),
     disabled: z.boolean(),
     wingetId: z.string().optional(),
@@ -294,12 +294,12 @@ const mapReleaseToFormValues = (release: any) => {
       win32Rel?.uninstall_script || win32Rel?.uninstallScript || "",
     installBinary: win32Rel?.install_binary_storage_id
       ? {
-          storageId: win32Rel.install_binary_storage_id,
-          name: "installer.zip", // Placeholder as filename is not in schema yet
-          size: win32Rel.install_binary_size || 0,
-          hash: win32Rel.hash,
-          type: "application/zip",
-        }
+        storageId: win32Rel.install_binary_storage_id,
+        name: "installer.zip", // Placeholder as filename is not in schema yet
+        size: win32Rel.install_binary_size || 0,
+        hash: win32Rel.hash,
+        type: "application/zip",
+      }
       : undefined,
     assignments: {
       installGroups: installGroups.filter((g: any) => g.groupId),
@@ -308,63 +308,63 @@ const mapReleaseToFormValues = (release: any) => {
     detections,
     requirements: requirement
       ? {
-          timeout: requirement.timeout_seconds,
-          runAsSystem: requirement.run_as_system,
-          requirementScriptBinary: requirement.storage_id
-            ? {
-                storageId: requirement.storage_id,
-                name: "script.ps1",
-                size: requirement.byte_size || 0,
-                hash: requirement.hash,
-                type: "text/plain",
-              }
-            : undefined,
-        }
+        timeout: requirement.timeout_seconds,
+        runAsSystem: requirement.run_as_system,
+        requirementScriptBinary: requirement.storage_id
+          ? {
+            storageId: requirement.storage_id,
+            name: "script.ps1",
+            size: requirement.byte_size || 0,
+            hash: requirement.hash,
+            type: "text/plain",
+          }
+          : undefined,
+      }
       : {
-          timeout: 60,
-          runAsSystem: false,
-        },
+        timeout: 60,
+        runAsSystem: false,
+      },
     preScript: release.release_scripts?.find((s: any) => s.phase === "pre")
       ? (() => {
-          const script = release.release_scripts.find(
-            (s: any) => s.phase === "pre",
-          );
-          return {
-            timeout: script.timeout_seconds,
-            runAsSystem: script.run_as_system,
-            engine: script.engine as "powershell",
-            scriptBinary: script.storage_id
-              ? {
-                  storageId: script.storage_id,
-                  name: script.script_name || "pre-install.ps1",
-                  size: script.byte_size || 0,
-                  hash: script.hash,
-                  type: "text/plain",
-                }
-              : undefined,
-          };
-        })()
+        const script = release.release_scripts.find(
+          (s: any) => s.phase === "pre",
+        );
+        return {
+          timeout: script.timeout_seconds,
+          runAsSystem: script.run_as_system,
+          engine: script.engine as "powershell",
+          scriptBinary: script.storage_id
+            ? {
+              storageId: script.storage_id,
+              name: script.script_name || "pre-install.ps1",
+              size: script.byte_size || 0,
+              hash: script.hash,
+              type: "text/plain",
+            }
+            : undefined,
+        };
+      })()
       : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
     postScript: release.release_scripts?.find((s: any) => s.phase === "post")
       ? (() => {
-          const script = release.release_scripts.find(
-            (s: any) => s.phase === "post",
-          );
-          return {
-            timeout: script.timeout_seconds,
-            runAsSystem: script.run_as_system,
-            engine: script.engine as "powershell",
-            scriptBinary: script.storage_id
-              ? {
-                  storageId: script.storage_id,
-                  name: script.script_name || "post-install.ps1",
-                  size: script.byte_size || 0,
-                  hash: script.hash,
-                  type: "text/plain",
-                }
-              : undefined,
-          };
-        })()
+        const script = release.release_scripts.find(
+          (s: any) => s.phase === "post",
+        );
+        return {
+          timeout: script.timeout_seconds,
+          runAsSystem: script.run_as_system,
+          engine: script.engine as "powershell",
+          scriptBinary: script.storage_id
+            ? {
+              storageId: script.storage_id,
+              name: script.script_name || "post-install.ps1",
+              size: script.byte_size || 0,
+              hash: script.hash,
+              type: "text/plain",
+            }
+            : undefined,
+        };
+      })()
       : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
   };
 };
@@ -385,17 +385,17 @@ export function AppReleaseSheet({
     displayName: string;
     type: "static" | "dynamic";
   }[] = [
-    ...(staticGroups || []).map((g) => ({
-      id: g.id,
-      displayName: g.displayName,
-      type: "static" as const,
-    })),
-    ...(dynamicGroups || []).map((g) => ({
-      id: g.id,
-      displayName: g.displayName,
-      type: "dynamic" as const,
-    })),
-  ];
+      ...(staticGroups || []).map((g) => ({
+        id: g.id,
+        displayName: g.displayName,
+        type: "static" as const,
+      })),
+      ...(dynamicGroups || []).map((g) => ({
+        id: g.id,
+        displayName: g.displayName,
+        type: "dynamic" as const,
+      })),
+    ];
 
   const formSchema = createFormSchema(isAutoUpdate);
   const form = useForm<FormValues>({
@@ -521,39 +521,39 @@ export function AppReleaseSheet({
       ...values,
       requirements: values.requirements?.requirementScriptBinary
         ? {
-            ...values.requirements,
-            requirementScriptBinary: {
-              ...values.requirements.requirementScriptBinary,
-              storageId: values.requirements.requirementScriptBinary
-                .storageId as Id<"_storage">,
-            },
-          }
+          ...values.requirements,
+          requirementScriptBinary: {
+            ...values.requirements.requirementScriptBinary,
+            storageId: values.requirements.requirementScriptBinary
+              .storageId as Id<"_storage">,
+          },
+        }
         : null,
       preScript: values.preScript?.scriptBinary
         ? {
-            ...values.preScript,
-            scriptBinary: {
-              ...values.preScript.scriptBinary,
-              storageId: values.preScript.scriptBinary
-                .storageId as Id<"_storage">,
-            },
-          }
+          ...values.preScript,
+          scriptBinary: {
+            ...values.preScript.scriptBinary,
+            storageId: values.preScript.scriptBinary
+              .storageId as Id<"_storage">,
+          },
+        }
         : null,
       postScript: values.postScript?.scriptBinary
         ? {
-            ...values.postScript,
-            scriptBinary: {
-              ...values.postScript.scriptBinary,
-              storageId: values.postScript.scriptBinary
-                .storageId as Id<"_storage">,
-            },
-          }
+          ...values.postScript,
+          scriptBinary: {
+            ...values.postScript.scriptBinary,
+            storageId: values.postScript.scriptBinary
+              .storageId as Id<"_storage">,
+          },
+        }
         : null,
       installBinary: values.installBinary
         ? {
-            ...values.installBinary,
-            storageId: values.installBinary.storageId as Id<"_storage">,
-          }
+          ...values.installBinary,
+          storageId: values.installBinary.storageId as Id<"_storage">,
+        }
         : undefined,
     };
 
@@ -1287,7 +1287,7 @@ export function AppReleaseSheet({
                                     ? field.fileType
                                     : field.registryType}
                                   {field.fileTypeValue ||
-                                  field.registryTypeValue
+                                    field.registryTypeValue
                                     ? `: ${field.fileTypeValue || field.registryTypeValue}`
                                     : ""}
                                 </div>

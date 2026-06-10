@@ -21,7 +21,7 @@ import {
     useQueryStates,
 } from "nuqs";
 
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { computer } from "@/modules/computers/table/computers-columns";
 
