@@ -137,7 +137,7 @@ export default defineSchema({
     releases: defineTable({
         app_id: v.id("apps"),
         version: v.string(),
-        installer_type: v.union(v.literal("winget"), v.literal("win32")),
+        installer_type: v.union(v.literal("winget"), v.literal("win32"), v.literal("chocolatey")),
         disabled_at: v.optional(v.number()),
         uninstall_previous: v.boolean(),
     })
@@ -157,6 +157,12 @@ export default defineSchema({
     winget_releases: defineTable({
         release_id: v.id("releases"),
         winget_id: v.string(),
+    }).index("by_release_id", ["release_id"]),
+
+    chocolatey_releases: defineTable({
+        release_id: v.id("releases"),
+        package_id: v.string(),
+        // source_id: v.optional(v.string()) // for private repositories
     }).index("by_release_id", ["release_id"]),
 
     detection_rules: defineTable({
