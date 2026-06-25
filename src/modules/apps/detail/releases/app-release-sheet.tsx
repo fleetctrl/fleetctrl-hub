@@ -256,21 +256,26 @@ const mapReleaseToFormValues = (release: any) => {
   const uninstallGroups = [...staticUninstall, ...dynamicUninstall];
 
   const detections = dRules.map((d: any) => {
-    const config = d.config;
+    const config = d.config || {};
+    const operator =
+      config.operator || config.fileType || config.registryType || "exists";
+    const value =
+      config.value || config.fileTypeValue || config.registryTypeValue || "";
+
     if (d.type === "file") {
       return {
         type: "file" as const,
         path: config.path || "",
-        fileType: (config.fileType || "exists") as any,
-        fileTypeValue: config.fileTypeValue || "",
+        fileType: operator as any,
+        fileTypeValue: value,
       };
     } else {
       return {
         type: "registry" as const,
         path: config.path || config.registryKey || "",
         registryKey: config.registryKey || config.path || "",
-        registryType: (config.registryType || "exists") as any,
-        registryTypeValue: config.registryTypeValue || "",
+        registryType: operator as any,
+        registryTypeValue: value,
       };
     }
   });
