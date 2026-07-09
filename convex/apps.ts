@@ -494,13 +494,15 @@ export const updateInstallState = internalMutation({
             .first();
 
         const now = Date.now();
+        const releaseChanged = existing?.release_id !== normalizedReleaseId;
         const nextInstalledAt =
             status === "INSTALLED"
-                ? installedAt ?? existing?.installed_at ?? now
-                : installedAt ?? existing?.installed_at;
+                ? installedAt ?? (releaseChanged ? now : existing?.installed_at) ?? now
+                : installedAt ?? (releaseChanged ? undefined : existing?.installed_at);
 
         const updatePayload = {
             status,
+            release_id: normalizedReleaseId,
             status_updated_at: now,
             last_seen_at: lastSeenAt ?? now,
             ...(nextInstalledAt !== undefined
@@ -513,7 +515,6 @@ export const updateInstallState = internalMutation({
         } else {
             await ctx.db.insert("computer_apps_installs", {
                 computer_id: normalizedComputerId,
-                release_id: normalizedReleaseId,
                 app_id: appId,
                 ...updatePayload,
             });
