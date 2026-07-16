@@ -742,13 +742,12 @@ export function AppReleaseSheet({
                 <div className="h-full overflow-y-auto px-6 py-6 pb-12">
                   <TabsContent value="details" className="space-y-4 m-0">
                     {!isEdit && copyableReleases.length > 0 && (
-                      <div className="rounded-lg border bg-muted/30 p-3">
-                        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                          <Copy className="h-4 w-4" />
-                          Copy settings from another release
+                      <div className="flex items-center gap-3">
+                        <div className="flex shrink-0 items-center gap-2 text-sm font-medium">
+                          Copy settings from
                         </div>
                         <Select onValueChange={handleCopyReleaseSettings}>
-                          <SelectTrigger>
+                          <SelectTrigger className="min-w-0 flex-1">
                             <SelectValue placeholder="Select source release" />
                           </SelectTrigger>
                           <SelectContent>
@@ -763,11 +762,6 @@ export function AppReleaseSheet({
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          Copies scripts, installer settings, requirements,
-                          detection rules, and assignments. The new release
-                          version stays empty.
-                        </p>
                       </div>
                     )}
 
