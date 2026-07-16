@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, Plus, Trash2, Pencil } from "lucide-react";
+import { Copy, X, Plus, Trash2, Pencil } from "lucide-react";
 import {
   detectionItemSchema,
   storedFileReferenceSchema,
@@ -107,55 +107,69 @@ const createFormSchema = (isAutoUpdate: boolean) =>
 
 type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
 
+export interface ReleaseFormRelease {
+  id: string;
+  version: string;
+  installer_type: string;
+  uninstall_previous?: boolean;
+  disabled_at?: string | number | null;
+  computer_group_releases?: {
+    assign_type: string;
+    action: string;
+    computer_groups: {
+      _id: string;
+      display_name: string;
+    } | null;
+  }[];
+  dynamic_group_releases?: {
+    assign_type: string;
+    action: string;
+    dynamic_computer_groups: {
+      _id: string;
+      display_name: string;
+    } | null;
+  }[];
+  staticAssignments?: unknown[];
+  dynamicAssignments?: unknown[];
+  detection_rules?: {
+    type: string;
+    config: any;
+  }[];
+  detections?: any[];
+  release_requirements?: {
+    timeout_seconds: number;
+    run_as_system: boolean;
+    storage_id?: string;
+    byte_size?: number;
+    hash: string;
+  }[];
+  win32_releases?: {
+    install_script: string;
+    uninstall_script: string;
+    install_binary_storage_id?: string;
+    install_binary_size?: number;
+    hash: string;
+  }[];
+  winget_releases?: {
+    winget_id: string;
+  }[];
+  release_scripts?: {
+    phase: "pre" | "post";
+    engine: "cmd" | "powershell";
+    timeout_seconds: number;
+    run_as_system: boolean;
+    script_name: string;
+    storage_id?: string;
+    byte_size?: number;
+    hash: string;
+  }[];
+}
+
 interface EditReleaseSheetProps {
   appId: string;
   isAutoUpdate?: boolean;
-  release?: {
-    id: string;
-    version: string;
-    installer_type: string;
-    uninstall_previous?: boolean;
-    disabled_at?: string | number | null;
-    computer_group_releases?: {
-      assign_type: string;
-      action: string;
-      computer_groups: {
-        _id: string;
-        display_name: string;
-      } | null;
-    }[];
-    detection_rules?: {
-      type: string;
-      config: any;
-    }[];
-    release_requirements?: {
-      timeout_seconds: number;
-      run_as_system: boolean;
-      storage_id?: string;
-      byte_size?: number;
-      hash: string;
-    }[];
-    win32_releases?: {
-      install_script: string;
-      uninstall_script: string;
-      install_binary_storage_id?: string;
-      install_binary_size?: number;
-      hash: string;
-    }[];
-    winget_releases?: {
-      winget_id: string;
-    }[];
-    release_scripts?: {
-      phase: "pre" | "post";
-      engine: "cmd" | "powershell";
-      timeout_seconds: number;
-      run_as_system: boolean;
-      script_name: string;
-      storage_id?: string;
-      byte_size?: number;
-      hash: string;
-    }[];
-  } | null;
+  release?: ReleaseFormRelease | null;
+  copyableReleases?: ReleaseFormRelease[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -373,6 +387,7 @@ export function AppReleaseSheet({
   appId,
   isAutoUpdate = false,
   release,
+  copyableReleases = [],
   open,
   onOpenChange,
 }: AppReleaseSheetProps) {
@@ -658,6 +673,53 @@ export function AppReleaseSheet({
     setIsDetectionSheetOpen(true);
   };
 
+  const handleCopyReleaseSettings = (sourceReleaseId: string) => {
+    const sourceRelease = copyableReleases.find(
+      (candidate) => candidate.id === sourceReleaseId,
+    );
+
+    if (!sourceRelease) {
+      return;
+    }
+
+    const normalizedSourceRelease = {
+      ...sourceRelease,
+      detections: sourceRelease.detections?.map((detection) => ({
+        ...detection,
+        config: {
+          ...detection.config,
+          ...(detection.type === "file"
+            ? {
+              fileType:
+                detection.config.fileType ?? detection.config.operator,
+              fileTypeValue:
+                detection.config.fileTypeValue ?? detection.config.value,
+            }
+            : {
+              registryType:
+                detection.config.registryType ?? detection.config.operator,
+              registryTypeValue:
+                detection.config.registryTypeValue ?? detection.config.value,
+            }),
+        },
+      })),
+    };
+
+    const values = mapReleaseToFormValues(normalizedSourceRelease);
+    if (!values) {
+      return;
+    }
+
+    form.reset({
+      ...values,
+      version: form.getValues("version") || "",
+      disabled: false,
+    });
+    toast.success(
+      `Settings copied from release ${sourceRelease.version || "latest"}.`,
+    );
+  };
+
   const isEdit = !!release;
 
   return (
@@ -702,6 +764,30 @@ export function AppReleaseSheet({
 
                 <div className="h-full overflow-y-auto px-6 py-6 pb-12">
                   <TabsContent value="details" className="space-y-4 m-0">
+                    {!isEdit && copyableReleases.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        <div className="flex shrink-0 items-center gap-2 text-sm font-medium">
+                          Copy settings from
+                        </div>
+                        <Select onValueChange={handleCopyReleaseSettings}>
+                          <SelectTrigger className="min-w-0 flex-1">
+                            <SelectValue placeholder="Select source release" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {copyableReleases.map((copyRelease) => (
+                              <SelectItem
+                                key={copyRelease.id}
+                                value={copyRelease.id}
+                              >
+                                {copyRelease.version || "latest"} ·{" "}
+                                {copyRelease.installer_type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
                     <FormField
                       control={form.control}
                       name="type"

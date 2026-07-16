@@ -301,6 +301,7 @@ export default function AppDetailPage() {
               <AppReleaseSheet
                 appId={appId}
                 isAutoUpdate={app.auto_update}
+                copyableReleases={releases ?? []}
                 open={showCreateReleaseSheet}
                 onOpenChange={setShowCreateReleaseSheet}
               />
