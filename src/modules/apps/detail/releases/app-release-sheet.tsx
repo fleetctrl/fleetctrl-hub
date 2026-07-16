@@ -682,7 +682,30 @@ export function AppReleaseSheet({
       return;
     }
 
-    const values = mapReleaseToFormValues(sourceRelease);
+    const normalizedSourceRelease = {
+      ...sourceRelease,
+      detections: sourceRelease.detections?.map((detection) => ({
+        ...detection,
+        config: {
+          ...detection.config,
+          ...(detection.type === "file"
+            ? {
+              fileType:
+                detection.config.fileType ?? detection.config.operator,
+              fileTypeValue:
+                detection.config.fileTypeValue ?? detection.config.value,
+            }
+            : {
+              registryType:
+                detection.config.registryType ?? detection.config.operator,
+              registryTypeValue:
+                detection.config.registryTypeValue ?? detection.config.value,
+            }),
+        },
+      })),
+    };
+
+    const values = mapReleaseToFormValues(normalizedSourceRelease);
     if (!values) {
       return;
     }
