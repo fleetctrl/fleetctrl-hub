@@ -22,6 +22,28 @@ type ReleaseAssignment = {
 
 type AssignmentLookupCtx = Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">;
 
+function compareReleaseVersions(
+    a: { version: string; created_at: number },
+    b: { version: string; created_at: number }
+): number {
+    const isLatest = (version: string) =>
+        version.trim() === "" || version.trim().toLowerCase() === "latest";
+
+    const aIsLatest = isLatest(a.version);
+    const bIsLatest = isLatest(b.version);
+
+    if (aIsLatest !== bIsLatest) {
+        return aIsLatest ? -1 : 1;
+    }
+
+    const versionComparison = b.version.localeCompare(a.version, undefined, {
+        numeric: true,
+        sensitivity: "base",
+    });
+
+    return versionComparison || b.created_at - a.created_at;
+}
+
 // Resolve multiple group assignments for the same release deterministically.
 // Exclude always wins over include, independent of static/dynamic group order.
 function resolveAssignments(assignments: ReleaseAssignment[]): ReleaseAssignment[] {
@@ -719,7 +741,7 @@ export const getReleases = withAuthQuery({
             .withIndex("by_app_id", (q) => q.eq("app_id", appId))
             .collect();
 
-        return Promise.all(
+        const releasesWithDetails = await Promise.all(
             releases.map(async (release) => {
                 // Get assignments with group details
                 const staticAssignmentsRaw = await ctx.db
@@ -798,6 +820,8 @@ export const getReleases = withAuthQuery({
                 };
             })
         );
+
+        return releasesWithDetails.sort(compareReleaseVersions);
     },
 });
 
