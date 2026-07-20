@@ -52,7 +52,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -73,9 +73,9 @@ type DialogState = { mode: "create" } | { mode: "edit"; groupId: string };
 const formatDateTime = (isoDate: string | null) =>
   isoDate
     ? new Date(isoDate).toLocaleString("cs-CZ", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
+      dateStyle: "medium",
+      timeStyle: "short",
+    })
     : null;
 
 const groupFormSchema = z.object({
@@ -453,9 +453,9 @@ export function DynamicGroupsTable({
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -501,7 +501,7 @@ export function DynamicGroupsTable({
               Computers that match the group rules.
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-100 overflow-y-auto">
             {viewMembersGroupId ? (
               <MembersList
                 groupId={viewMembersGroupId as Id<"dynamic_computer_groups">}

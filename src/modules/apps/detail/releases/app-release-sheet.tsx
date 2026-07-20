@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { useMutation } from "convex/react";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, Plus, Trash2, Pencil } from "lucide-react";
+import { Copy, X, Plus, Trash2, Pencil } from "lucide-react";
 import {
   detectionItemSchema,
   storedFileReferenceSchema,
@@ -67,8 +67,8 @@ const createFormSchema = (isAutoUpdate: boolean) =>
     version: isAutoUpdate
       ? z.string().optional()
       : z.string().min(1, {
-          message: "Version is required.",
-        }),
+        message: "Version is required.",
+      }),
     uninstall_previous: z.boolean(),
     disabled: z.boolean(),
     wingetId: z.string().optional(),
@@ -107,55 +107,69 @@ const createFormSchema = (isAutoUpdate: boolean) =>
 
 type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
 
+export interface ReleaseFormRelease {
+  id: string;
+  version: string;
+  installer_type: string;
+  uninstall_previous?: boolean;
+  disabled_at?: string | number | null;
+  computer_group_releases?: {
+    assign_type: string;
+    action: string;
+    computer_groups: {
+      _id: string;
+      display_name: string;
+    } | null;
+  }[];
+  dynamic_group_releases?: {
+    assign_type: string;
+    action: string;
+    dynamic_computer_groups: {
+      _id: string;
+      display_name: string;
+    } | null;
+  }[];
+  staticAssignments?: unknown[];
+  dynamicAssignments?: unknown[];
+  detection_rules?: {
+    type: string;
+    config: any;
+  }[];
+  detections?: any[];
+  release_requirements?: {
+    timeout_seconds: number;
+    run_as_system: boolean;
+    storage_id?: string;
+    byte_size?: number;
+    hash: string;
+  }[];
+  win32_releases?: {
+    install_script: string;
+    uninstall_script: string;
+    install_binary_storage_id?: string;
+    install_binary_size?: number;
+    hash: string;
+  }[];
+  winget_releases?: {
+    winget_id: string;
+  }[];
+  release_scripts?: {
+    phase: "pre" | "post";
+    engine: "cmd" | "powershell";
+    timeout_seconds: number;
+    run_as_system: boolean;
+    script_name: string;
+    storage_id?: string;
+    byte_size?: number;
+    hash: string;
+  }[];
+}
+
 interface EditReleaseSheetProps {
   appId: string;
   isAutoUpdate?: boolean;
-  release?: {
-    id: string;
-    version: string;
-    installer_type: string;
-    uninstall_previous?: boolean;
-    disabled_at?: string | number | null;
-    computer_group_releases?: {
-      assign_type: string;
-      action: string;
-      computer_groups: {
-        _id: string;
-        display_name: string;
-      } | null;
-    }[];
-    detection_rules?: {
-      type: string;
-      config: any;
-    }[];
-    release_requirements?: {
-      timeout_seconds: number;
-      run_as_system: boolean;
-      storage_id?: string;
-      byte_size?: number;
-      hash: string;
-    }[];
-    win32_releases?: {
-      install_script: string;
-      uninstall_script: string;
-      install_binary_storage_id?: string;
-      install_binary_size?: number;
-      hash: string;
-    }[];
-    winget_releases?: {
-      winget_id: string;
-    }[];
-    release_scripts?: {
-      phase: "pre" | "post";
-      engine: "cmd" | "powershell";
-      timeout_seconds: number;
-      run_as_system: boolean;
-      script_name: string;
-      storage_id?: string;
-      byte_size?: number;
-      hash: string;
-    }[];
-  } | null;
+  release?: ReleaseFormRelease | null;
+  copyableReleases?: ReleaseFormRelease[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -299,12 +313,12 @@ const mapReleaseToFormValues = (release: any) => {
       win32Rel?.uninstall_script || win32Rel?.uninstallScript || "",
     installBinary: win32Rel?.install_binary_storage_id
       ? {
-          storageId: win32Rel.install_binary_storage_id,
-          name: "installer.zip", // Placeholder as filename is not in schema yet
-          size: win32Rel.install_binary_size || 0,
-          hash: win32Rel.hash,
-          type: "application/zip",
-        }
+        storageId: win32Rel.install_binary_storage_id,
+        name: "installer.zip", // Placeholder as filename is not in schema yet
+        size: win32Rel.install_binary_size || 0,
+        hash: win32Rel.hash,
+        type: "application/zip",
+      }
       : undefined,
     assignments: {
       installGroups: installGroups.filter((g: any) => g.groupId),
@@ -313,63 +327,63 @@ const mapReleaseToFormValues = (release: any) => {
     detections,
     requirements: requirement
       ? {
-          timeout: requirement.timeout_seconds,
-          runAsSystem: requirement.run_as_system,
-          requirementScriptBinary: requirement.storage_id
-            ? {
-                storageId: requirement.storage_id,
-                name: "script.ps1",
-                size: requirement.byte_size || 0,
-                hash: requirement.hash,
-                type: "text/plain",
-              }
-            : undefined,
-        }
+        timeout: requirement.timeout_seconds,
+        runAsSystem: requirement.run_as_system,
+        requirementScriptBinary: requirement.storage_id
+          ? {
+            storageId: requirement.storage_id,
+            name: "script.ps1",
+            size: requirement.byte_size || 0,
+            hash: requirement.hash,
+            type: "text/plain",
+          }
+          : undefined,
+      }
       : {
-          timeout: 60,
-          runAsSystem: false,
-        },
+        timeout: 60,
+        runAsSystem: false,
+      },
     preScript: release.release_scripts?.find((s: any) => s.phase === "pre")
       ? (() => {
-          const script = release.release_scripts.find(
-            (s: any) => s.phase === "pre",
-          );
-          return {
-            timeout: script.timeout_seconds,
-            runAsSystem: script.run_as_system,
-            engine: script.engine as "powershell",
-            scriptBinary: script.storage_id
-              ? {
-                  storageId: script.storage_id,
-                  name: script.script_name || "pre-install.ps1",
-                  size: script.byte_size || 0,
-                  hash: script.hash,
-                  type: "text/plain",
-                }
-              : undefined,
-          };
-        })()
+        const script = release.release_scripts.find(
+          (s: any) => s.phase === "pre",
+        );
+        return {
+          timeout: script.timeout_seconds,
+          runAsSystem: script.run_as_system,
+          engine: script.engine as "powershell",
+          scriptBinary: script.storage_id
+            ? {
+              storageId: script.storage_id,
+              name: script.script_name || "pre-install.ps1",
+              size: script.byte_size || 0,
+              hash: script.hash,
+              type: "text/plain",
+            }
+            : undefined,
+        };
+      })()
       : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
     postScript: release.release_scripts?.find((s: any) => s.phase === "post")
       ? (() => {
-          const script = release.release_scripts.find(
-            (s: any) => s.phase === "post",
-          );
-          return {
-            timeout: script.timeout_seconds,
-            runAsSystem: script.run_as_system,
-            engine: script.engine as "powershell",
-            scriptBinary: script.storage_id
-              ? {
-                  storageId: script.storage_id,
-                  name: script.script_name || "post-install.ps1",
-                  size: script.byte_size || 0,
-                  hash: script.hash,
-                  type: "text/plain",
-                }
-              : undefined,
-          };
-        })()
+        const script = release.release_scripts.find(
+          (s: any) => s.phase === "post",
+        );
+        return {
+          timeout: script.timeout_seconds,
+          runAsSystem: script.run_as_system,
+          engine: script.engine as "powershell",
+          scriptBinary: script.storage_id
+            ? {
+              storageId: script.storage_id,
+              name: script.script_name || "post-install.ps1",
+              size: script.byte_size || 0,
+              hash: script.hash,
+              type: "text/plain",
+            }
+            : undefined,
+        };
+      })()
       : { timeout: 60, runAsSystem: false, engine: "powershell" as const },
   };
 };
@@ -378,6 +392,7 @@ export function AppReleaseSheet({
   appId,
   isAutoUpdate = false,
   release,
+  copyableReleases = [],
   open,
   onOpenChange,
 }: AppReleaseSheetProps) {
@@ -390,17 +405,17 @@ export function AppReleaseSheet({
     displayName: string;
     type: "static" | "dynamic";
   }[] = [
-    ...(staticGroups || []).map((g) => ({
-      id: g.id,
-      displayName: g.displayName,
-      type: "static" as const,
-    })),
-    ...(dynamicGroups || []).map((g) => ({
-      id: g.id,
-      displayName: g.displayName,
-      type: "dynamic" as const,
-    })),
-  ];
+      ...(staticGroups || []).map((g) => ({
+        id: g.id,
+        displayName: g.displayName,
+        type: "static" as const,
+      })),
+      ...(dynamicGroups || []).map((g) => ({
+        id: g.id,
+        displayName: g.displayName,
+        type: "dynamic" as const,
+      })),
+    ];
 
   const formSchema = createFormSchema(isAutoUpdate);
   const form = useForm<FormValues>({
@@ -526,39 +541,39 @@ export function AppReleaseSheet({
       ...values,
       requirements: values.requirements?.requirementScriptBinary
         ? {
-            ...values.requirements,
-            requirementScriptBinary: {
-              ...values.requirements.requirementScriptBinary,
-              storageId: values.requirements.requirementScriptBinary
-                .storageId as Id<"_storage">,
-            },
-          }
+          ...values.requirements,
+          requirementScriptBinary: {
+            ...values.requirements.requirementScriptBinary,
+            storageId: values.requirements.requirementScriptBinary
+              .storageId as Id<"_storage">,
+          },
+        }
         : null,
       preScript: values.preScript?.scriptBinary
         ? {
-            ...values.preScript,
-            scriptBinary: {
-              ...values.preScript.scriptBinary,
-              storageId: values.preScript.scriptBinary
-                .storageId as Id<"_storage">,
-            },
-          }
+          ...values.preScript,
+          scriptBinary: {
+            ...values.preScript.scriptBinary,
+            storageId: values.preScript.scriptBinary
+              .storageId as Id<"_storage">,
+          },
+        }
         : null,
       postScript: values.postScript?.scriptBinary
         ? {
-            ...values.postScript,
-            scriptBinary: {
-              ...values.postScript.scriptBinary,
-              storageId: values.postScript.scriptBinary
-                .storageId as Id<"_storage">,
-            },
-          }
+          ...values.postScript,
+          scriptBinary: {
+            ...values.postScript.scriptBinary,
+            storageId: values.postScript.scriptBinary
+              .storageId as Id<"_storage">,
+          },
+        }
         : null,
       installBinary: values.installBinary
         ? {
-            ...values.installBinary,
-            storageId: values.installBinary.storageId as Id<"_storage">,
-          }
+          ...values.installBinary,
+          storageId: values.installBinary.storageId as Id<"_storage">,
+        }
         : undefined,
     };
 
@@ -663,6 +678,53 @@ export function AppReleaseSheet({
     setIsDetectionSheetOpen(true);
   };
 
+  const handleCopyReleaseSettings = (sourceReleaseId: string) => {
+    const sourceRelease = copyableReleases.find(
+      (candidate) => candidate.id === sourceReleaseId,
+    );
+
+    if (!sourceRelease) {
+      return;
+    }
+
+    const normalizedSourceRelease = {
+      ...sourceRelease,
+      detections: sourceRelease.detections?.map((detection) => ({
+        ...detection,
+        config: {
+          ...detection.config,
+          ...(detection.type === "file"
+            ? {
+              fileType:
+                detection.config.fileType ?? detection.config.operator,
+              fileTypeValue:
+                detection.config.fileTypeValue ?? detection.config.value,
+            }
+            : {
+              registryType:
+                detection.config.registryType ?? detection.config.operator,
+              registryTypeValue:
+                detection.config.registryTypeValue ?? detection.config.value,
+            }),
+        },
+      })),
+    };
+
+    const values = mapReleaseToFormValues(normalizedSourceRelease);
+    if (!values) {
+      return;
+    }
+
+    form.reset({
+      ...values,
+      version: form.getValues("version") || "",
+      disabled: false,
+    });
+    toast.success(
+      `Settings copied from release ${sourceRelease.version || "latest"}.`,
+    );
+  };
+
   const isEdit = !!release;
 
   return (
@@ -707,6 +769,30 @@ export function AppReleaseSheet({
 
                 <div className="h-full overflow-y-auto px-6 py-6 pb-12">
                   <TabsContent value="details" className="space-y-4 m-0">
+                    {!isEdit && copyableReleases.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        <div className="flex shrink-0 items-center gap-2 text-sm font-medium">
+                          Copy settings from
+                        </div>
+                        <Select onValueChange={handleCopyReleaseSettings}>
+                          <SelectTrigger className="min-w-0 flex-1">
+                            <SelectValue placeholder="Select source release" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {copyableReleases.map((copyRelease) => (
+                              <SelectItem
+                                key={copyRelease.id}
+                                value={copyRelease.id}
+                              >
+                                {copyRelease.version || "latest"} ·{" "}
+                                {copyRelease.installer_type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
                     <FormField
                       control={form.control}
                       name="type"
@@ -1292,7 +1378,7 @@ export function AppReleaseSheet({
                                     ? field.fileType
                                     : field.registryType}
                                   {field.fileTypeValue ||
-                                  field.registryTypeValue
+                                    field.registryTypeValue
                                     ? `: ${field.fileTypeValue || field.registryTypeValue}`
                                     : ""}
                                 </div>

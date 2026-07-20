@@ -5,7 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useAuthQuery } from "@/hooks/auth-query";
+import { useAuthQuery } from "@/hooks/use-auth-query";
 
 export const DEVICE_INSTALL_STATUS_PAGE_SIZE = 10;
 

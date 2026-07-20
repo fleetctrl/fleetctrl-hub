@@ -18,7 +18,7 @@ This directory contains a fully local setup for the Fleetctrl Hub, including a s
 
 ### Production Setup via curl
 
-If you only want to run the production Docker stack, use the bootstrap script. It downloads the required files into a fresh directory and then runs `manage.sh setup`.
+If you only want to run the production Docker stack, use the bootstrap script. It downloads the required files into a fresh directory and prints the setup command to run next.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | bash
@@ -26,9 +26,16 @@ curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker
 
 Notes:
 
-- The script creates a `fleetctrl-hub-docker` directory in your current location, downloads the required files into it, and runs `./manage.sh setup`.
+- The script creates a `fleetctrl-hub` directory in your current location and downloads the required files into it.
 - It stores `docker-compose.production.yml` as `docker-compose.yml`, because `manage.sh` expects Docker Compose's default filename.
 - It downloads both `Caddyfile.proxy` and `Caddyfile.standalone`; the setup flow copies the correct file to `Caddyfile`.
+
+Then run:
+
+```bash
+cd fleetctrl-hub
+./manage.sh setup
+```
 
 To change the installation directory:
 
@@ -118,24 +125,31 @@ This script will:
 
 ## Update
 
-Run the update script to update the environment, generate necessary keys, and deploy the Convex schema automatically.
+Run the update command to update the environment, generate necessary keys, and deploy the Convex schema automatically.
 
 ```bash
-./update.sh
+./manage.sh update
 ```
 
 This script will:
 
-1. Pull the latest changes from the repository.
-2. Start all services.
-3. Deploy the Convex schema and functions from the local source code to the containerized backend.
+1. Check the Fleetctrl image tag pinned in `docker-compose.yml`.
+2. Pull fresh images automatically when the tag is `latest`, or offer to update pinned version tags when a newer release is available.
+3. Start all services.
+4. Deploy the Convex schema and functions to the containerized backend.
+
+To update only the management script itself, run:
+
+```bash
+./manage.sh self-update
+```
 
 ## Convex Push
 
 Use this when you only need to deploy Convex schema and functions without running the full update or setup.
 
 ```bash
-./convex-push.sh
+./manage.sh push
 ```
 
 ## Configuration

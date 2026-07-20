@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -o pipefail
 
 # Colors
 GREEN='\033[0;32m'
@@ -10,6 +11,11 @@ PURPLE='\033[0;35m'
 RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m'
+
+REPO_OWNER=${REPO_OWNER:-fleetctrl}
+REPO_NAME=${REPO_NAME:-fleetctrl-hub}
+REPO_REF=${REPO_REF:-main}
+BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}/docker"
 
 # Change directory to the script's location (docker directory)
 cd "$(dirname "$0")"
@@ -55,6 +61,96 @@ ensure_env_value() {
   fi
 }
 
+get_compose_image_tag() {
+  local image="$1"
+  local file="${2:-docker-compose.yml}"
+
+  awk -v image="$image" '
+    $1 == "image:" && index($2, image ":") == 1 {
+      print substr($2, length(image) + 2)
+      exit
+    }
+  ' "$file"
+}
+
+set_compose_image_tag() {
+  local image="$1"
+  local tag="$2"
+  local file="${3:-docker-compose.yml}"
+  local escaped_image
+
+  escaped_image=$(printf '%s' "$image" | sed 's/[][\\.^$*+?{}()|]/\\&/g')
+  sedi "s|^\([[:space:]]*image:[[:space:]]*${escaped_image}:\).*|\1${tag}|" "$file"
+}
+
+get_latest_ghcr_tag() {
+  local package="$1"
+  local token
+  local tags
+
+  token=$(curl -fsSL "https://ghcr.io/token?scope=repository:fleetctrl/${package}:pull" \
+    | sed -n 's/.*"token":"\([^"]*\)".*/\1/p') || return 0
+
+  tags=$(curl -fsSL -H "Authorization: Bearer ${token}" "https://ghcr.io/v2/fleetctrl/${package}/tags/list" \
+    | tr ',' '\n' \
+    | sed -n 's/.*"name":"\([^"]*\)".*/\1/p; s/.*"\([^"]*\)".*/\1/p' \
+    | grep -E '^v?[0-9]+([.][0-9]+){1,3}([-+][0-9A-Za-z.-]+)?$' \
+    | awk '{ version=$0; sub(/^v/, "", version); print version " " $0 }' \
+    | sort -k1,1V \
+    | awk '{ print $2 }') || return 0
+
+  printf '%s\n' "$tags" | tail -n 1
+}
+
+check_compose_image_updates() {
+  local compose_file="${1:-docker-compose.yml}"
+  local hub_image="ghcr.io/fleetctrl/fleetctrl-hub"
+  local migration_image="ghcr.io/fleetctrl/fleetctrl-convex-migration"
+  local current_tag
+  local latest_tag
+
+  if [ ! -f "$compose_file" ]; then
+    echo -e "${YELLOW}Compose file '$compose_file' not found, skipping image version check.${NC}"
+    return 0
+  fi
+
+  current_tag=$(get_compose_image_tag "$hub_image" "$compose_file")
+  if [ -z "$current_tag" ]; then
+    echo -e "${YELLOW}No ${hub_image} image tag found in ${compose_file}, skipping image version check.${NC}"
+    return 0
+  fi
+
+  if [ "$current_tag" = "latest" ]; then
+    echo -e "${BLUE}▶ Compose uses ${hub_image}:latest. Pulling fresh images...${NC}"
+    docker compose pull hub convex-migration
+    return 0
+  fi
+
+  echo -e "${BLUE}▶ Checking latest Fleetctrl image version...${NC}"
+  latest_tag=$(get_latest_ghcr_tag "fleetctrl-hub")
+  if [ -z "$latest_tag" ]; then
+    echo -e "${YELLOW}Could not determine the latest Fleetctrl image tag. Continuing with ${current_tag}.${NC}"
+    return 0
+  fi
+
+  if [ "$current_tag" = "$latest_tag" ]; then
+    echo -e "${GREEN}Fleetctrl image is already pinned to the latest version (${current_tag}).${NC}"
+    return 0
+  fi
+
+  echo -e "${YELLOW}A newer Fleetctrl image is available: ${current_tag} → ${latest_tag}.${NC}"
+  echo -ne "${YELLOW}Update docker-compose.yml to ${latest_tag} and pull it now? [y/N] ${NC}"
+  read -r update_image_tag
+  if [[ "$update_image_tag" =~ ^[Yy]$ ]]; then
+    set_compose_image_tag "$hub_image" "$latest_tag" "$compose_file"
+    set_compose_image_tag "$migration_image" "$latest_tag" "$compose_file"
+    docker compose pull hub convex-migration
+    echo -e "${GREEN}Updated Fleetctrl image pins to ${latest_tag}.${NC}"
+  else
+    echo -e "${YELLOW}Keeping pinned Fleetctrl image version ${current_tag}.${NC}"
+  fi
+}
+
 confirm_empty_dir() {
   local label="$1"
   local dir_path="$2"
@@ -87,6 +183,41 @@ generate_convex_admin_key() {
     | awk '/^convex-self-hosted\|/ { key=$0 } END { print key }'
 }
 
+refresh_convex_admin_key() {
+  local new_key
+
+  require_convex_running
+
+  echo -e "${BLUE}▶ Generating a new Convex Admin Key...${NC}"
+  new_key=$(generate_convex_admin_key)
+  if [ -z "$new_key" ]; then
+    echo -e "${RED}Failed to generate a new Convex Admin Key.${NC}"
+    exit 1
+  fi
+
+  upsert_env "CONVEX_DEPLOY_KEY" "\"$new_key\"" .env
+  ADMIN_KEY="$new_key"
+  echo -e "${GREEN}✓ Saved new Convex Admin Key to .env.${NC}"
+}
+
+wait_for_convex() {
+  echo -e "${BLUE}▶ Waiting for Convex backend...${NC}"
+  until [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" == "healthy" ]; do
+    echo -e "  ${YELLOW}⌛ Waiting for Convex to become healthy...${NC}"
+    sleep 3
+  done
+  echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
+}
+
+require_convex_running() {
+  if [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" != "healthy" ]; then
+    echo -e "${RED}Error: Convex backend is not running or is not healthy.${NC}"
+    echo -e "${YELLOW}Convex must be running before this command can continue.${NC}"
+    echo -e "Start it with: ${CYAN}docker compose up -d rustfs rustfs-init postgres convex${NC}"
+    exit 1
+  fi
+}
+
 show_banner() {
   clear
   echo -e "${CYAN}${BOLD}"
@@ -115,9 +246,13 @@ cmd_backup() {
     exit 1
   fi
 
+  require_convex_running
+
   BACKUP_FILENAME="backup-$(date +%Y-%m-%d_%H-%M-%S).zip"
   BACKUP_PATH="/app/convex/backups/$BACKUP_FILENAME"
   LOCAL_BACKUP_PATH="../convex/backups/$BACKUP_FILENAME"
+  BACKUP_OUTPUT=$(mktemp)
+  trap 'rm -f "$BACKUP_OUTPUT"' RETURN
 
   echo -e "${BLUE}▶ Starting export process...${NC}"
   echo -e "Target file: ${CYAN}$LOCAL_BACKUP_PATH${NC}\n"
@@ -126,14 +261,36 @@ cmd_backup() {
     --url "http://convex:3210" \
     --admin-key "$ADMIN_KEY" \
     --include-file-storage \
-    --path "$BACKUP_PATH"; then
+    --path "$BACKUP_PATH" 2>&1 | tee "$BACKUP_OUTPUT"; then
 
     echo -e "\n${GREEN}${BOLD}✓ Backup successful!${NC}"
     echo -e "Saved to: ${CYAN}fleetctrl-hub/convex/backups/$BACKUP_FILENAME${NC}"
   else
+    if grep -q "BadAdminKey" "$BACKUP_OUTPUT"; then
+      echo -e "\n${YELLOW}Convex Admin Key is invalid for this instance. Generating a new key and retrying backup...${NC}"
+      refresh_convex_admin_key
+      : > "$BACKUP_OUTPUT"
+
+      if run_convex_migration_with_backups npx convex export \
+        --url "http://convex:3210" \
+        --admin-key "$ADMIN_KEY" \
+        --include-file-storage \
+        --path "$BACKUP_PATH" 2>&1 | tee "$BACKUP_OUTPUT"; then
+
+        echo -e "\n${GREEN}${BOLD}✓ Backup successful!${NC}"
+        echo -e "Saved to: ${CYAN}fleetctrl-hub/convex/backups/$BACKUP_FILENAME${NC}"
+        trap - RETURN
+        rm -f "$BACKUP_OUTPUT"
+        return 0
+      fi
+    fi
+
     echo -e "\n${RED}✗ Backup failed.${NC}"
     exit 1
   fi
+
+  trap - RETURN
+  rm -f "$BACKUP_OUTPUT"
 }
 
 # ─────────────────────────────────────────────────────────
@@ -153,6 +310,8 @@ cmd_restore() {
     echo -e "${RED}Error: CONVEX_DEPLOY_KEY not found in .env.${NC}"
     exit 1
   fi
+
+  require_convex_running
 
   BACKUP_DIR="../convex/backups"
   BACKUPS=($(ls -1 $BACKUP_DIR/backup-*.zip 2>/dev/null || true))
@@ -224,6 +383,7 @@ cmd_convex_push() {
   set +a
 
   ADMIN_KEY=${CONVEX_DEPLOY_KEY}
+  require_convex_running
 
   if [ -z "$ADMIN_KEY" ]; then
     echo -e "${BLUE}▶ Generating Convex Admin Key...${NC}"
@@ -238,12 +398,24 @@ cmd_convex_push() {
     echo "CONVEX_DEPLOY_KEY=\"$ADMIN_KEY\"" >> .env
   fi
 
-  echo -e "${BLUE}▶ Waiting for Convex backend...${NC}"
-  until [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" == "healthy" ]; do
-    echo -e "  ${YELLOW}⌛ Waiting for Convex to become healthy...${NC}"
-    sleep 3
+  echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
+  BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+  JWT_SECRET=${JWT_SECRET}
+  API_URL=${API_URL:-${SITE_URL}/api}
+  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+  CONVEX_SITE_INTERNAL_URL_FOR_CONVEX=${CONVEX_SITE_INTERNAL_URL_FOR_CONVEX:-http://127.0.0.1:3211}
+
+  for var in \
+    "SITE_URL=$SITE_URL" \
+    "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" \
+    "JWT_SECRET=$JWT_SECRET" \
+    "API_URL=$API_URL" \
+    "ALLOW_REGISTRATION=$ALLOW_REGISTRATION" \
+    "CONVEX_SITE_INTERNAL_URL=$CONVEX_SITE_INTERNAL_URL_FOR_CONVEX"; do
+    run_convex_migration npx convex env set "$var" \
+      --url "http://convex:3210" \
+      --admin-key "$ADMIN_KEY" > /dev/null
   done
-  echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
 
   echo -e "${BLUE}▶ Pushing Convex schema and functions...${NC}"
   run_convex_migration npx convex deploy --url "http://convex:3210" --admin-key "$ADMIN_KEY" --yes > /dev/null
@@ -451,13 +623,7 @@ cmd_setup() {
   echo -e "${BLUE}▶ Starting Convex backend...${NC}"
   docker compose up -d rustfs rustfs-init convex $REBUILD_FLAG
 
-  echo -e "${BLUE}▶ Waiting for Convex backend...${NC}"
-  until [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" == "healthy" ]; do
-    echo -ne "  ${YELLOW}⌛ Waiting for Convex to become healthy...${NC}\r"
-    sleep 2
-  done
-  echo -e "  ${GREEN}✓ Convex is healthy!${NC}                                "
-  echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
+  wait_for_convex
 
   if [ "$SKIP_CONVEX_SETUP" = true ]; then
     echo -e "${BLUE}▶ Skipping Convex key generation (already configured)...${NC}"
@@ -529,36 +695,43 @@ cmd_setup() {
 # ─────────────────────────────────────────────────────────
 # UPDATE
 # ─────────────────────────────────────────────────────────
-cmd_update() {
+cmd_update_manager() {
   if ! command -v curl &> /dev/null; then
     echo -e "${YELLOW}Error: 'curl' is required but not installed.${NC}"
     exit 1
   fi
 
-  if ! command -v git &> /dev/null; then
-    echo -e "${YELLOW}Error: 'git' is required but not installed.${NC}"
+  if ! command -v mktemp &> /dev/null; then
+    echo -e "${YELLOW}Error: 'mktemp' is required but not installed.${NC}"
     exit 1
   fi
 
-  if [ -d ../.git ]; then
-    echo -e "${BLUE}▶ Pulling latest changes...${NC}"
-    if ! (cd .. && git pull); then
-      echo -e "${YELLOW}Warning: git pull failed (you may have local changes or merge conflicts).${NC}"
-      echo -ne "${YELLOW}Do you want to continue anyway? [y/N] ${NC}"
-      read -r continue_update
-      if [[ ! "$continue_update" =~ ^[Yy]$ ]]; then
-        exit 1
-      fi
-    fi
+  local script_name
+  local temp_file
+  script_name=$(basename "$0")
+  temp_file=$(mktemp)
+  trap 'rm -f "$temp_file"' RETURN
+
+  echo -e "${BLUE}▶ Downloading latest ${script_name}...${NC}"
+  curl -fsSL "${BASE_URL}/manage.sh" -o "$temp_file"
+
+  if ! head -n 1 "$temp_file" | grep -q '^#!/bin/bash'; then
+    echo -e "${RED}Downloaded file does not look like manage.sh. Aborting.${NC}"
+    exit 1
   fi
 
-  if [ -d ../.git ] && [ -z "$(cd .. && git status --porcelain)" ]; then
-    echo -e "${GREEN}No changes detected.${NC}"
-    echo -ne "${YELLOW}Do you want to continue anyway? [y/N] ${NC}"
-    read -r continue_update
-    if [[ ! "$continue_update" =~ ^[Yy]$ ]]; then
-      exit 0
-    fi
+  chmod +x "$temp_file"
+  mv "$temp_file" "./${script_name}"
+  trap - RETURN
+
+  echo -e "\n${GREEN}${BOLD}Manager script updated successfully!${NC}"
+  echo -e "${YELLOW}Run ./${script_name} again to use the updated version.${NC}\n"
+}
+
+cmd_update() {
+  if ! command -v curl &> /dev/null; then
+    echo -e "${YELLOW}Error: 'curl' is required but not installed.${NC}"
+    exit 1
   fi
 
   echo -e "${BLUE}▶ Starting update process...${NC}"
@@ -594,19 +767,17 @@ cmd_update() {
   echo -e "\n${BLUE}▶ Creating automatic backup before update...${NC}"
   if [ -n "$ADMIN_KEY" ]; then
     cmd_backup || echo -e "${YELLOW}Backup encountered an issue, but continuing update...${NC}"
+    ADMIN_KEY=$(get_env_value "CONVEX_DEPLOY_KEY" .env | tr -d ' ')
   else
     echo -e "${YELLOW}No Convex key found, skipping backup.${NC}"
   fi
 
+  check_compose_image_updates "docker-compose.yml"
+
   echo -e "\n${BLUE}▶ Starting Docker services...${NC}"
   docker compose up -d rustfs rustfs-init convex hub convex-migration convex-dashboard proxy $REBUILD_FLAG
 
-  echo -e "${BLUE}▶ Waiting for Convex backend...${NC}"
-  until [ "$(docker inspect --format='{{.State.Health.Status}}' fleetctrl-convex 2>/dev/null)" == "healthy" ]; do
-    echo -e "  ${YELLOW}⌛ Waiting for Convex to become healthy...${NC}"
-    sleep 3
-  done
-  echo -e "  ${GREEN}✓ Convex is healthy!${NC}"
+  wait_for_convex
 
   echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
   API_URL=${API_URL:-${SITE_URL}/api}
@@ -650,13 +821,14 @@ run_choice() {
     3|backup)  cmd_backup ;;
     4|restore) cmd_restore ;;
     5|push)    cmd_convex_push ;;
+    6|self-update|update-manager|manager-update) cmd_update_manager ;;
     q|Q|quit)
       echo -e "${YELLOW}Bye!${NC}"
       exit 0
       ;;
     *)
       echo -e "${RED}Invalid option '$1'.${NC}"
-      echo -e "Usage: $0 [--option <1-5>] [setup|update|backup|restore|push]"
+      echo -e "Usage: $0 [--option <1-6>] [setup|update|backup|restore|push|self-update]"
       exit 1
       ;;
   esac
@@ -686,6 +858,7 @@ else
   echo -e "  [${CYAN}3${NC}] Backup     — Export Convex data to a ZIP file"
   echo -e "  [${CYAN}4${NC}] Restore    — Import Convex data from a backup"
   echo -e "  [${CYAN}5${NC}] Push       — Redeploy Convex schema and functions only"
+  echo -e "  [${CYAN}6${NC}] Self-update — Update this management script"
   echo -e "  [${CYAN}q${NC}] Quit\n"
 
   read -p "$(echo -e ${BOLD}"Select an option: "${NC})" CHOICE
