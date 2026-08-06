@@ -40,7 +40,7 @@ export function SiteHeader({ children, page }: Props) {
 					</div>
 				</div>
 			</header>
-			<div className="h-14 mb-9"></div>
+			<div className="h-5 mb-9"></div>
 		</>
 	);
 }

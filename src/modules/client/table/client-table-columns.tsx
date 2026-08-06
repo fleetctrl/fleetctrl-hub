@@ -31,6 +31,7 @@ const formatBytes = (bytes: number): string => {
 export const clientColumns: ColumnDef<ClientUpdateRow>[] = [
   {
     accessorKey: "version",
+    size: 180,
     header: "Version",
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
@@ -45,11 +46,13 @@ export const clientColumns: ColumnDef<ClientUpdateRow>[] = [
   },
   {
     accessorKey: "byte_size",
+    size: 100,
     header: "Size",
     cell: ({ row }) => formatBytes(row.original.byte_size),
   },
   {
     accessorKey: "file_name",
+    size: 220,
     header: "Filename",
     cell: ({ row }) => (
       <span className="max-w-50 truncate text-sm text-muted-foreground">
@@ -59,6 +62,7 @@ export const clientColumns: ColumnDef<ClientUpdateRow>[] = [
   },
   {
     accessorKey: "hash",
+    size: 160,
     header: "Hash",
     cell: ({ row }) => (
       <span className="font-mono text-xs text-muted-foreground">
@@ -68,6 +72,7 @@ export const clientColumns: ColumnDef<ClientUpdateRow>[] = [
   },
   {
     accessorKey: "notes",
+    size: 260,
     header: "Notes",
     cell: ({ row }) => (
       <span className="max-w-50 truncate text-sm text-muted-foreground">
@@ -77,10 +82,12 @@ export const clientColumns: ColumnDef<ClientUpdateRow>[] = [
   },
   {
     accessorKey: "createdAtFormatted",
+    size: 190,
     header: "Uploaded",
   },
   {
     id: "actions",
+    size: 64,
     header: "",
     cell: ({ row, table }) => {
       const meta = table.options.meta as ClientUpdatesTableMeta | undefined;

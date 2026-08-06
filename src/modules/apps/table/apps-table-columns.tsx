@@ -27,6 +27,7 @@ export type AppsTableMeta = {
 export const appsTableColumns: ColumnDef<AppRow>[] = [
   {
     accessorKey: "displayName",
+    size: 240,
     header: "Name",
     cell: ({ row }) => (
       <Link
@@ -39,6 +40,7 @@ export const appsTableColumns: ColumnDef<AppRow>[] = [
   },
   {
     id: "groups",
+    size: 240,
     header: "Groups",
     cell: ({ row }) => {
       const visibleGroups = row.original?.groups?.slice(0, 2) ?? [];
@@ -67,19 +69,23 @@ export const appsTableColumns: ColumnDef<AppRow>[] = [
   },
   {
     accessorKey: "installedCount",
-    header: "Installed devices",
+    size: 100,
+    header: "Installed",
     cell: ({ row }) => row.original.installedCount,
   },
   {
     accessorKey: "updatedAtFormatted",
+    size: 190,
     header: "Last updated",
   },
   {
     accessorKey: "createdAtFormatted",
+    size: 190,
     header: "Created",
   },
   {
     id: "actions",
+    size: 60,
     header: "",
     cell: ({ row, table }) => {
       const meta = table.options.meta as AppsTableMeta | undefined;

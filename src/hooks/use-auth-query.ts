@@ -1,6 +1,12 @@
 "use client";
 
-import { useQuery as useConvexQuery, usePaginatedQuery as useConvexPaginatedQuery } from "convex/react";
+import {
+    useQuery as useConvexQuery,
+    usePaginatedQuery as useConvexPaginatedQuery,
+    type PaginatedQueryArgs,
+    type PaginatedQueryReference,
+    type UsePaginatedQueryReturnType,
+} from "convex/react";
 import { authClient } from "@/lib/auth-client";
 import { FunctionReference, FunctionReturnType, OptionalRestArgs } from "convex/server";
 
@@ -24,11 +30,11 @@ export function useAuthQuery<Query extends FunctionReference<"query">>(
 /**
  * A wrapper around usePaginatedQuery that automatically skips the query if the user is not authenticated yet.
  */
-export function useAuthPaginatedQuery<Query extends FunctionReference<"query">>(
+export function useAuthPaginatedQuery<Query extends PaginatedQueryReference>(
     query: Query,
-    args: any, // Using any to avoid complex type gymnastics with paginationOpts
+    args: PaginatedQueryArgs<Query> | "skip",
     options: { initialNumItems: number }
-) {
+): UsePaginatedQueryReturnType<Query> {
     const { data: session, isPending: isSessionPending } = authClient.useSession();
 
     const shouldSkip = isSessionPending || !session || args === "skip";

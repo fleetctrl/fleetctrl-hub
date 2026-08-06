@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
@@ -10,14 +9,6 @@ import { Upload, Github } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -35,10 +26,14 @@ import {
   type ClientUpdateRow,
   type ClientUpdatesTableMeta,
 } from "./client-table-columns";
-import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import { uploadFileToConvex } from "@/lib/convex-upload";
+import { useAuthPaginatedQuery, useAuthQuery } from "@/hooks/use-auth-query";
+import { VirtualTable } from "@/components/virtual-table";
+
+const PAGE_SIZE = 50;
 
 const formatDateTime = (timestamp: number) =>
   new Date(timestamp).toLocaleString("cs-CZ", {
@@ -46,11 +41,7 @@ const formatDateTime = (timestamp: number) =>
     timeStyle: "short",
   });
 
-export function ClientUpdatesTable({
-  data,
-}: {
-  data: Preloaded<typeof api.clientUpdates.getAll>;
-}) {
+export function ClientUpdatesTable() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -58,7 +49,9 @@ export function ClientUpdatesTable({
   const [notes, setNotes] = useState("");
 
   // Convex queries
-  const clientUpdates = usePreloadedQuery(data);
+  const query = useAuthPaginatedQuery(api.clientUpdates.getAllPaginated, {}, { initialNumItems: PAGE_SIZE });
+  const clientUpdates = query.results;
+  const activeUpdate = useAuthQuery(api.clientUpdates.getActive, {});
 
   // Convex mutations
   const generateUploadUrl = useMutation(api.clientUpdates.generateUploadUrl);
@@ -151,8 +144,9 @@ export function ClientUpdatesTable({
     } satisfies ClientUpdatesTableMeta,
   });
 
-  const hasVersions = rows.length > 0;
-  const activeVersion = rows.find((r) => r.is_active);
+  const activeVersion = activeUpdate
+    ? { version: activeUpdate.version }
+    : undefined;
 
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
@@ -268,53 +262,16 @@ export function ClientUpdatesTable({
         </CardContent>
       </Card>
 
-      {hasVersions ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <div className="text-sm text-muted-foreground">
-              No client versions uploaded yet. Upload one to enable automatic
-              updates.
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <VirtualTable
+        height={575}
+        table={table}
+        ariaLabel="Client updates"
+        emptyMessage="No client versions uploaded yet. Upload one to enable automatic updates."
+        isInitialLoading={query.status === "LoadingFirstPage"}
+        isLoadingMore={query.status === "LoadingMore"}
+        hasMore={query.status === "CanLoadMore"}
+        onLoadMore={() => query.loadMore(PAGE_SIZE)}
+      />
     </div>
   );
 }

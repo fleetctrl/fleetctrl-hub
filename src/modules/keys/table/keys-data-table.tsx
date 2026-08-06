@@ -1,144 +1,37 @@
 "use client";
 
-import {
-  ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  ColumnFiltersState,
-  getFilteredRowModel,
-} from "@tanstack/react-table";
+import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
-import React from "react";
 import { api } from "@/convex/_generated/api";
-import { keysColumns } from "./keys-columns";
+import { VirtualTable } from "@/components/virtual-table";
+import { useAuthPaginatedQuery } from "@/hooks/use-auth-query";
 import CreateNewKeyDialog from "../key-create-dialog";
-import { Preloaded, usePreloadedQuery } from "convex/react";
+import { keysColumns } from "./keys-columns";
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
-  data: TData[];
-}
+const PAGE_SIZE = 50;
 
-export function DataTable<TData, TValue>({
-  columns,
-  data,
-}: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
+export function KeysTable() {
+  const query = useAuthPaginatedQuery(api.enrollmentTokens.listPaginated, {}, { initialNumItems: PAGE_SIZE });
   const table = useReactTable({
-    data,
-    columns,
+    data: query.results,
+    columns: keysColumns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    getFilteredRowModel: getFilteredRowModel(),
-    state: {
-      sorting,
-      columnFilters,
-    },
+    getRowId: (row) => row.id,
   });
 
   return (
-    <div className="w-full flex flex-col gap-5">
+    <div className="flex w-full flex-col gap-5">
       <CreateNewKeyDialog />
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <React.Fragment key={cell.id}>
-                      <TableCell>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    </React.Fragment>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
-      </div>
+      <VirtualTable
+        height={580}
+        table={table}
+        ariaLabel="Enrollment keys"
+        emptyMessage="No enrollment keys found."
+        isInitialLoading={query.status === "LoadingFirstPage"}
+        isLoadingMore={query.status === "LoadingMore"}
+        hasMore={query.status === "CanLoadMore"}
+        onLoadMore={() => query.loadMore(PAGE_SIZE)}
+      />
     </div>
   );
-}
-
-export function KeysTable({
-  data,
-}: {
-  data: Preloaded<typeof api.enrollmentTokens.list>;
-}) {
-  // Convex auth query is automatically reactive!
-  const queryData = usePreloadedQuery(data);
-
-  return <DataTable columns={keysColumns} data={queryData ?? []} />;
 }

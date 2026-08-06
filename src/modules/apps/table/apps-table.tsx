@@ -2,21 +2,11 @@
 
 import { useMemo } from "react";
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 import {
   appsTableColumns,
@@ -25,8 +15,9 @@ import {
 } from "./apps-table-columns";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
-import { Preloaded, usePreloadedQuery } from "convex/react";
 import { useRouter } from "next/navigation";
+import { useAuthPaginatedQuery } from "@/hooks/use-auth-query";
+import { VirtualTable } from "@/components/virtual-table";
 
 const formatDateTime = (timestamp: number) =>
   new Date(timestamp).toLocaleString("cs-CZ", {
@@ -34,13 +25,11 @@ const formatDateTime = (timestamp: number) =>
     timeStyle: "short",
   });
 
-export function AppsTable({
-  data,
-}: {
-  data: Preloaded<typeof api.apps.getTableData>;
-}) {
-  // Convex auth query is automatically reactive!
-  const apps = usePreloadedQuery(data);
+const PAGE_SIZE = 10;
+
+export function AppsTable() {
+  const query = useAuthPaginatedQuery(api.apps.getTableDataPaginated, {}, { initialNumItems: PAGE_SIZE });
+  const apps = query.results;
   const router = useRouter();
 
   const appRows: AppRow[] = useMemo(() => {
@@ -74,8 +63,6 @@ export function AppsTable({
     } satisfies AppsTableMeta,
   });
 
-  const hasApps = appRows.length > 0;
-
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
       <div className="flex flex-col items-center gap-1 sm:flex-row sm:items-start sm:justify-between">
@@ -89,52 +76,18 @@ export function AppsTable({
           <Link href="/apps/create">Create app</Link>
         </Button>
       </div>
-      {hasApps ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table className="">
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <div className="text-sm text-muted-foreground">
-              No apps yet. Create one to start organizing computers.
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <VirtualTable
+        height={575}
+        table={table}
+        ariaLabel="Apps"
+        emptyMessage="No apps yet. Create one to start organizing computers."
+        isInitialLoading={query.status === "LoadingFirstPage"}
+        isLoadingMore={query.status === "LoadingMore"}
+        hasMore={query.status === "CanLoadMore"}
+        onLoadMore={() => query.loadMore(PAGE_SIZE)}
+        pinnedStartColumns={1}
+        pinnedEndColumns={1}
+      />
     </div>
   );
 }

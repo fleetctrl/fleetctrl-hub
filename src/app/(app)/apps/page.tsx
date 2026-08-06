@@ -1,4 +1,3 @@
-"use server";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -6,18 +5,9 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 import PageWrapper from "@/components/page-wrapper";
-import { preloadQuery } from "convex/nextjs";
-import { api } from "@/convex/_generated/api";
-import { convexServerQueryOptions, getToken } from "@/lib/auth-server";
 import { AppsTable } from "@/modules/apps/table/apps-table";
 
 export default async function AppsPage() {
-  const initialToken = await getToken();
-  const apps = await preloadQuery(
-    api.apps.getTableData,
-    {},
-    convexServerQueryOptions(initialToken),
-  );
   return (
     <PageWrapper
       siteHeader={
@@ -30,7 +20,7 @@ export default async function AppsPage() {
         </Breadcrumb>
       }
     >
-      <AppsTable data={apps} />
+      <AppsTable />
     </PageWrapper>
   );
 }

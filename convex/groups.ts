@@ -14,6 +14,7 @@ import {
     evaluateRule,
     parseRuleExpression,
 } from "./lib/groupRules";
+import { paginationOptsValidator } from "convex/server";
 
 async function refreshSingleGroupMembership(
     ctx: MutationCtx,
@@ -210,6 +211,33 @@ export const getAll = withAuthQuery({
     },
 });
 
+export const getAllPaginated = withAuthQuery({
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { paginationOpts }) => {
+        const result = await ctx.db.query("dynamic_computer_groups").order("desc").paginate(paginationOpts);
+        return {
+            ...result,
+            page: await Promise.all(result.page.map(async (group) => {
+                const members = await ctx.db
+                    .query("dynamic_group_members")
+                    .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
+                    .collect();
+
+                return {
+                    id: group._id,
+                    displayName: group.display_name,
+                    description: group.description,
+                    ruleExpression: group.rule_expression,
+                    memberCount: members.length,
+                    createdAt: new Date(group._creationTime).toISOString(),
+                    updatedAt: group.last_evaluated_at ? new Date(group.last_evaluated_at).toISOString() : null,
+                    lastEvaluatedAt: group.last_evaluated_at ? new Date(group.last_evaluated_at).toISOString() : null,
+                };
+            })),
+        };
+    },
+});
+
 /**
  * Get members for admin UI.
  */
@@ -238,6 +266,28 @@ export const getMembers = withAuthQuery({
                 };
             })
         );
+    },
+});
+
+export const getMembersPaginated = withAuthQuery({
+    args: { id: v.id("dynamic_computer_groups"), paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { id, paginationOpts }) => {
+        const result = await ctx.db
+            .query("dynamic_group_members")
+            .withIndex("by_group_id", (q) => q.eq("group_id", id))
+            .order("desc")
+            .paginate(paginationOpts);
+        return {
+            ...result,
+            page: await Promise.all(result.page.map(async (member) => {
+                const computer = await ctx.db.get("computers", member.computer_id);
+                return {
+                    computerId: member.computer_id,
+                    addedAt: member.added_at,
+                    computer: computer ? { id: computer._id, name: computer.name, os: computer.os, ip: computer.ip } : null,
+                };
+            })),
+        };
     },
 });
 export const listDynamicGroups = withAuthQuery({

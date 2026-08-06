@@ -1,23 +1,14 @@
 "use client";
 
-import { Preloaded } from "convex/react";
 import { parseAsStringLiteral, useQueryStates } from "nuqs";
 
-import { api } from "@/convex/_generated/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StaticGroupsTable } from "./static/table/static-groups-table";
 import { DynamicGroupsTable } from "./dynamic/table/dynamic-groups-table";
 
 const groupTabs = ["static", "dynamic"] as const;
 
-export function GroupsTabs({
-  preloaded,
-}: {
-  preloaded: {
-    staticGroups: Preloaded<typeof api.staticGroups.getTableData>;
-    dynamicGroups: Preloaded<typeof api.groups.getAll>;
-  };
-}) {
+export function GroupsTabs() {
   const [{ type }, setQueryState] = useQueryStates({
     type: parseAsStringLiteral(groupTabs).withDefault("static").withOptions({
       shallow: true,
@@ -39,18 +30,10 @@ export function GroupsTabs({
         <TabsTrigger value="dynamic">Dynamic Groups</TabsTrigger>
       </TabsList>
       <TabsContent value="static" className="mt-0">
-        <StaticGroupsTable
-          preloaded={{
-            groups: preloaded.staticGroups,
-          }}
-        />
+        <StaticGroupsTable />
       </TabsContent>
       <TabsContent value="dynamic" className="mt-0">
-        <DynamicGroupsTable
-          preloaded={{
-            groups: preloaded.dynamicGroups,
-          }}
-        />
+        <DynamicGroupsTable />
       </TabsContent>
     </Tabs>
   );

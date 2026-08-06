@@ -32,6 +32,7 @@ export type VirtualizedDataTableProps<TData> = {
   pinnedStartColumns?: number;
   pinnedEndColumns?: number;
   className?: string;
+  height?: CSSProperties["height"];
 };
 
 export function VirtualSortableHeader<TData, TValue>({
@@ -91,7 +92,8 @@ export function VirtualTable<TData>({
   overscan = 8,
   pinnedStartColumns = 0,
   pinnedEndColumns = 0,
-  className
+  className,
+  height,
 }: VirtualizedDataTableProps<TData>) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -304,7 +306,12 @@ export function VirtualTable<TData>({
         className="table-fixed"
         style={{ width: `max(100%, ${tableWidth}px)` }}
         containerRef={scrollRef}
-        containerClassName="h-[calc(60dvh-2.5rem)] min-h-[17.5rem] overflow-auto lg:h-[calc(100dvh-18.5rem)]"
+        containerStyle={{ height }}
+        containerClassName={cn(
+          "overflow-auto",
+          height === undefined &&
+            "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
+        )}
       >
         <colgroup>
           {visibleColumns.map((column, index) => (

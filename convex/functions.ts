@@ -7,6 +7,7 @@ import { Triggers } from "convex-helpers/server/triggers";
 import { customCtx, customMutation } from "convex-helpers/server/customFunctions";
 import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
 import { installStatusAggregate } from "./lib/aggregate/installAggregate";
+import { computerSearchText } from "./lib/tableKeys";
 
 // start using Triggers, with table types from schema.ts
 const triggers = new Triggers<DataModel>();
@@ -24,6 +25,24 @@ triggers.register("computers", async (ctx, change) => {
             namespace: null,
             key: change.id.toString(),
             id: change.id.toString(),
+        });
+    }
+});
+
+// Keep the full-text search field derived from the source fields.
+triggers.register("computers", async (ctx, change) => {
+    if (change.operation === "delete") {
+        return;
+    }
+
+    const searchText = computerSearchText(
+        change.newDoc.name,
+        change.newDoc.login_user,
+    );
+
+    if (change.newDoc.search_text !== searchText) {
+        await ctx.innerDb.patch("computers", change.id, {
+            search_text: searchText,
         });
     }
 });

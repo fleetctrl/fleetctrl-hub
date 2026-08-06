@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Copy, X, Plus, Trash2, Pencil } from "lucide-react";
+import { X, Plus, Trash2, Pencil } from "lucide-react";
 import {
   detectionItemSchema,
   storedFileReferenceSchema,
@@ -170,6 +170,7 @@ interface EditReleaseSheetProps {
   isAutoUpdate?: boolean;
   release?: ReleaseFormRelease | null;
   copyableReleases?: ReleaseFormRelease[];
+  isLoadingCopyableReleases?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -393,6 +394,7 @@ export function AppReleaseSheet({
   isAutoUpdate = false,
   release,
   copyableReleases = [],
+  isLoadingCopyableReleases = false,
   open,
   onOpenChange,
 }: AppReleaseSheetProps) {
@@ -769,14 +771,19 @@ export function AppReleaseSheet({
 
                 <div className="h-full overflow-y-auto px-6 py-6 pb-12">
                   <TabsContent value="details" className="space-y-4 m-0">
-                    {!isEdit && copyableReleases.length > 0 && (
+                    {!isEdit && (copyableReleases.length > 0 || isLoadingCopyableReleases) && (
                       <div className="flex items-center gap-3">
                         <div className="flex shrink-0 items-center gap-2 text-sm font-medium">
                           Copy settings from
                         </div>
-                        <Select onValueChange={handleCopyReleaseSettings}>
+                        <Select
+                          disabled={isLoadingCopyableReleases}
+                          onValueChange={handleCopyReleaseSettings}
+                        >
                           <SelectTrigger className="min-w-0 flex-1">
-                            <SelectValue placeholder="Select source release" />
+                            <SelectValue
+                              placeholder={isLoadingCopyableReleases ? "Loading releases…" : "Select source release"}
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             {copyableReleases.map((copyRelease) => (

@@ -1,15 +1,8 @@
 "use client";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { AppReleaseSheet } from "./app-release-sheet";
 import { MoreHorizontal, Pen, Trash2 } from "lucide-react";
 import {
@@ -36,8 +29,9 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { VirtualTable } from "@/components/virtual-table";
 
-interface Release {
+export interface Release {
   id: string;
   version: string;
   created_at: string | number;
@@ -90,6 +84,10 @@ interface ReleasesTableProps {
   releases: Release[];
   appId: string;
   isAutoUpdate?: boolean;
+  isInitialLoading: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
 }
 
 const formatDateTime = (date: string | number) =>
@@ -154,6 +152,10 @@ export function AppReleasesTable({
   releases,
   appId,
   isAutoUpdate = false,
+  isInitialLoading,
+  isLoadingMore,
+  hasMore,
+  onLoadMore,
 }: ReleasesTableProps) {
   const router = useRouter();
   const deleteRelease = useMutation(api.apps.deleteRelease);
@@ -188,93 +190,29 @@ export function AppReleasesTable({
     setReleaseToDelete(null);
   };
 
+  const columns = useMemo<ColumnDef<Release>[]>(() => [
+    { accessorKey: "version", size: 160, header: "Version", cell: ({ row }) => <span className="font-medium">{row.original.version || "latest"}</span> },
+    { accessorKey: "installer_type", size: 120, header: "Type", cell: ({ row }) => <Badge variant="outline" className="font-normal">{row.original.installer_type}</Badge> },
+    { id: "assignments", size: 360, header: "Assignments", cell: ({ row }) => <AssignmentsBadges release={row.original} /> },
+    { accessorKey: "created_at", size: 190, header: "Created", cell: ({ row }) => formatDateTime(row.original.created_at) },
+    { id: "status", size: 120, header: "Status", cell: ({ row }) => row.original.disabled_at ? <Badge variant="secondary">Disabled</Badge> : <Badge>Active</Badge> },
+    { id: "actions", size: 64, header: "", cell: ({ row }) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><span className="sr-only">Open menu</span><MoreHorizontal /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => handleEditClick(row.original)}><Pen data-icon="inline-start" />Edit</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => handleDeleteClick(row.original)} className="text-destructive focus:text-destructive"><Trash2 data-icon="inline-start" />Delete</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) },
+  ], []);
+  const table = useReactTable({ data: releases, columns, getCoreRowModel: getCoreRowModel(), getRowId: (row) => row.id });
+
   return (
-    <div className="rounded-md border bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50 hover:bg-muted/50">
-            <TableHead className="w-25">Version</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Assignments</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead className="text-right">Status</TableHead>
-            <TableHead className="w-12.5"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {releases.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={6}
-                className="h-24 text-center text-muted-foreground"
-              >
-                No releases found.
-              </TableCell>
-            </TableRow>
-          ) : (
-            releases.map((release) => (
-              <TableRow key={release.id}>
-                <TableCell className="font-medium">
-                  {release.version !== "" ? release.version : "latest"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="font-normal">
-                    {release.installer_type}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <AssignmentsBadges release={release} />
-                </TableCell>
-                <TableCell>{formatDateTime(release.created_at)}</TableCell>
-                <TableCell className="text-right">
-                  {release.disabled_at ? (
-                    <Badge
-                      variant="secondary"
-                      className="bg-destructive/10 text-destructive hover:bg-destructive/20"
-                    >
-                      Disabled
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="secondary"
-                      className="bg-green-500/10 text-green-600 hover:bg-green-500/20 dark:text-green-400"
-                    >
-                      Active
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem
-                        onClick={() => handleEditClick(release)}
-                      >
-                        <Pen className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => handleDeleteClick(release)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+    <div className="flex flex-col gap-4">
+      <VirtualTable height={400} table={table} ariaLabel="App releases" emptyMessage="No releases found." isInitialLoading={isInitialLoading} isLoadingMore={isLoadingMore} hasMore={hasMore} onLoadMore={onLoadMore} />
 
       <AppReleaseSheet
         appId={appId}

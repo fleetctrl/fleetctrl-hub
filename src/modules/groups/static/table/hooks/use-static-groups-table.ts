@@ -1,9 +1,8 @@
 "use client";
 
-import type { UIEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -42,18 +41,20 @@ const groupFormSchema = z.object({
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 export function useStaticGroupsTable({
-  preloaded,
-}: {
-  preloaded: {
-    groups: Preloaded<typeof api.staticGroups.getTableData>;
-  };
-}) {
-  const groups = usePreloadedQuery(preloaded.groups);
+}: Record<string, never> = {}) {
+  const groupsQuery = useAuthPaginatedQuery(api.staticGroups.getTableDataPaginated, {}, { initialNumItems: MEMBER_PAGE_SIZE });
+  const groups = groupsQuery.results;
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [debouncedMemberSearch, setDebouncedMemberSearch] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [loadedEditGroupId, setLoadedEditGroupId] = useState<string | null>(null);
+
+  const form = useForm<GroupFormValues>({
+    resolver: zodResolver(groupFormSchema),
+    defaultValues: { displayName: "", memberIds: [] },
+  });
 
   const isDialogOpen = dialogState !== null;
 
@@ -79,16 +80,27 @@ export function useStaticGroupsTable({
     { initialNumItems: MEMBER_PAGE_SIZE },
   );
 
+  const editingGroupId = dialogState?.mode === "edit" ? dialogState.groupId as Id<"computer_groups"> : null;
+  const editMembersQuery = useAuthPaginatedQuery(
+    api.staticGroups.getMemberIdsPaginated,
+    editingGroupId ? { groupId: editingGroupId } : "skip",
+    { initialNumItems: MEMBER_PAGE_SIZE },
+  );
+
+  useEffect(() => {
+    if (editMembersQuery.status === "CanLoadMore") editMembersQuery.loadMore(MEMBER_PAGE_SIZE);
+  }, [editMembersQuery]);
+
+  useEffect(() => {
+    if (!editingGroupId || editMembersQuery.status !== "Exhausted" || loadedEditGroupId === editingGroupId) return;
+    const group = groups.find((item) => item.id === editingGroupId);
+    if (!group) return;
+    form.reset({ id: group.id, displayName: group.displayName, memberIds: [...editMembersQuery.results] });
+    setLoadedEditGroupId(editingGroupId);
+  }, [editMembersQuery.results, editMembersQuery.status, editingGroupId, form, groups, loadedEditGroupId]);
+
   const createGroupMutation = useMutation(api.staticGroups.create);
   const editGroupMutation = useMutation(api.staticGroups.edit);
-
-  const form = useForm<GroupFormValues>({
-    resolver: zodResolver(groupFormSchema),
-    defaultValues: {
-      displayName: "",
-      memberIds: [],
-    },
-  });
 
   const groupRows: StaticGroupRow[] = useMemo(() => {
     if (!groups) {
@@ -98,7 +110,7 @@ export function useStaticGroupsTable({
       id: group.id,
       displayName: group.displayName,
       members: group.members.filter(Boolean) as { id: string; name: string }[],
-      memberCount: group.members.length ?? 0,
+      memberCount: group.memberCount,
       createdAtFormatted: formatDateTime(group.createdAt),
       updatedAtFormatted: formatDateTime(group.createdAt),
     }));
@@ -122,11 +134,8 @@ export function useStaticGroupsTable({
     if (!group) {
       return;
     }
-    form.reset({
-      id: group.id,
-      displayName: group.displayName,
-      memberIds: [...group.members.filter(Boolean).map((c) => c?.id ?? "")],
-    });
+    setLoadedEditGroupId(null);
+    form.reset({ id: group.id, displayName: group.displayName, memberIds: [] });
     setMemberSearch("");
     setDialogState({ mode: "edit", groupId });
   };
@@ -186,27 +195,14 @@ export function useStaticGroupsTable({
     computersStatus === "LoadingFirstPage" ||
     computersStatus === "LoadingMore";
 
-  const handleMembersScroll = (event: UIEvent<HTMLDivElement>) => {
-    const target = event.currentTarget;
-    const distanceFromBottom =
-      target.scrollHeight - target.scrollTop - target.clientHeight;
-
-    if (
-      distanceFromBottom < 64 &&
-      canLoadMoreComputers &&
-      !isLoadingComputers
-    ) {
-      loadMoreComputers(MEMBER_PAGE_SIZE);
-    }
-  };
-
   return {
     computers,
     closeDialog,
     dialogState,
     form,
     hasGroups: groupRows.length > 0,
-    handleMembersScroll,
+    canLoadMoreComputers,
+    loadMoreComputers: () => loadMoreComputers(MEMBER_PAGE_SIZE),
     isDialogOpen,
     isLoadingComputers,
     isSaving,
@@ -215,5 +211,7 @@ export function useStaticGroupsTable({
     openCreateDialog,
     setMemberSearch,
     table,
+    groupsQuery,
+    isLoadingEditMembers: Boolean(editingGroupId) && editMembersQuery.status !== "Exhausted",
   };
 }
