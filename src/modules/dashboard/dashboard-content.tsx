@@ -79,20 +79,16 @@ function isComputerOnline(lastConnection?: number) {
 
 function Metric({ title, value, detail, icon: Icon, progress }: MetricProps) {
   return (
-    <div className="flex min-h-32 flex-col justify-between gap-4 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-sm text-muted-foreground">{title}</span>
-          <span className="truncate text-2xl font-semibold">{value}</span>
-        </div>
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted">
-          <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
-        </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm text-muted-foreground">{detail}</span>
-        {typeof progress === "number" ? <Progress value={progress} /> : null}
-      </div>
+    <div className="flex min-w-0 flex-col p-4">
+      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Icon className="size-4" aria-hidden="true" />
+        {title}
+      </span>
+      <span className="mt-2 truncate text-2xl font-semibold">{value}</span>
+      <span className="mt-1 text-sm text-muted-foreground">{detail}</span>
+      {typeof progress === "number" ? (
+        <Progress className="mt-3" value={progress} />
+      ) : null}
     </div>
   );
 }
@@ -217,7 +213,7 @@ export function DashboardContent() {
         </div>
       </div>
 
-      <div className="grid overflow-hidden rounded-md border sm:grid-cols-2 lg:grid-cols-4">
+      <Card className="grid overflow-hidden rounded-md sm:grid-cols-2 lg:grid-cols-4">
         <Metric
           title="Computers"
           value={totalComputers.toString()}
@@ -242,7 +238,7 @@ export function DashboardContent() {
           detail={`${enrollmentTokenRows.length} total keys`}
           icon={KeyRoundIcon}
         />
-      </div>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
         <Card>
