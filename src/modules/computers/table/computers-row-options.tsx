@@ -79,9 +79,6 @@ export default function ComputersRowOptions({
           <DropdownMenuItem onClick={handleCopy}>
             Connection string
           </DropdownMenuItem>
-          <Link href={`/rustdesk/computer/${computerId}`}>
-            <DropdownMenuItem>Computer info</DropdownMenuItem>
-          </Link>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"

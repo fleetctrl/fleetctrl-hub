@@ -434,7 +434,11 @@ export function DynamicGroupsTable() {
         height="min(37.5rem, calc(100dvh - 18.5rem))"
         table={table}
         ariaLabel="Dynamic computer groups"
-        emptyMessage="No dynamic groups yet. Create one to automatically group computers based on their properties."
+        emptyTitle="No dynamic groups yet"
+        emptyMessage="Create one to automatically group computers based on their properties."
+        emptyAction={
+          <Button onClick={openCreateDialog}>Create dynamic group</Button>
+        }
         isInitialLoading={groupsQuery.status === "LoadingFirstPage"}
         isLoadingMore={groupsQuery.status === "LoadingMore"}
         hasMore={groupsQuery.status === "CanLoadMore"}

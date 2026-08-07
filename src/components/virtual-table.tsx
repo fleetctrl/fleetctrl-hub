@@ -1,13 +1,20 @@
 
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Column, Table as TanStackTable } from "@tanstack/react-table";
 import { flexRender } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
@@ -22,7 +29,9 @@ import { cn } from "@/lib/utils";
 export type VirtualizedDataTableProps<TData> = {
   table: TanStackTable<TData>;
   ariaLabel: string;
+  emptyTitle?: string;
   emptyMessage: string;
+  emptyAction?: ReactNode;
   isInitialLoading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
@@ -83,7 +92,9 @@ export function VirtualSortableHeader<TData, TValue>({
 export function VirtualTable<TData>({
   table,
   ariaLabel,
+  emptyTitle,
   emptyMessage,
+  emptyAction,
   isInitialLoading,
   isLoadingMore,
   hasMore,
@@ -187,9 +198,12 @@ export function VirtualTable<TData>({
     : 0;
   const visibleColumns = table.getVisibleLeafColumns();
   const columnCount = Math.max(visibleColumns.length, 1);
-  const startCount = Math.min(Math.max(0, pinnedStartColumns), visibleColumns.length);
+  const hasData = rows.length > 0;
+  const startCount = hasData
+    ? Math.min(Math.max(0, pinnedStartColumns), visibleColumns.length)
+    : 0;
   const endCount = Math.min(
-    Math.max(0, pinnedEndColumns),
+    hasData ? Math.max(0, pinnedEndColumns) : 0,
     visibleColumns.length - startCount
   );
   const startPinnedWidth = visibleColumns
@@ -300,42 +314,64 @@ export function VirtualTable<TData>({
           </TableHeader>
         </Table>
       </div>
-      <Table
-        aria-label={`${ariaLabel} rows`}
-        aria-busy={isInitialLoading || isLoadingMore}
-        className="table-fixed"
-        style={{ width: `max(100%, ${tableWidth}px)` }}
-        containerRef={scrollRef}
-        containerStyle={{ height }}
-        containerClassName={cn(
-          "overflow-auto",
-          height === undefined &&
-            "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
-        )}
-      >
-        <colgroup>
-          {visibleColumns.map((column, index) => (
-            <col key={column.id} style={{ width: getColumnWidth(index) }} />
-          ))}
-        </colgroup>
-        <TableBody className="bg-card [&_tr]:hover:bg-transparent">
-          {isInitialLoading ? (
-            Array.from({ length: 8 }, (_, index) => (
-              <TableRow key={index}>
-                {visibleColumns.map((column) => (
-                  <TableCell key={column.id} className="h-13">
-                    <Skeleton className="h-4 w-full max-w-32" />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={columnCount} className="h-24 text-center text-muted-foreground">
-                {emptyMessage}
-              </TableCell>
-            </TableRow>
-          ) : (
+      {isInitialLoading ? (
+        <div
+          ref={scrollRef}
+          role="region"
+          aria-label={`${ariaLabel} rows`}
+          aria-busy="true"
+          className={cn(
+            "flex items-center justify-center bg-card",
+            height === undefined &&
+              "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
+          )}
+          style={{ height }}
+        >
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner />
+            Loading rows…
+          </div>
+        </div>
+      ) : rows.length === 0 ? (
+        <div
+          ref={scrollRef}
+          role="region"
+          aria-label={`${ariaLabel} rows`}
+          className={cn(
+            "overflow-auto bg-card",
+            height === undefined &&
+              "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
+          )}
+          style={{ height }}
+        >
+          <Empty className="h-full min-h-48 rounded-none">
+            <EmptyHeader>
+              {emptyTitle ? <EmptyTitle>{emptyTitle}</EmptyTitle> : null}
+              <EmptyDescription>{emptyMessage}</EmptyDescription>
+            </EmptyHeader>
+            {emptyAction ? <EmptyContent>{emptyAction}</EmptyContent> : null}
+          </Empty>
+        </div>
+      ) : (
+        <Table
+          aria-label={`${ariaLabel} rows`}
+          aria-busy={isInitialLoading || isLoadingMore}
+          className="table-fixed"
+          style={{ width: `max(100%, ${tableWidth}px)` }}
+          containerRef={scrollRef}
+          containerStyle={{ height }}
+          containerClassName={cn(
+            "overflow-auto",
+            height === undefined &&
+              "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
+          )}
+        >
+          <colgroup>
+            {visibleColumns.map((column, index) => (
+              <col key={column.id} style={{ width: getColumnWidth(index) }} />
+            ))}
+          </colgroup>
+          <TableBody className="bg-card [&_tr]:hover:bg-transparent">
             <>
               {paddingTop > 0 ? (
                 <TableRow aria-hidden="true">
@@ -397,9 +433,9 @@ export function VirtualTable<TData>({
                 </TableRow>
               ) : null}
             </>
-          )}
-        </TableBody>
-      </Table>
+          </TableBody>
+        </Table>
+      )}
       <p className="sr-only" aria-live="polite">
         {isLoadingMore ? "Loading more rows" : hasMore ? "More rows available" : "All rows loaded"}
       </p>
