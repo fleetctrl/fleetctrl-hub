@@ -158,7 +158,7 @@ export default function AppDetailPage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 space-y-6 w-full">
+        <div className="min-w-0 w-full flex-1 space-y-6">
           {activeView === "overview" && (
             <>
               {/* Essentials Section */}
