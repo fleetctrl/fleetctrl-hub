@@ -318,7 +318,7 @@ export function VirtualTable<TData>({
             <col key={column.id} style={{ width: getColumnWidth(index) }} />
           ))}
         </colgroup>
-        <TableBody className="[&_tr]:hover:bg-transparent">
+        <TableBody className="bg-card [&_tr]:hover:bg-transparent">
           {isInitialLoading ? (
             Array.from({ length: 8 }, (_, index) => (
               <TableRow key={index}>
@@ -361,7 +361,7 @@ export function VirtualTable<TData>({
                           className={cn(
                             "truncate",
                             pinned &&
-                              "bg-background group-data-[state=selected]:bg-muted",
+                              "bg-card group-data-[state=selected]:bg-muted",
                           )}
                           style={{
                             ...pinned?.style,
