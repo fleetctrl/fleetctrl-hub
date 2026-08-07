@@ -191,28 +191,41 @@ export function AppReleasesTable({
   };
 
   const columns = useMemo<ColumnDef<Release>[]>(() => [
-    { accessorKey: "version", size: 160, header: "Version", cell: ({ row }) => <span className="font-medium">{row.original.version || "latest"}</span> },
+    { accessorKey: "version", size: 120, header: "Version", cell: ({ row }) => <span className="font-medium">{row.original.version || "latest"}</span> },
     { accessorKey: "installer_type", size: 120, header: "Type", cell: ({ row }) => <Badge variant="outline" className="font-normal">{row.original.installer_type}</Badge> },
-    { id: "assignments", size: 360, header: "Assignments", cell: ({ row }) => <AssignmentsBadges release={row.original} /> },
+    { id: "assignments", size: 240, header: "Assignments", cell: ({ row }) => <AssignmentsBadges release={row.original} /> },
     { accessorKey: "created_at", size: 190, header: "Created", cell: ({ row }) => formatDateTime(row.original.created_at) },
-    { id: "status", size: 120, header: "Status", cell: ({ row }) => row.original.disabled_at ? <Badge variant="secondary">Disabled</Badge> : <Badge>Active</Badge> },
-    { id: "actions", size: 64, header: "", cell: ({ row }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><span className="sr-only">Open menu</span><MoreHorizontal /></Button></DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => handleEditClick(row.original)}><Pen data-icon="inline-start" />Edit</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => handleDeleteClick(row.original)} className="text-destructive focus:text-destructive"><Trash2 data-icon="inline-start" />Delete</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ) },
+    { id: "status", size: 60, header: "Status", cell: ({ row }) => row.original.disabled_at ? <Badge variant="secondary">Disabled</Badge> : <Badge>Active</Badge> },
+    {
+      id: "actions", size: 60, header: "", cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><span className="sr-only">Open menu</span><MoreHorizontal /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => handleEditClick(row.original)}><Pen data-icon="inline-start" />Edit</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleDeleteClick(row.original)} className="text-destructive focus:text-destructive"><Trash2 data-icon="inline-start" />Delete</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    },
   ], []);
   const table = useReactTable({ data: releases, columns, getCoreRowModel: getCoreRowModel(), getRowId: (row) => row.id });
 
   return (
     <div className="flex flex-col gap-4">
-      <VirtualTable height={400} table={table} ariaLabel="App releases" emptyMessage="No releases found." isInitialLoading={isInitialLoading} isLoadingMore={isLoadingMore} hasMore={hasMore} onLoadMore={onLoadMore} />
+      <VirtualTable
+        height={400}
+        table={table}
+        ariaLabel="App releases"
+        emptyMessage="No releases found."
+        isInitialLoading={isInitialLoading}
+        isLoadingMore={isLoadingMore}
+        hasMore={hasMore}
+        onLoadMore={onLoadMore}
+        pinnedStartColumns={1}
+        pinnedEndColumns={1}
+      />
 
       <AppReleaseSheet
         appId={appId}
