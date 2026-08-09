@@ -633,18 +633,22 @@ export const getTableDataPaginated = withAuthQuery({
                 const releases = await ctx.db
                     .query("releases")
                     .withIndex("by_app_id", (q) => q.eq("app_id", app._id))
-                    .take(APP_RELEASE_PREVIEW_LIMIT);
+                    .collect();
                 const groups: { id: string; name: string }[] = [];
-                for (const release of releases) {
+                const groupIds = new Set<string>();
+                for (const [releaseIndex, release] of releases.entries()) {
                     const [staticAssignments, dynamicAssignments] = await Promise.all([
-                        ctx.db.query("computer_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(APP_ASSIGNMENT_PREVIEW_LIMIT),
-                        ctx.db.query("dynamic_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(APP_ASSIGNMENT_PREVIEW_LIMIT),
+                        ctx.db.query("computer_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).collect(),
+                        ctx.db.query("dynamic_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).collect(),
                     ]);
-                    for (const assignment of staticAssignments) {
+                    for (const assignment of staticAssignments) groupIds.add(assignment.group_id);
+                    for (const assignment of dynamicAssignments) groupIds.add(assignment.group_id);
+                    if (releaseIndex >= APP_RELEASE_PREVIEW_LIMIT) continue;
+                    for (const assignment of staticAssignments.slice(0, APP_ASSIGNMENT_PREVIEW_LIMIT)) {
                         const group = await ctx.db.get("computer_groups", assignment.group_id);
                         if (group) groups.push({ id: group._id, name: group.display_name });
                     }
-                    for (const assignment of dynamicAssignments) {
+                    for (const assignment of dynamicAssignments.slice(0, APP_ASSIGNMENT_PREVIEW_LIMIT)) {
                         const group = await ctx.db.get("dynamic_computer_groups", assignment.group_id);
                         if (group) groups.push({ id: group._id, name: group.display_name });
                     }
@@ -656,7 +660,7 @@ export const getTableDataPaginated = withAuthQuery({
                     createdAt: app._creationTime,
                     updatedAt: app._creationTime,
                     groups: uniqueGroups,
-                    groupsCount: uniqueGroups.length,
+                    groupsCount: groupIds.size,
                     installedCount: await installStatusAggregate.count(ctx, { namespace: [app._id, "INSTALLED"] }),
                 };
             })),
