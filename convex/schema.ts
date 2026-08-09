@@ -18,10 +18,14 @@ export default defineSchema({
         client_version: v.optional(v.string()),
         last_connection: v.optional(v.number()),
         intune_id: v.optional(v.string()),
+        search_text: v.optional(v.string()),
     })
+        .index("by_name", ["name"])
+        .index("by_os", ["os"])
         .index("by_jkt", ["jkt"])
         .index("by_rustdesk_id", ["rustdesk_id"])
-        .searchIndex("search_name", { searchField: "name" }),
+        .searchIndex("search_name", { searchField: "name" })
+        .searchIndex("search_name_and_login", { searchField: "search_text" }),
 
     // ========================================
     // AUTH TABLES
@@ -140,9 +144,11 @@ export default defineSchema({
         installer_type: v.union(v.literal("winget"), v.literal("win32")),
         disabled_at: v.optional(v.number()),
         uninstall_previous: v.boolean(),
+        version_sort_key: v.optional(v.string()),
     })
         .index("by_app_id", ["app_id"])
-        .index("by_app_version", ["app_id", "version"]),
+        .index("by_app_version", ["app_id", "version"])
+        .index("by_app_id_and_version_sort_key", ["app_id", "version_sort_key"]),
 
     win32_releases: defineTable({
         release_id: v.id("releases"),
@@ -251,7 +257,9 @@ export default defineSchema({
         mime_type: v.optional(v.string()),
         is_active: v.boolean(),
         notes: v.optional(v.string()),
+        version_sort_key: v.optional(v.string()),
     })
         .index("by_version", ["version"])
-        .index("by_is_active", ["is_active"]),
+        .index("by_is_active", ["is_active"])
+        .index("by_version_sort_key", ["version_sort_key"]),
 });

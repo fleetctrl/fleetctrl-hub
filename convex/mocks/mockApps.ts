@@ -4,6 +4,7 @@ import { internal } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
 import { internalMutation } from "../functions";
+import { versionSortKey } from "../lib/tableKeys";
 
 const MOCK_APP_PREFIX = "Mock ";
 const CONFIRMATION = "ADD_MOCK_APPS";
@@ -217,6 +218,7 @@ export const prepareApps = internalMutation({
             const releaseId = await ctx.db.insert("releases", {
                 app_id: appId,
                 version: catalogApp.version,
+                version_sort_key: versionSortKey(catalogApp.version),
                 installer_type: "winget",
                 uninstall_previous: true,
             });

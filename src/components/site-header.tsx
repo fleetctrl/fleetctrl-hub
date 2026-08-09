@@ -11,7 +11,7 @@ type Props = {
 export function SiteHeader({ children, page }: Props) {
 	return (
 		<>
-			<header className="sticky inset-0 w-full bg-background top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b-2 border-border transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+			<header className="sticky inset-0 w-full bg-background top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
 				<div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
 					<SidebarTrigger className="-ml-1" />
 					<Separator
@@ -40,7 +40,7 @@ export function SiteHeader({ children, page }: Props) {
 					</div>
 				</div>
 			</header>
-			<div className="h-14 mb-9"></div>
+			<div className="h-5 mb-9"></div>
 		</>
 	);
 }

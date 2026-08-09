@@ -21,6 +21,7 @@ export type KeysTableMeta = {
 export const keysColumns: ColumnDef<Key>[] = [
   {
     accessorKey: "name",
+    size: 320,
     header: "Key",
     cell: ({ row }) => {
       return (
@@ -35,10 +36,12 @@ export const keysColumns: ColumnDef<Key>[] = [
   },
   {
     accessorKey: "remainingUses",
+    size: 120,
     header: "Remaining",
   },
   {
     accessorKey: "expiresAt",
+    size: 220,
     header: "Expiration",
     cell: ({ row }) => {
       const val = row.original.expiresAt;
@@ -48,6 +51,7 @@ export const keysColumns: ColumnDef<Key>[] = [
   },
   {
     id: "actions",
+    size: 64,
     enableHiding: false,
     cell: ({ row }) => {
       return <RowOptions tokenID={row.original.id} />;

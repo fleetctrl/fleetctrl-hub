@@ -25,6 +25,7 @@ export type StaticGroupsTableMeta = {
 export const staticGroupsTableColumns: ColumnDef<StaticGroupRow>[] = [
   {
     accessorKey: "displayName",
+    size: 150,
     header: "Name",
     cell: ({ row }) => (
       <span className="font-medium">{row.original.displayName}</span>
@@ -32,6 +33,7 @@ export const staticGroupsTableColumns: ColumnDef<StaticGroupRow>[] = [
   },
   {
     id: "members",
+    size: 500,
     header: "Members",
     cell: ({ row }) => {
       const visibleMembers = row.original?.members?.slice(0, 2) ?? [];
@@ -62,14 +64,17 @@ export const staticGroupsTableColumns: ColumnDef<StaticGroupRow>[] = [
   },
   {
     accessorKey: "updatedAtFormatted",
+    size: 190,
     header: "Last updated",
   },
   {
     accessorKey: "createdAtFormatted",
+    size: 190,
     header: "Created",
   },
   {
     id: "actions",
+    size: 60,
     header: "",
     cell: ({ row, table }) => {
       const meta = table.options.meta as StaticGroupsTableMeta | undefined;

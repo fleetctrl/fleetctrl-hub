@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useAuthQuery } from "@/hooks/use-auth-query";
+import { useEffect, useState } from "react";
+import { useAuthPaginatedQuery, useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import PageWrapper from "@/components/page-wrapper";
@@ -13,15 +13,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
@@ -30,33 +21,8 @@ import { Pen, Plus } from "lucide-react";
 import { AppReleaseSheet } from "@/modules/apps/detail/releases/app-release-sheet";
 import { AppReleasesTable } from "@/modules/apps/detail/releases/app-releases-table";
 import { useDeviceInstallStatus } from "@/modules/apps/hooks/use-device-install-status";
+import { DeviceInstallStatusTable } from "@/modules/apps/table/device-install-status-table";
 import { parseAsString, useQueryStates } from "nuqs";
-
-type InstallStatus =
-  | "PENDING"
-  | "INSTALLING"
-  | "INSTALLED"
-  | "ERROR"
-  | "UNINSTALLED";
-
-const formatDateTime = (value?: number) => {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("cs-CZ", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-};
-
-const statusBadgeVariant: Record<
-  InstallStatus,
-  "secondary" | "destructive" | "outline-solid"
-> = {
-  PENDING: "secondary",
-  INSTALLING: "secondary",
-  INSTALLED: "outline-solid",
-  ERROR: "destructive",
-  UNINSTALLED: "secondary",
-};
 
 export default function AppDetailPage() {
   const params = useParams();
@@ -64,15 +30,14 @@ export default function AppDetailPage() {
   const normalizedAppId = appId as Id<"apps">;
 
   const app = useAuthQuery(api.apps.getById, { id: normalizedAppId });
-  const releases = useAuthQuery(api.apps.getReleases, {
-    appId: normalizedAppId,
-  });
+  const releasesQuery = useAuthPaginatedQuery(api.apps.getReleasesPaginated, { appId: normalizedAppId }, { initialNumItems: 20 });
+  const releases = releasesQuery.results;
   const deviceInstallStatus = useDeviceInstallStatus(normalizedAppId);
 
   // console.log("Device install status:", deviceInstallStatus);
 
   const isLoading = app === undefined;
-  const releasesLoading = releases === undefined;
+  const releasesLoading = releasesQuery.status === "LoadingFirstPage";
   const error = app === null;
 
   const [{ view: activeView }, setQueryState] = useQueryStates({
@@ -85,6 +50,10 @@ export default function AppDetailPage() {
 
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [showCreateReleaseSheet, setShowCreateReleaseSheet] = useState(false);
+
+  useEffect(() => {
+    if (showCreateReleaseSheet && releasesQuery.status === "CanLoadMore") releasesQuery.loadMore(20);
+  }, [releasesQuery, showCreateReleaseSheet]);
 
   // Determine if we can add a new release
   // For autoupdate apps, only 1 release is allowed
@@ -189,7 +158,7 @@ export default function AppDetailPage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 space-y-6 w-full">
+        <div className="min-w-0 w-full flex-1 space-y-6">
           {activeView === "overview" && (
             <>
               {/* Essentials Section */}
@@ -284,17 +253,15 @@ export default function AppDetailPage() {
                   )}
                 </CardHeader>
                 <CardContent className="px-0">
-                  {releasesLoading ? (
-                    <div className="text-muted-foreground">
-                      Loading releases...
-                    </div>
-                  ) : (
-                    <AppReleasesTable
-                      releases={releases ?? []}
-                      appId={appId}
-                      isAutoUpdate={app.auto_update}
-                    />
-                  )}
+                  <AppReleasesTable
+                    releases={releases ?? []}
+                    appId={appId}
+                    isAutoUpdate={app.auto_update}
+                    isInitialLoading={releasesLoading}
+                    isLoadingMore={releasesQuery.status === "LoadingMore"}
+                    hasMore={releasesQuery.status === "CanLoadMore"}
+                    onLoadMore={() => releasesQuery.loadMore(20)}
+                  />
                 </CardContent>
               </Card>
 
@@ -302,6 +269,7 @@ export default function AppDetailPage() {
                 appId={appId}
                 isAutoUpdate={app.auto_update}
                 copyableReleases={releases ?? []}
+                isLoadingCopyableReleases={releasesQuery.status !== "Exhausted"}
                 open={showCreateReleaseSheet}
                 onOpenChange={setShowCreateReleaseSheet}
               />
@@ -314,19 +282,18 @@ export default function AppDetailPage() {
                 <CardTitle>Device install status</CardTitle>
               </CardHeader>
               <CardContent className="px-0 space-y-4">
-                {deviceInstallStatus.isLoading ? (
+                {deviceInstallStatus.isSummaryLoading ? (
                   <div className="text-sm text-muted-foreground">
-                    Loading device install status...
+                    Loading status summary...
                   </div>
                 ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-y-4 gap-x-8 md:grid-cols-3 lg:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-y-4 gap-x-8 md:grid-cols-3 lg:grid-cols-6">
                       <div>
                         <div className="text-sm text-muted-foreground">
                           Total
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus.status?.total ?? 0}
+                          {deviceInstallStatus.summary?.total ?? 0}
                         </div>
                       </div>
                       <div>
@@ -334,7 +301,7 @@ export default function AppDetailPage() {
                           Installed
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus.status?.byStatus.INSTALLED ??
+                          {deviceInstallStatus.summary?.byStatus.INSTALLED ??
                             0}
                         </div>
                       </div>
@@ -343,7 +310,7 @@ export default function AppDetailPage() {
                           Installing
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus.status?.byStatus.INSTALLING ??
+                          {deviceInstallStatus.summary?.byStatus.INSTALLING ??
                             0}
                         </div>
                       </div>
@@ -352,7 +319,7 @@ export default function AppDetailPage() {
                           Pending
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus.status?.byStatus.PENDING ?? 0}
+                          {deviceInstallStatus.summary?.byStatus.PENDING ?? 0}
                         </div>
                       </div>
                       <div>
@@ -360,7 +327,7 @@ export default function AppDetailPage() {
                           Error
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus.status?.byStatus.ERROR ?? 0}
+                          {deviceInstallStatus.summary?.byStatus.ERROR ?? 0}
                         </div>
                       </div>
                       <div>
@@ -368,92 +335,19 @@ export default function AppDetailPage() {
                           Uninstalled
                         </div>
                         <div className="font-medium">
-                          {deviceInstallStatus.status?.byStatus.UNINSTALLED ??
+                          {deviceInstallStatus.summary?.byStatus.UNINSTALLED ??
                             0}
                         </div>
                       </div>
-                    </div>
-                    <Card className="shadow-none">
-                      <CardContent className="p-0">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/50 hover:bg-muted/50">
-                              <TableHead>Computer</TableHead>
-                              <TableHead>Release</TableHead>
-                              <TableHead>Status</TableHead>
-                              {/* <TableHead>Installed at</TableHead> */}
-                              <TableHead>Status updated</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {deviceInstallStatus.status?.items.length ? (
-                              deviceInstallStatus.status.items.map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell className="font-medium">
-                                    {item.computerName}
-                                  </TableCell>
-                                  <TableCell>{item.releaseVersion}</TableCell>
-                                  <TableCell>
-                                    <Badge
-                                      variant={statusBadgeVariant[item.status]}
-                                    >
-                                      {item.status}
-                                    </Badge>
-                                  </TableCell>
-                                  {/* <TableCell>
-                                    {formatDateTime(item.installedAt)}
-                                  </TableCell> */}
-                                  <TableCell>
-                                    {formatDateTime(item.statusUpdatedAt)}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableRow>
-                                <TableCell
-                                  colSpan={6}
-                                  className="h-20 text-center text-muted-foreground"
-                                >
-                                  No device install data for this app yet.
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
-                      </CardContent>
-                    </Card>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Page {deviceInstallStatus.pageIndex + 1} of{" "}
-                        {deviceInstallStatus.pageCount}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={
-                            deviceInstallStatus.isFetching ||
-                            !deviceInstallStatus.canGoToPreviousPage
-                          }
-                          onClick={() => deviceInstallStatus.previousPage()}
-                        >
-                          Previous
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={
-                            deviceInstallStatus.isFetching ||
-                            !deviceInstallStatus.canGoToNextPage
-                          }
-                          onClick={() => deviceInstallStatus.nextPage()}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
+                <DeviceInstallStatusTable
+                  items={deviceInstallStatus.items}
+                  isInitialLoading={deviceInstallStatus.isInitialLoading}
+                  isLoadingMore={deviceInstallStatus.isLoadingMore}
+                  hasMore={deviceInstallStatus.hasMore}
+                  onLoadMore={deviceInstallStatus.loadMore}
+                />
               </CardContent>
             </Card>
           )}

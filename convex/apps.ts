@@ -13,6 +13,11 @@ import { Id } from "./_generated/dataModel";
 import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
 import { internalMutation } from "./functions";
 import { normalizeTableId } from "./lib/idNormalization";
+import { versionSortKey } from "./lib/tableKeys";
+
+const APP_RELEASE_PREVIEW_LIMIT = 10;
+const APP_ASSIGNMENT_PREVIEW_LIMIT = 10;
+const RELEASE_RELATED_ROWS_LIMIT = 100;
 
 type ReleaseAssignment = {
     release_id: Id<"releases">;
@@ -618,6 +623,51 @@ export const getTableData = withAuthQuery({
     },
 });
 
+export const getTableDataPaginated = withAuthQuery({
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { paginationOpts }) => {
+        const result = await ctx.db.query("apps").order("desc").paginate(paginationOpts);
+        return {
+            ...result,
+            page: await Promise.all(result.page.map(async (app) => {
+                const releases = await ctx.db
+                    .query("releases")
+                    .withIndex("by_app_id", (q) => q.eq("app_id", app._id))
+                    .collect();
+                const groups: { id: string; name: string }[] = [];
+                const groupIds = new Set<string>();
+                for (const [releaseIndex, release] of releases.entries()) {
+                    const [staticAssignments, dynamicAssignments] = await Promise.all([
+                        ctx.db.query("computer_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).collect(),
+                        ctx.db.query("dynamic_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).collect(),
+                    ]);
+                    for (const assignment of staticAssignments) groupIds.add(assignment.group_id);
+                    for (const assignment of dynamicAssignments) groupIds.add(assignment.group_id);
+                    if (releaseIndex >= APP_RELEASE_PREVIEW_LIMIT) continue;
+                    for (const assignment of staticAssignments.slice(0, APP_ASSIGNMENT_PREVIEW_LIMIT)) {
+                        const group = await ctx.db.get("computer_groups", assignment.group_id);
+                        if (group) groups.push({ id: group._id, name: group.display_name });
+                    }
+                    for (const assignment of dynamicAssignments.slice(0, APP_ASSIGNMENT_PREVIEW_LIMIT)) {
+                        const group = await ctx.db.get("dynamic_computer_groups", assignment.group_id);
+                        if (group) groups.push({ id: group._id, name: group.display_name });
+                    }
+                }
+                const uniqueGroups = Array.from(new Map(groups.map((group) => [group.id, group])).values());
+                return {
+                    id: app._id,
+                    displayName: app.display_name,
+                    createdAt: app._creationTime,
+                    updatedAt: app._creationTime,
+                    groups: uniqueGroups,
+                    groupsCount: groupIds.size,
+                    installedCount: await installStatusAggregate.count(ctx, { namespace: [app._id, "INSTALLED"] }),
+                };
+            })),
+        };
+    },
+});
+
 /**
  * Get app by ID for admin.
  */
@@ -825,6 +875,56 @@ export const getReleases = withAuthQuery({
     },
 });
 
+export const getReleasesPaginated = withAuthQuery({
+    args: { appId: v.id("apps"), paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { appId, paginationOpts }) => {
+        const result = await ctx.db
+            .query("releases")
+            .withIndex("by_app_id_and_version_sort_key", (q) => q.eq("app_id", appId))
+            .order("desc")
+            .paginate(paginationOpts);
+        return {
+            ...result,
+            page: await Promise.all(result.page.map(async (release) => {
+                const [staticAssignmentsRaw, dynamicAssignmentsRaw, detections, win32_releases, winget_releases, release_requirements, release_scripts] = await Promise.all([
+                    ctx.db.query("computer_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(RELEASE_RELATED_ROWS_LIMIT),
+                    ctx.db.query("dynamic_group_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(RELEASE_RELATED_ROWS_LIMIT),
+                    ctx.db.query("detection_rules").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(RELEASE_RELATED_ROWS_LIMIT),
+                    ctx.db.query("win32_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(RELEASE_RELATED_ROWS_LIMIT),
+                    ctx.db.query("winget_releases").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(RELEASE_RELATED_ROWS_LIMIT),
+                    ctx.db.query("release_requirements").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(RELEASE_RELATED_ROWS_LIMIT),
+                    ctx.db.query("release_scripts").withIndex("by_release_id", (q) => q.eq("release_id", release._id)).take(RELEASE_RELATED_ROWS_LIMIT),
+                ]);
+                const computer_group_releases = await Promise.all(staticAssignmentsRaw.map(async (assignment) => ({
+                    ...assignment,
+                    computer_groups: await ctx.db.get("computer_groups", assignment.group_id),
+                })));
+                const dynamic_group_releases = await Promise.all(dynamicAssignmentsRaw.map(async (assignment) => ({
+                    ...assignment,
+                    dynamic_computer_groups: await ctx.db.get("dynamic_computer_groups", assignment.group_id),
+                })));
+                return {
+                    id: release._id,
+                    version: release.version,
+                    created_at: release._creationTime,
+                    installer_type: release.installer_type,
+                    disabled_at: release.disabled_at,
+                    uninstall_previous: release.uninstall_previous,
+                    computer_group_releases,
+                    dynamic_group_releases,
+                    staticAssignments: computer_group_releases,
+                    dynamicAssignments: dynamic_group_releases,
+                    detections,
+                    win32_releases,
+                    winget_releases,
+                    release_requirements,
+                    release_scripts,
+                };
+            })),
+        };
+    },
+});
+
 /**
  * Get install status per device for all releases of a given app.
  */
@@ -881,17 +981,6 @@ export const getDeviceInstallStatusPaginated = withAuthQuery({
         paginationOpts: paginationOptsValidator,
     },
     handler: async (ctx, { appId, paginationOpts }) => {
-        // Use aggregate for O(log n) status counts
-        const statusCounts = await installStatusAggregate.countBatch(
-            ctx,
-            INSTALL_STATUSES.map((status) => ({ namespace: [appId, status] as [typeof appId, InstallStatus] }))
-        );
-        const byStatus = INSTALL_STATUSES.reduce(
-            (acc, status, i) => ({ ...acc, [status]: statusCounts[i] }),
-            {} as Record<InstallStatus, number>
-        );
-        const total = statusCounts.reduce((sum, n) => sum + n, 0);
-
         const installsPage = await ctx.db
             .query("computer_apps_installs")
             .withIndex("by_app_id_and_status_updated_at", (q) => q.eq("app_id", appId))
@@ -918,11 +1007,25 @@ export const getDeviceInstallStatusPaginated = withAuthQuery({
         );
 
         return {
-            total,
-            byStatus,
-            items,
-            isDone: installsPage.isDone,
-            continueCursor: installsPage.continueCursor,
+            ...installsPage,
+            page: items,
+        };
+    },
+});
+
+export const getDeviceInstallStatusSummary = withAuthQuery({
+    args: { appId: v.id("apps") },
+    handler: async (ctx, { appId }) => {
+        const counts = await installStatusAggregate.countBatch(
+            ctx,
+            INSTALL_STATUSES.map((status) => ({ namespace: [appId, status] as [typeof appId, InstallStatus] })),
+        );
+        return {
+            total: counts.reduce((sum, count) => sum + count, 0),
+            byStatus: INSTALL_STATUSES.reduce(
+                (result, status, index) => ({ ...result, [status]: counts[index] }),
+                {} as Record<InstallStatus, number>,
+            ),
         };
     },
 });
@@ -1078,6 +1181,7 @@ export const create = withAuthMutation({
         const releaseId = await ctx.db.insert("releases", {
             app_id: appId,
             version: args.release.version || "latest",
+            version_sort_key: versionSortKey(args.release.version || "latest"),
             installer_type: args.release.type,
             uninstall_previous: args.release.uninstallPreviousVersion,
         });
@@ -1274,6 +1378,7 @@ export const createRelease = withAuthMutation({
         const releaseId = await ctx.db.insert("releases", {
             app_id: args.appId,
             version: args.version || "latest",
+            version_sort_key: versionSortKey(args.version || "latest"),
             installer_type: args.type,
             uninstall_previous: args.uninstall_previous,
             disabled_at: args.disabled ? Date.now() : undefined,
@@ -1405,6 +1510,7 @@ export const updateRelease = withAuthMutation({
         // 1. Update Release
         await ctx.db.patch("releases", id, {
             version: data.version || "latest",
+            version_sort_key: versionSortKey(data.version || "latest"),
             installer_type: data.type,
             uninstall_previous: data.uninstall_previous,
             ...(data.disabled !== undefined

@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
+import { versionSortKey } from "./lib/tableKeys";
+import { paginationOptsValidator } from "convex/server";
 
 
 export const getAll = withAuthQuery({
@@ -7,6 +9,25 @@ export const getAll = withAuthQuery({
     handler: async (ctx) => {
         return await ctx.db.query("client_updates").collect();
     },
+});
+
+export const getAllPaginated = withAuthQuery({
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { paginationOpts }) =>
+        await ctx.db
+            .query("client_updates")
+            .withIndex("by_version_sort_key")
+            .order("desc")
+            .paginate(paginationOpts),
+});
+
+export const getActive = withAuthQuery({
+    args: {},
+    handler: async (ctx) =>
+        await ctx.db
+            .query("client_updates")
+            .withIndex("by_is_active", (q) => q.eq("is_active", true))
+            .first(),
 });
 
 export const create = withAuthMutation({
@@ -38,6 +59,7 @@ export const create = withAuthMutation({
 
         const id = await ctx.db.insert("client_updates", {
             version: args.version,
+            version_sort_key: versionSortKey(args.version),
             storage_id: args.storageId, // Using storageId as path reference
             hash: args.hash,
             byte_size: args.byte_size,

@@ -9,12 +9,8 @@ import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { paginationOptsValidator } from "convex/server";
-import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
 import { internalMutation } from "./functions";
-import { Doc } from "./_generated/dataModel";
 import { normalizeTableId } from "./lib/idNormalization";
-
-type ComputerDoc = Doc<"computers">;
 
 // ========================================
 // Public Queries
@@ -56,112 +52,21 @@ export const listPaginated = withAuthQuery({
         paginationOpts: paginationOptsValidator,
     },
     handler: async (ctx, { filter, sortField, sortDesc, paginationOpts }) => {
-        const lowerFilter = filter?.toLowerCase();
-        const pageSize = paginationOpts.numItems;
-
-        const sortItems = (items: ComputerDoc[]) => {
-            if (!sortField) {
-                return items;
-            }
-
-            return [...items].sort((a, b) => {
-                let aVal: unknown;
-                let bVal: unknown;
-
-                switch (sortField) {
-                    case "name":
-                        aVal = a.name;
-                        bVal = b.name;
-                        break;
-                    case "rustdeskID":
-                        aVal = a.rustdesk_id;
-                        bVal = b.rustdesk_id;
-                        break;
-                    case "ip":
-                        aVal = a.ip;
-                        bVal = b.ip;
-                        break;
-                    case "os":
-                        aVal = a.os;
-                        bVal = b.os;
-                        break;
-                    case "osVersion":
-                        aVal = a.os_version;
-                        bVal = b.os_version;
-                        break;
-                    case "loginUser":
-                        aVal = a.login_user;
-                        bVal = b.login_user;
-                        break;
-                    case "lastConnection":
-                        aVal = a.last_connection;
-                        bVal = b.last_connection;
-                        break;
-                    default:
-                        return 0;
-                }
-
-                if (aVal === undefined || aVal === null) return 1;
-                if (bVal === undefined || bVal === null) return -1;
-
-                const comparison =
-                    typeof aVal === "string"
-                        ? aVal.localeCompare(bVal as string)
-                        : (aVal as number) - (bVal as number);
-
-                return sortDesc ? -comparison : comparison;
-            });
-        };
-
-        const matchesFilter = (computer: ComputerDoc) => {
-            if (!lowerFilter) {
-                return true;
-            }
-
-            return (
-                computer.login_user?.toLowerCase().includes(lowerFilter) ||
-                computer.name?.toLowerCase().includes(lowerFilter)
-            );
-        };
-
-        const requiresInMemoryPagination = Boolean(lowerFilter || sortField);
-
-        let items: ComputerDoc[] = [];
-        let continueCursor: string | null = paginationOpts.cursor;
-        let isDone = false;
-        let total = 0;
-
-        if (requiresInMemoryPagination) {
-            const allComputers = await ctx.db.query("computers").collect();
-            const filteredComputers = allComputers.filter(matchesFilter);
-            const sortedComputers = sortItems(filteredComputers);
-
-            const offset = paginationOpts.cursor ? Number.parseInt(paginationOpts.cursor, 10) : 0;
-            const safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
-
-            total = sortedComputers.length;
-            items = sortedComputers.slice(safeOffset, safeOffset + pageSize);
-            isDone = safeOffset + pageSize >= total;
-            continueCursor = isDone ? null : String(safeOffset + pageSize);
-        } else {
-            const { page, continueCursor: nextCursor, isDone: pageDone } = await ctx.db
+        const search = filter?.trim().toLowerCase();
+        const direction = sortDesc ? "desc" : "asc";
+        const result = search
+            ? await ctx.db
                 .query("computers")
-                .order(sortDesc ? "desc" : "asc")
-                .paginate({
-                    numItems: pageSize,
-                    cursor: paginationOpts.cursor,
-                });
-
-            items = page;
-            continueCursor = nextCursor;
-            isDone = pageDone;
-            total = await computerCountAggregate.count(ctx, {
-                namespace: null,
-            });
-        }
+                .withSearchIndex("search_name_and_login", (q) => q.search("search_text", search))
+                .paginate(paginationOpts)
+            : sortField === "name"
+                ? await ctx.db.query("computers").withIndex("by_name").order(direction).paginate(paginationOpts)
+                : sortField === "os"
+                    ? await ctx.db.query("computers").withIndex("by_os").order(direction).paginate(paginationOpts)
+                    : await ctx.db.query("computers").order(direction).paginate(paginationOpts);
 
         return {
-            page: items.map((c) => ({
+            page: result.page.map((c) => ({
                 id: c._id,
                 deviceId: c._id,
                 rustdeskID: c.rustdesk_id,
@@ -174,9 +79,8 @@ export const listPaginated = withAuthQuery({
                 clientVersion: c.client_version,
                 intuneId: c.intune_id,
             })),
-            continueCursor,
-            isDone,
-            total,
+            continueCursor: result.continueCursor,
+            isDone: result.isDone,
         };
     },
 });

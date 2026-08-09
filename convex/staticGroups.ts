@@ -77,6 +77,45 @@ export const getTableData = withAuthQuery({
     },
 });
 
+export const getTableDataPaginated = withAuthQuery({
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { paginationOpts }) => {
+        const result = await ctx.db.query("computer_groups").order("desc").paginate(paginationOpts);
+        return {
+            ...result,
+            page: await Promise.all(result.page.map(async (group) => {
+                const memberRows = await ctx.db
+                    .query("computer_group_members")
+                    .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
+                    .collect();
+                const members = await Promise.all(memberRows.slice(0, 2).map(async (member) => {
+                    const computer = await ctx.db.get("computers", member.computer_id);
+                    return computer ? { id: computer._id, name: computer.name } : null;
+                }));
+                return {
+                    id: group._id,
+                    displayName: group.display_name,
+                    description: group.description,
+                    members: members.filter((member) => member !== null),
+                    memberCount: memberRows.length,
+                    createdAt: group._creationTime,
+                };
+            })),
+        };
+    },
+});
+
+export const getMemberIdsPaginated = withAuthQuery({
+    args: { groupId: v.id("computer_groups"), paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { groupId, paginationOpts }) => {
+        const result = await ctx.db
+            .query("computer_group_members")
+            .withIndex("by_group_id", (q) => q.eq("group_id", groupId))
+            .paginate(paginationOpts);
+        return { ...result, page: result.page.map((member) => member.computer_id) };
+    },
+});
+
 /**
  * Get members of a static group.
  */

@@ -1,9 +1,9 @@
 "use client";
 
-import { flexRender } from "@tanstack/react-table";
+import { useEffect, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -23,34 +23,19 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { Preloaded } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useStaticGroupsTable } from "./hooks/use-static-groups-table";
+import { VirtualTable } from "@/components/virtual-table";
 
-export function StaticGroupsTable({
-  preloaded,
-}: {
-  preloaded: {
-    groups: Preloaded<typeof api.staticGroups.getTableData>;
-  };
-}) {
+export function StaticGroupsTable() {
   const {
     computers,
     closeDialog,
     dialogState,
     form,
-    handleMembersScroll,
-    hasGroups,
+    canLoadMoreComputers,
+    loadMoreComputers,
     isDialogOpen,
     isLoadingComputers,
     isSaving,
@@ -59,7 +44,22 @@ export function StaticGroupsTable({
     openCreateDialog,
     setMemberSearch,
     table,
-  } = useStaticGroupsTable({ preloaded });
+    groupsQuery,
+    isLoadingEditMembers,
+  } = useStaticGroupsTable();
+  const memberScrollRef = useRef<HTMLDivElement>(null);
+  const memberVirtualizer = useVirtualizer({
+    count: computers.length,
+    getScrollElement: () => memberScrollRef.current,
+    estimateSize: () => 58,
+    overscan: 8,
+  });
+  const memberVirtualRows = memberVirtualizer.getVirtualItems();
+  const lastMemberIndex = memberVirtualRows.at(-1)?.index ?? -1;
+
+  useEffect(() => {
+    if (canLoadMoreComputers && !isLoadingComputers && lastMemberIndex >= computers.length - 10) loadMoreComputers();
+  }, [canLoadMoreComputers, computers.length, isLoadingComputers, lastMemberIndex, loadMoreComputers]);
 
   return (
     <div className="flex w-full flex-col gap-4 pb-10">
@@ -116,6 +116,7 @@ export function StaticGroupsTable({
                     <FormControl>
                       <Input
                         autoFocus
+                        disabled={isLoadingEditMembers}
                         placeholder="e.g. Finance Team"
                         {...field}
                       />
@@ -141,24 +142,31 @@ export function StaticGroupsTable({
                         </p>
                       </div>
                       <Input
+                        disabled={isLoadingEditMembers}
                         placeholder="Search members..."
                         value={memberSearch}
                         onChange={(e) => setMemberSearch(e.target.value)}
                       />
                       <div
-                        className="grid h-95 content-start gap-2 overflow-y-scroll [scrollbar-gutter:stable]"
-                        onScroll={handleMembersScroll}
+                        ref={memberScrollRef}
+                        className="h-95 overflow-y-auto [scrollbar-gutter:stable]"
                       >
-                        {computers.map((computer) => {
+                        <div className="relative" style={{ height: memberVirtualizer.getTotalSize() }}>
+                        {memberVirtualRows.map((virtualRow) => {
+                          const computer = computers[virtualRow.index];
                           const checkboxId = `member-${computer.id}`;
                           const isChecked = members.includes(computer.id);
                           return (
                             <div
                               key={computer.id}
-                              className="flex items-start gap-3 rounded-lg border p-3 transition hover:bg-accent/40"
+                              ref={memberVirtualizer.measureElement}
+                              data-index={virtualRow.index}
+                              className="absolute left-0 top-0 flex w-full items-start gap-3 rounded-lg border p-3 transition hover:bg-accent/40"
+                              style={{ transform: `translateY(${virtualRow.start}px)` }}
                             >
                               <Checkbox
                                 id={checkboxId}
+                                disabled={isLoadingEditMembers}
                                 checked={isChecked}
                                 onCheckedChange={(checked) => {
                                   const shouldInclude = checked === true;
@@ -181,6 +189,7 @@ export function StaticGroupsTable({
                             </div>
                           );
                         })}
+                        </div>
                         {isLoadingComputers && (
                           <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
                             Loading computers...
@@ -212,8 +221,10 @@ export function StaticGroupsTable({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {dialogState?.mode === "edit"
+                <Button type="submit" disabled={isSaving || isLoadingEditMembers}>
+                  {isLoadingEditMembers
+                    ? "Loading members…"
+                    : dialogState?.mode === "edit"
                     ? "Save changes"
                     : "Create group"}
                 </Button>
@@ -222,52 +233,17 @@ export function StaticGroupsTable({
           </Form>
         </DialogContent>
       </Dialog>
-      {hasGroups ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table className="">
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <div className="text-sm text-muted-foreground">
-              No groups yet. Create one to start organizing computers.
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <VirtualTable
+        height={575}
+        table={table}
+        ariaLabel="Static computer groups"
+        emptyMessage="No groups yet. Create one to start organizing computers."
+        isInitialLoading={groupsQuery.status === "LoadingFirstPage"}
+        isLoadingMore={groupsQuery.status === "LoadingMore"}
+        hasMore={groupsQuery.status === "CanLoadMore"}
+        onLoadMore={() => groupsQuery.loadMore(200)}
+        pinnedEndColumns={1}
+      />
     </div>
   );
 }

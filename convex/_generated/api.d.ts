@@ -26,6 +26,7 @@ import type * as lib_encoding from "../lib/encoding.js";
 import type * as lib_groupRules from "../lib/groupRules.js";
 import type * as lib_idNormalization from "../lib/idNormalization.js";
 import type * as lib_jwt from "../lib/jwt.js";
+import type * as lib_tableKeys from "../lib/tableKeys.js";
 import type * as lib_withAuth from "../lib/withAuth.js";
 import type * as migrations from "../migrations.js";
 import type * as mocks_mockApps from "../mocks/mockApps.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   "lib/groupRules": typeof lib_groupRules;
   "lib/idNormalization": typeof lib_idNormalization;
   "lib/jwt": typeof lib_jwt;
+  "lib/tableKeys": typeof lib_tableKeys;
   "lib/withAuth": typeof lib_withAuth;
   migrations: typeof migrations;
   "mocks/mockApps": typeof mocks_mockApps;

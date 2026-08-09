@@ -30,12 +30,13 @@ export type DynamicGroupsTableMeta = {
 export const dynamicGroupsTableColumns: ColumnDef<DynamicGroupRow>[] = [
     {
         accessorKey: "displayName",
+        size: 150,
         header: "Name",
         cell: ({ row }) => (
             <div>
                 <span className="font-medium">{row.original.displayName}</span>
                 {row.original.description && (
-                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                    <p className="text-xs text-muted-foreground truncate">
                         {row.original.description}
                     </p>
                 )}
@@ -44,6 +45,7 @@ export const dynamicGroupsTableColumns: ColumnDef<DynamicGroupRow>[] = [
     },
     {
         id: "members",
+        size: 500,
         header: "Members",
         cell: ({ row, table }) => {
             const meta = table.options.meta as DynamicGroupsTableMeta | undefined;
@@ -63,6 +65,7 @@ export const dynamicGroupsTableColumns: ColumnDef<DynamicGroupRow>[] = [
     },
     {
         accessorKey: "lastEvaluatedAtFormatted",
+        size: 190,
         header: "Last Evaluated",
         cell: ({ row }) =>
             row.original.lastEvaluatedAtFormatted ?? (
@@ -71,10 +74,12 @@ export const dynamicGroupsTableColumns: ColumnDef<DynamicGroupRow>[] = [
     },
     {
         accessorKey: "updatedAtFormatted",
+        size: 190,
         header: "Last Updated",
     },
     {
         id: "actions",
+        size: 60,
         header: "",
         cell: ({ row, table }) => {
             const meta = table.options.meta as DynamicGroupsTableMeta | undefined;

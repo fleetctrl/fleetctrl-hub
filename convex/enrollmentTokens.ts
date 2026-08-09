@@ -8,6 +8,7 @@
 import { v } from "convex/values";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { arrayBufferToBase64Url } from "./lib/encoding";
+import { paginationOptsValidator } from "convex/server";
 
 // ========================================
 // Public Queries
@@ -30,6 +31,26 @@ export const list = withAuthQuery({
             lastUsedAt: t.last_used_at,
             createdAt: t._creationTime,
         }));
+    },
+});
+
+export const listPaginated = withAuthQuery({
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { paginationOpts }) => {
+        const result = await ctx.db.query("enrollment_tokens").order("desc").paginate(paginationOpts);
+        return {
+            ...result,
+            page: result.page.map((t) => ({
+                id: t._id,
+                name: t.name,
+                tokenFragment: t.token_fragment,
+                remainingUses: t.remaining_uses,
+                disabled: t.disabled,
+                expiresAt: t.expires_at,
+                lastUsedAt: t.last_used_at,
+                createdAt: t._creationTime,
+            })),
+        };
     },
 });
 

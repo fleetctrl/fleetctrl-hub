@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
-  flexRender,
+  type ColumnDef,
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -33,14 +32,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -51,8 +42,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { Preloaded, useMutation, usePreloadedQuery } from "convex/react";
-import { useAuthQuery } from "@/hooks/use-auth-query";
+import { useMutation } from "convex/react";
+import { useAuthPaginatedQuery, useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -67,6 +58,9 @@ import {
   formToApiFormat,
   apiToFormFormat,
 } from "@/components/dynamic-group-rule-builder";
+import { VirtualTable } from "@/components/virtual-table";
+
+const PAGE_SIZE = 200;
 
 type DialogState = { mode: "create" } | { mode: "edit"; groupId: string };
 
@@ -87,13 +81,9 @@ const groupFormSchema = z.object({
 
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
-export function DynamicGroupsTable({
-  preloaded,
-}: {
-  preloaded: { groups: Preloaded<typeof api.groups.getAll> };
-}) {
-  // Convex queries - automatically reactive!
-  const groups = usePreloadedQuery(preloaded.groups);
+export function DynamicGroupsTable() {
+  const groupsQuery = useAuthPaginatedQuery(api.groups.getAllPaginated, {}, { initialNumItems: PAGE_SIZE });
+  const groups = groupsQuery.results;
 
   // Convex mutations
   const createGroup = useMutation(api.groups.createDynamicGroup);
@@ -267,7 +257,6 @@ export function DynamicGroupsTable({
     } satisfies DynamicGroupsTableMeta,
   });
 
-  const hasGroups = groupRows.length > 0;
   const isDialogOpen = dialogState !== null;
   const isLoading = isCreating || isUpdating || isDeleting;
 
@@ -441,53 +430,21 @@ export function DynamicGroupsTable({
       </AlertDialog>
 
       {/* Data Table */}
-      {hasGroups ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <div className="text-sm text-muted-foreground">
-              No dynamic groups yet. Create one to automatically group computers
-              based on their properties.
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <VirtualTable
+        height="min(37.5rem, calc(100dvh - 18.5rem))"
+        table={table}
+        ariaLabel="Dynamic computer groups"
+        emptyTitle="No dynamic groups yet"
+        emptyMessage="Create one to automatically group computers based on their properties."
+        emptyAction={
+          <Button onClick={openCreateDialog}>Create dynamic group</Button>
+        }
+        isInitialLoading={groupsQuery.status === "LoadingFirstPage"}
+        isLoadingMore={groupsQuery.status === "LoadingMore"}
+        hasMore={groupsQuery.status === "CanLoadMore"}
+        onLoadMore={() => groupsQuery.loadMore(PAGE_SIZE)}
+        pinnedEndColumns={1}
+      />
 
       {/* View Members Dialog */}
       <Dialog
@@ -501,13 +458,11 @@ export function DynamicGroupsTable({
               Computers that match the group rules.
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-100 overflow-y-auto">
-            {viewMembersGroupId ? (
-              <MembersList
-                groupId={viewMembersGroupId as Id<"dynamic_computer_groups">}
-              />
-            ) : null}
-          </div>
+          {viewMembersGroupId ? (
+            <MembersList
+              groupId={viewMembersGroupId as Id<"dynamic_computer_groups">}
+            />
+          ) : null}
           <DialogFooter>
             <Button
               variant="outline"
@@ -523,46 +478,25 @@ export function DynamicGroupsTable({
 }
 
 function MembersList({ groupId }: { groupId: Id<"dynamic_computer_groups"> }) {
-  const membersData = useAuthQuery(api.groups.getMembers, { id: groupId });
-  const membersLoading = membersData === undefined;
-
-  if (membersLoading) {
-    return (
-      <div className="flex items-center justify-center py-8 text-muted-foreground">
-        Loading members...
-      </div>
-    );
-  }
-
-  if (!membersData || membersData.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-8 text-muted-foreground">
-        No members match the group rules.
-      </div>
-    );
-  }
-
+  const query = useAuthPaginatedQuery(api.groups.getMembersPaginated, { id: groupId }, { initialNumItems: PAGE_SIZE });
+  type Member = (typeof query.results)[number];
+  const columns = useMemo<ColumnDef<Member>[]>(() => [
+    { id: "name", size: 260, header: "Computer Name", cell: ({ row }) => <span className="font-medium">{row.original.computer?.name ?? "Unknown"}</span> },
+    { id: "os", size: 180, header: "OS", cell: ({ row }) => row.original.computer?.os ?? "-" },
+    { id: "ip", size: 160, header: "IP", cell: ({ row }) => row.original.computer?.ip ?? "-" },
+  ], []);
+  const table = useReactTable({ data: query.results, columns, getCoreRowModel: getCoreRowModel(), getRowId: (row) => row.computerId });
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Computer Name</TableHead>
-          <TableHead>OS</TableHead>
-          <TableHead>IP</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {membersData.map((member) => (
-          <TableRow key={member.computerId}>
-            <TableCell className="font-medium">
-              {member.computer?.name ?? "Unknown"}
-            </TableCell>
-            <TableCell>{member.computer?.os ?? "-"}</TableCell>
-            <TableCell>{member.computer?.ip ?? "-"}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <VirtualTable
+      height={575}
+      table={table}
+      ariaLabel="Dynamic group members"
+      emptyMessage="No members match the group rules."
+      isInitialLoading={query.status === "LoadingFirstPage"}
+      isLoadingMore={query.status === "LoadingMore"}
+      hasMore={query.status === "CanLoadMore"}
+      onLoadMore={() => query.loadMore(PAGE_SIZE)}
+    />
   );
 }
 
