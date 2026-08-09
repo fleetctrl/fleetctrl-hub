@@ -1007,9 +1007,8 @@ export const getDeviceInstallStatusPaginated = withAuthQuery({
         );
 
         return {
+            ...installsPage,
             page: items,
-            isDone: installsPage.isDone,
-            continueCursor: installsPage.continueCursor,
         };
     },
 });
