@@ -28,7 +28,7 @@ import { toast } from "sonner";
 interface RowOptionsProps {
   versionId: string;
   isActive: boolean;
-  onActionComplete?: () => Promise<unknown> | void;
+  onActionComplete?: () => Promise<void> | void;
 }
 
 export default function ClientRowOptions({

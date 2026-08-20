@@ -93,7 +93,7 @@ export async function verifyAccessToken(token: string): Promise<TokenPayload> {
         audience: apiUrl,
     });
 
-    return payload as unknown as TokenPayload;
+    return payload as TokenPayload;
 }
 
 /**

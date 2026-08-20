@@ -15,7 +15,7 @@ export type Key = {
 };
 
 export type KeysTableMeta = {
-  onActionComplete?: () => Promise<unknown> | void;
+  onActionComplete?: () => Promise<void> | void;
 };
 
 export const keysColumns: ColumnDef<Key>[] = [

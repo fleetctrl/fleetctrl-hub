@@ -9,7 +9,7 @@ import { internalAction, internalQuery, type MutationCtx, type QueryCtx } from "
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
+import { type Doc, Id } from "./_generated/dataModel";
 import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
 import { internalMutation } from "./functions";
 import { normalizeTableId } from "./lib/idNormalization";
@@ -767,7 +767,7 @@ export const update = withAuthMutation({
         }),
     },
     handler: async (ctx, { id, data }) => {
-        const updates: Record<string, unknown> = {};
+        const updates: Partial<Pick<Doc<"apps">, "display_name" | "description" | "publisher">> = {};
         if (data.display_name !== undefined) updates.display_name = data.display_name;
         if (data.description !== undefined) updates.description = data.description;
         if (data.publisher !== undefined) updates.publisher = data.publisher;

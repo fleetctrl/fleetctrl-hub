@@ -5,6 +5,7 @@
 
 import { importJWK, jwtVerify } from "jose";
 import type { JWK } from "jose";
+import { z } from "zod";
 import { base64UrlToString, arrayBufferToBase64Url } from "./encoding";
 
 export interface DPoPClaims {
@@ -14,6 +15,14 @@ export interface DPoPClaims {
     jti: string;
     ath?: string;
 }
+
+const dpopClaimsSchema = z.object({
+    htu: z.string(),
+    htm: z.string(),
+    iat: z.number(),
+    jti: z.string(),
+    ath: z.string().optional(),
+});
 
 export interface DPoPResult {
     jwk: JWK;
@@ -81,7 +90,7 @@ export async function verifyDPoP(
         typ: "dpop+jwt",
     });
 
-    const claims = payload as unknown as DPoPClaims;
+    const claims = dpopClaimsSchema.parse(payload);
 
     // 6. Validate required claims
     if (!claims.htm || !claims.htu || !claims.iat || !claims.jti) {
@@ -134,30 +143,27 @@ export async function verifyDPoP(
  */
 export async function computeJKT(jwk: JWK): Promise<string> {
     // Extract required members based on key type (RFC 7638)
-    let thumbprintInput: Record<string, string>;
-
-    switch (jwk.kty) {
+    const thumbprintInput = (() => {
+      switch (jwk.kty) {
         case "RSA":
             if (!jwk.e || !jwk.n) {
                 throw new Error("RSA key missing required members");
             }
-            thumbprintInput = { e: jwk.e, kty: jwk.kty, n: jwk.n };
-            break;
+            return { e: jwk.e, kty: jwk.kty, n: jwk.n };
         case "EC":
             if (!jwk.crv || !jwk.x || !jwk.y) {
                 throw new Error("EC key missing required members");
             }
-            thumbprintInput = { crv: jwk.crv, kty: jwk.kty, x: jwk.x, y: jwk.y };
-            break;
+            return { crv: jwk.crv, kty: jwk.kty, x: jwk.x, y: jwk.y };
         case "OKP":
             if (!jwk.crv || !jwk.x) {
                 throw new Error("OKP key missing required members");
             }
-            thumbprintInput = { crv: jwk.crv, kty: jwk.kty, x: jwk.x };
-            break;
+            return { crv: jwk.crv, kty: jwk.kty, x: jwk.x };
         default:
             throw new Error(`Unsupported key type: ${jwk.kty}`);
-    }
+      }
+    })();
 
     // Lexicographically sorted JSON (keys are already sorted in our objects)
     const sorted = JSON.stringify(

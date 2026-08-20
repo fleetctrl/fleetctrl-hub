@@ -21,7 +21,7 @@ export type AppRow = {
 
 export type AppsTableMeta = {
   onEdit: (appId: string) => void;
-  onActionComplete?: () => Promise<unknown> | void;
+  onActionComplete?: () => Promise<void> | void;
 };
 
 export const appsTableColumns: ColumnDef<AppRow>[] = [

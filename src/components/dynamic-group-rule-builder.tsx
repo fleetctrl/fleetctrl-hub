@@ -101,7 +101,7 @@ export type RuleExpressionFormValues = z.infer<typeof ruleExpressionFormSchema>;
 export type ConditionFormValues = z.infer<typeof conditionSchema>;
 
 // Convert form values to API format
-export function formToApiFormat(form: RuleExpressionFormValues): object {
+export function formToApiFormat(form: RuleExpressionFormValues) {
     if (form.groups.length === 1 && form.groups[0].conditions.length === 1) {
         // Single condition - return it directly
         return form.groups[0].conditions[0];
@@ -130,8 +130,23 @@ export function formToApiFormat(form: RuleExpressionFormValues): object {
     };
 }
 
+type ApiRule = ConditionFormValues | {
+    logic: "AND" | "OR";
+    conditions: ApiRule[];
+};
+
+const apiRuleSchema: z.ZodType<ApiRule> = z.lazy(() =>
+    z.union([
+        conditionSchema,
+        z.object({
+            logic: z.enum(["AND", "OR"]),
+            conditions: z.array(apiRuleSchema),
+        }),
+    ]),
+);
+
 // Convert API format back to form values
-export function apiToFormFormat(apiRule: unknown): RuleExpressionFormValues {
+export function apiToFormFormat(apiRule: Parameters<typeof apiRuleSchema.safeParse>[0]): RuleExpressionFormValues {
     const defaultForm: RuleExpressionFormValues = {
         logic: "AND",
         groups: [
@@ -142,37 +157,33 @@ export function apiToFormFormat(apiRule: unknown): RuleExpressionFormValues {
         ],
     };
 
-    if (!apiRule || typeof apiRule !== "object") {
+    const parsed = apiRuleSchema.safeParse(apiRule);
+    if (!parsed.success) {
         return defaultForm;
     }
 
-    const rule = apiRule as Record<string, unknown>;
+    const rule = parsed.data;
 
     // Single condition (leaf node)
-    if ("property" in rule && "operator" in rule && "value" in rule) {
+    if ("property" in rule) {
         return {
             logic: "AND",
             groups: [
                 {
                     logic: "AND",
-                    conditions: [rule as ConditionFormValues],
+                    conditions: [rule],
                 },
             ],
         };
     }
 
     // Nested structure
-    if ("logic" in rule && "conditions" in rule) {
-        const conditions = rule.conditions as unknown[];
-        const logic = rule.logic as "AND" | "OR";
+    if ("conditions" in rule) {
+        const { conditions, logic } = rule;
 
         // Check if all conditions are leaf nodes
         const allLeaf = conditions.every(
-            (c) =>
-                c &&
-                typeof c === "object" &&
-                "property" in (c as object) &&
-                "operator" in (c as object)
+            (condition): condition is ConditionFormValues => "property" in condition,
         );
 
         if (allLeaf) {
@@ -182,7 +193,7 @@ export function apiToFormFormat(apiRule: unknown): RuleExpressionFormValues {
                 groups: [
                     {
                         logic,
-                        conditions: conditions as ConditionFormValues[],
+                        conditions,
                     },
                 ],
             };
@@ -191,20 +202,18 @@ export function apiToFormFormat(apiRule: unknown): RuleExpressionFormValues {
         // Multiple groups
         const groups = conditions.map((c) => {
             if (
-                c &&
-                typeof c === "object" &&
-                "property" in (c as object) &&
-                "operator" in (c as object)
+                "property" in c
             ) {
                 return {
                     logic: "AND" as const,
-                    conditions: [c as ConditionFormValues],
+                    conditions: [c],
                 };
             }
-            const group = c as { logic: "AND" | "OR"; conditions: ConditionFormValues[] };
             return {
-                logic: group.logic,
-                conditions: group.conditions,
+                logic: c.logic,
+                conditions: c.conditions.filter(
+                    (condition): condition is ConditionFormValues => "property" in condition,
+                ),
             };
         });
 

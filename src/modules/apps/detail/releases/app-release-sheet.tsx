@@ -194,14 +194,12 @@ const toDropzonePreview = (
     return undefined;
   }
 
-  return [
-    {
-      name: file.name,
-      size: file.size,
-      type: file.type ?? "application/octet-stream",
-      lastModified: 0,
-    } as unknown as File,
-  ];
+  const preview = new File([], file.name, {
+    type: file.type ?? "application/octet-stream",
+    lastModified: 0,
+  });
+  Object.defineProperty(preview, "size", { value: file.size });
+  return [preview];
 };
 
 const mapReleaseToFormValues = (release: any) => {
@@ -298,10 +296,10 @@ const mapReleaseToFormValues = (release: any) => {
   const requirement = release.release_requirements?.[0];
   const win32Rel = Array.isArray(release.win32_releases)
     ? release.win32_releases[0]
-    : (release.win32_releases as any);
+    : release.win32_releases;
   const wingetRel = Array.isArray(release.winget_releases)
     ? release.winget_releases[0]
-    : (release.winget_releases as any);
+    : release.winget_releases;
 
   return {
     type: (release.installer_type || "win32") as "win32" | "winget",

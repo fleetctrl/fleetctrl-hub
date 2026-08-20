@@ -1,4 +1,3 @@
-"use client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +29,7 @@ import {
 type RowOptionsProps = {
   groupId: string;
   onEdit?: () => void;
-  onActionComplete?: () => Promise<unknown> | void;
+  onActionComplete?: () => Promise<void> | void;
 };
 
 export default function StaticGroupsRowOptions({

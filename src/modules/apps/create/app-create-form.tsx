@@ -127,14 +127,12 @@ const toDropzonePreview = (
     return undefined;
   }
 
-  return [
-    {
-      name: file.name,
-      size: file.size,
-      type: file.type ?? "application/octet-stream",
-      lastModified: Date.now(),
-    } as unknown as File,
-  ];
+  const preview = new File([], file.name, {
+    type: file.type ?? "application/octet-stream",
+    lastModified: Date.now(),
+  });
+  Object.defineProperty(preview, "size", { value: file.size });
+  return [preview];
 };
 
 export function AppCreateForm() {
@@ -1151,17 +1149,17 @@ function DetectionListForm({
       return "—";
     }
 
-    const map: Record<string, string> = {
-      version_equal: "=",
-      version_equal_or_higher: "≥",
-      version_equal_or_lower: "≤",
-      version_higher: ">",
-      version_lower: "<",
-      exists: "Exists",
-      string: "String",
-    };
+    const labels = new Map([
+      ["version_equal", "="],
+      ["version_equal_or_higher", "≥"],
+      ["version_equal_or_lower", "≤"],
+      ["version_higher", ">"],
+      ["version_lower", "<"],
+      ["exists", "Exists"],
+      ["string", "String"],
+    ]);
 
-    return map[raw] ?? raw.replaceAll("_", " ");
+    return labels.get(raw) ?? raw.replaceAll("_", " ");
   };
 
   return (
