@@ -8,8 +8,8 @@
     "start": "next start",
     "test:docker-build": "bash ./scripts/test-docker-build.sh",
     "test:docker-deployment": "bash ./scripts/test-docker-deployment.sh",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
     "seed:mock-computers": "npx convex run mocks/mockComputers:add '{\"confirm\":\"ADD_MOCK_COMPUTERS\",\"count\":500,\"replaceExisting\":true}'",
     "seed:mock-apps": "npx convex run mocks/mockApps:add '{\"confirm\":\"ADD_MOCK_APPS\",\"appCount\":12,\"installCoveragePercent\":80,\"replaceExisting\":true}'",
     "codegen": "npx convex codegen"
@@ -74,6 +74,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "15.3.1",
+    "oxlint": "^1.79.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.4",
     "tailwindcss-animate": "^1.0.7",
