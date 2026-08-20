@@ -68,6 +68,7 @@
     "@better-auth/cli": "^1.4.21",
     "@convex-dev/eslint-plugin": "^1.2.2",
     "@eslint/eslintrc": "^3.3.5",
+    "@oxlint/plugins": "1.79.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^20.19.38",
     "@types/react": "^19.2.14",
