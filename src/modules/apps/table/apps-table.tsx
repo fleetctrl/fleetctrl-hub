@@ -77,7 +77,6 @@ export function AppsTable() {
         </Button>
       </div>
       <VirtualTable
-        height={575}
         table={table}
         ariaLabel="Apps"
         emptyMessage="No apps yet. Create one to start organizing computers."

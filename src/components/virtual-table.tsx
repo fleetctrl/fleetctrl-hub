@@ -99,7 +99,7 @@ export function VirtualTable<TData>({
   isLoadingMore,
   hasMore,
   onLoadMore,
-  estimateRowHeight = 52,
+  estimateRowHeight = 44,
   overscan = 8,
   pinnedStartColumns = 0,
   pinnedEndColumns = 0,
@@ -252,7 +252,7 @@ export function VirtualTable<TData>({
   };
 
   return (
-    <div className={cn("relative overflow-hidden rounded-md border", className)}>
+    <div className={cn("relative overflow-hidden rounded-sm border bg-card", className)}>
       {startCount > 0 && pinShadows.start ? (
         <div
           aria-hidden="true"
@@ -323,7 +323,7 @@ export function VirtualTable<TData>({
           className={cn(
             "flex items-center justify-center bg-card",
             height === undefined &&
-              "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
+              "h-[calc(60dvh-4rem)] min-h-[17.5rem] max-h-[35rem] lg:h-[calc(100dvh-22rem)]",
           )}
           style={{ height }}
         >
@@ -340,7 +340,7 @@ export function VirtualTable<TData>({
           className={cn(
             "overflow-auto bg-card",
             height === undefined &&
-              "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
+              "h-[calc(60dvh-4rem)] min-h-[17.5rem] max-h-[35rem] lg:h-[calc(100dvh-22rem)]",
           )}
           style={{ height }}
         >
@@ -363,7 +363,7 @@ export function VirtualTable<TData>({
           containerClassName={cn(
             "overflow-auto",
             height === undefined &&
-              "h-[calc(60dvh-2.5rem)] min-h-[17.5rem] lg:h-[calc(100dvh-18.5rem)]",
+              "h-[calc(60dvh-4rem)] min-h-[17.5rem] max-h-[35rem] lg:h-[calc(100dvh-22rem)]",
           )}
         >
           <colgroup>
@@ -371,7 +371,7 @@ export function VirtualTable<TData>({
               <col key={column.id} style={{ width: getColumnWidth(index) }} />
             ))}
           </colgroup>
-          <TableBody className="bg-card [&_tr]:hover:bg-transparent">
+          <TableBody className="bg-card">
             <>
               {paddingTop > 0 ? (
                 <TableRow aria-hidden="true">
@@ -384,7 +384,7 @@ export function VirtualTable<TData>({
                   <TableRow
                     key={row.id}
                     ref={rowVirtualizer.measureElement}
-                    className="group border-0 [&>td]:border-0"
+                    className="group border-0 [&>td]:border-0 hover:bg-transparent! data-[state=selected]:bg-transparent!"
                     data-index={virtualRow.index}
                     data-state={row.getIsSelected() && "selected"}
                   >
@@ -395,7 +395,7 @@ export function VirtualTable<TData>({
                         <TableCell
                           key={cell.id}
                           className={cn(
-                            "truncate",
+                            "truncate group-hover:bg-muted",
                             pinned &&
                               "bg-card group-data-[state=selected]:bg-muted",
                           )}

@@ -1,6 +1,7 @@
 "use client";
 import { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,16 @@ import { toast } from "sonner";
 import { useAuthQuery } from "@/hooks/use-auth-query";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn, relativeTime } from "@/lib/utils";
 import { useComputerDetailTab } from "./hooks/use-computer-detail-tab";
 
 type Detail = NonNullable<ReturnType<typeof useComputerDetailTab>>
@@ -34,10 +45,11 @@ type Props = {
   detail: Detail;
 };
 
-type TableRowProps = {
-  name: string;
-  value: string;
-};
+type ComputerData = NonNullable<
+  ReturnType<typeof useAuthQuery<typeof api.computers.getById>>
+>;
+
+const ONLINE_WINDOW = 5 * 60 * 1000;
 
 export const passwordSchema = z
   .string()
@@ -67,26 +79,31 @@ const changeNetworkStringSchema = z.object({
 
 type ChangeNetworkStringSchema = z.infer<typeof changeNetworkStringSchema>;
 
-// Define a type for the computer data returned by the query
-type ComputerData = NonNullable<
-  ReturnType<typeof useAuthQuery<typeof api.computers.getById>>
->;
+const taskStatusVariant = {
+  SUCCESS: "success",
+  PENDING: "warning",
+  IN_PROGRESS: "secondary",
+  ERROR: "destructive",
+} satisfies Record<string, "success" | "warning" | "destructive" | "secondary">;
 
 export default function ComputerDetailTabs({ detail }: Props) {
-
   if (detail.status === "loading") {
     return (
-      <div className="container mx-auto w-full px-4 py-6">
-        <Skeleton className="h-10 w-48 mb-6" />
-        <Skeleton className="h-64 w-full" />
+      <div className="flex w-full flex-col gap-6 py-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-8 w-56" />
+        </div>
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-40 w-full" />
       </div>
     );
   }
 
   if (detail.status === "notFound") {
     return (
-      <div className="container mx-auto w-full px-4 py-6">
-        Computer not found
+      <div className="py-6 text-sm text-muted-foreground">
+        Computer not found.
       </div>
     );
   }
@@ -101,118 +118,170 @@ export default function ComputerDetailTabs({ detail }: Props) {
     tasks,
   } = detail;
 
-  return (
-    <div className="container mx-auto w-full px-4 py-6">
-      <div className="flex flex-col w-full gap-6">
-        <div className="w-full">
-          <h1 className="text-3xl font-bold">{computer.name}</h1>
-        </div>
-        <div className="flex w-full">
-          <div className="flex gap-5 w-full">
-            <div className="flex flex-col w-full gap-3">
-              <div className="flex gap-2 mb-2">
-                <ChangePasswordDialog
-                  computer={computer}
-                  open={openChangePassword}
-                  setOpen={setOpenChangePassword}
-                  createTask={createTask}
-                />
-                <ChangeNetworkStringDialog
-                  computer={computer}
-                  open={openChangeNetwork}
-                  setOpen={setOpenChangeNetwork}
-                  createTask={createTask}
-                />
-              </div>
-              <hr />
+  const isOnline =
+    typeof computer.lastConnection === "number" &&
+    Date.now() - computer.lastConnection < ONLINE_WINDOW;
 
-              <div className="flex flex-col gap-3 w-full">
-                <table className="w-full">
-                  <tbody>
-                    <TableRow
-                      name="RustDesk ID"
-                      value={computer.rustdeskId?.toString() ?? ""}
-                    />
-                    {computer.intuneId && (
-                      <TableRow name="Intune ID" value={computer.intuneId} />
-                    )}
-                    <TableRow
-                      name="Computer name"
-                      value={computer.name}
-                    />
-                    <TableRow name="Computer IP" value={computer.ip ?? ""} />
-                    <TableRow name="User" value={computer.loginUser ?? ""} />
-                    {computer.lastConnection && (
-                      <TableRow
-                        name="Last check-in time"
-                        value={new Date(
-                          computer.lastConnection,
-                        ).toLocaleString("cs")}
-                      />
-                    )}
-                    <TableRow name="Windows type" value={computer.os ?? ""} />
-                    <TableRow
-                      name="Windows version"
-                      value={computer.osVersion ?? ""}
-                    />
-                    <TableRow
-                      name="Client version"
-                      value={computer.clientVersion ?? "—"}
-                    />
-                  </tbody>
-                </table>
-                <hr className="w-full" />
-                <div>
-                  <h2>Device actions</h2>
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="px-5 py-2 text-left">Action</th>
-                        <th className="px-5 py-2 text-left">Status</th>
-                        <th className="px-5 py-2 text-left">Date/Time</th>
-                        <th className="px-5 py-2 text-left">Error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tasks?.map((task) => {
-                        return (
-                          <tr key={task.id}>
-                            <td className="px-5 py-2 text-left">
-                              {task.taskType}
-                            </td>
-                            <td className="px-5 py-2 text-left">
-                              {task.status}
-                            </td>
-                            <td className="px-5 py-2 text-left">
-                              {new Date(task.createdAt).toLocaleString("cs")}
-                            </td>
-                            <td className="px-5 py-2 text-left">
-                              {task.error ?? ""}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
+  return (
+    <div className="flex w-full flex-col gap-6 py-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              isOnline ? "bg-success" : "bg-muted-foreground/40",
+            )}
+            title={isOnline ? "Online" : "Offline"}
+          />
+          <h1 className="truncate text-xl font-semibold">{computer.name}</h1>
+          <Badge variant={isOnline ? "success" : "outline"}>
+            {isOnline ? "Online" : relativeTime(computer.lastConnection)}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <ChangePasswordDialog
+            computer={computer}
+            open={openChangePassword}
+            setOpen={setOpenChangePassword}
+            createTask={createTask}
+          />
+          <ChangeNetworkStringDialog
+            computer={computer}
+            open={openChangeNetwork}
+            setOpen={setOpenChangeNetwork}
+            createTask={createTask}
+          />
         </div>
       </div>
+
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="activity">
+            Activity{tasks?.length ? ` (${tasks.length})` : ""}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4 flex flex-col gap-8">
+          <section>
+            <SectionTitle>System</SectionTitle>
+            <dl>
+              <DetailRow label="Computer name">{computer.name}</DetailRow>
+              <DetailRow label="OS">
+                {computer.os ? (
+                  <>
+                    {computer.os}
+                    {computer.osVersion ? (
+                      <span className="text-muted-foreground"> {computer.osVersion}</span>
+                    ) : null}
+                  </>
+                ) : (
+                  "—"
+                )}
+              </DetailRow>
+              <DetailRow label="Client version">
+                {computer.clientVersion ?? "—"}
+              </DetailRow>
+            </dl>
+          </section>
+
+          <section>
+            <SectionTitle>Remote access</SectionTitle>
+            <dl>
+              <DetailRow label="RustDesk ID">
+                <span className="tabular-nums">
+                  {computer.rustdeskId?.toString() ?? "—"}
+                </span>
+              </DetailRow>
+              {computer.intuneId && (
+                <DetailRow label="Intune ID">
+                  <span className="break-all">{computer.intuneId}</span>
+                </DetailRow>
+              )}
+              <DetailRow label="IP address">
+                <span className="tabular-nums">{computer.ip ?? "—"}</span>
+              </DetailRow>
+            </dl>
+          </section>
+
+          <section>
+            <SectionTitle>Usage</SectionTitle>
+            <dl>
+              <DetailRow label="Login user">
+                {computer.loginUser ?? "—"}
+              </DetailRow>
+              <DetailRow label="Last check-in">
+                {typeof computer.lastConnection === "number"
+                  ? `${new Date(computer.lastConnection).toLocaleString("cs")} (${relativeTime(computer.lastConnection)})`
+                  : "—"}
+              </DetailRow>
+            </dl>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-4">
+          {tasks?.length ? (
+            <div className="overflow-hidden rounded-sm border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date/Time</TableHead>
+                    <TableHead>Error</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tasks.map((task) => (
+                    <TableRow key={task.id}>
+                      <TableCell className="font-medium">{task.taskType}</TableCell>
+                      <TableCell>
+                        <Badge variant={taskStatusVariant[task.status] ?? "secondary"}>
+                          {task.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(task.createdAt).toLocaleString("cs")}
+                      </TableCell>
+                      <TableCell className="max-w-md truncate text-destructive">
+                        {task.error ?? ""}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="rounded-sm border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+              No device actions yet.
+            </p>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
-function TableRow({ name, value }: TableRowProps) {
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <tr>
-      <td className="py-1 pr-2 whitespace-nowrap">{name}</td>
-      <td className="py-1">
-        <span className="px-2">:</span>
-        <span>{value}</span>
-      </td>
-    </tr>
+    <h2 className="mb-1 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+      {children}
+    </h2>
+  );
+}
+
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[10rem_1fr] items-baseline gap-4 border-b border-border/60 py-2.5 last:border-b-0">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-sm">{children}</dd>
+    </div>
   );
 }
 
@@ -225,7 +294,7 @@ function ChangePasswordDialog({
   computer: ComputerData;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  createTask: any; // Typing mutations is tricky without inferred types, 'any' is safe here if usage is correct
+  createTask: any;
 }) {
   const form = useForm<ChangePassworFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -258,61 +327,54 @@ function ChangePasswordDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={"secondary"}>Change Password</Button>
+        <Button size="sm">Change Password</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Set new RustDesk password</DialogTitle>
-          <DialogDescription asChild>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
-                {/* Password */}
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>New Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Must be at least 8 characters, contain one uppercase
-                        letter and one number.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Confirm Password */}
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Re-enter your new password to confirm.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <Button type="submit" className="w-full">
-                  Change Password
-                </Button>
-              </form>
-            </Form>
+          <DialogDescription>
+            A task will be created and executed on the device.
           </DialogDescription>
         </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>New Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Must be at least 8 characters, contain one uppercase letter
+                    and one number.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" className="w-full">
+              Change Password
+            </Button>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
@@ -359,39 +421,38 @@ function ChangeNetworkStringDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={"secondary"}>Change Network</Button>
+        <Button size="sm" variant="outline">
+          Change Network
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Change Network</DialogTitle>
-          <DialogDescription asChild>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
-                {/* Network String */}
-                <FormField
-                  control={form.control}
-                  name="networkString"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Network String</FormLabel>
-                      <FormControl>
-                        <Input type="networkString" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <Button type="submit" className="w-full">
-                  Change Network
-                </Button>
-              </form>
-            </Form>
+          <DialogDescription>
+            A task will be created and executed on the device.
           </DialogDescription>
         </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="networkString"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Network String</FormLabel>
+                  <FormControl>
+                    <Input type="text" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" className="w-full">
+              Change Network
+            </Button>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

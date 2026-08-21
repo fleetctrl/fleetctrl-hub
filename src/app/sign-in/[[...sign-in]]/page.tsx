@@ -6,13 +6,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
     Form,
@@ -136,18 +129,18 @@ export default function SignInPage() {
 
     return (
         <div className="flex h-screen w-full items-center justify-center px-4">
-            <Card className="mx-auto max-w-sm w-full">
-                <CardHeader>
-                    <CardTitle className="text-2xl">
+            <div className="mx-auto w-full max-w-sm rounded-sm border bg-card p-6">
+                <div className="flex flex-col gap-1.5 pb-4">
+                    <h1 className="text-2xl font-semibold">
                         {step === "signIn" ? "Login" : "Sign Up"}
-                    </CardTitle>
-                    <CardDescription>
+                    </h1>
+                    <p className="text-sm text-muted-foreground">
                         {step === "signIn"
                             ? "Enter your email below to login to your account"
                             : "Enter your information to create an account"}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
+                    </p>
+                </div>
+                <div>
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
                             {step === "signUp" && (
@@ -207,7 +200,7 @@ export default function SignInPage() {
                                 )}
                             />
                             {error && (
-                                <div className="text-sm text-red-500 font-medium">{error}</div>
+                                <div className="text-sm font-medium text-destructive">{error}</div>
                             )}
                             <Button type="submit" className="w-full" disabled={isSubmitting}>
                                 {isSubmitting
@@ -257,8 +250,8 @@ export default function SignInPage() {
                             )}
                         </div>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
     );
 }

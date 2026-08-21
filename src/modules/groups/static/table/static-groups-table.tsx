@@ -234,7 +234,6 @@ export function StaticGroupsTable() {
         </DialogContent>
       </Dialog>
       <VirtualTable
-        height={575}
         table={table}
         ariaLabel="Static computer groups"
         emptyMessage="No groups yet. Create one to start organizing computers."

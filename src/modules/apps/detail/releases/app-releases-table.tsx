@@ -215,7 +215,6 @@ export function AppReleasesTable({
   return (
     <div className="flex flex-col gap-4">
       <VirtualTable
-        height={400}
         table={table}
         ariaLabel="App releases"
         emptyMessage="No releases found."

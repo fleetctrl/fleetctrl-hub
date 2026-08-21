@@ -431,7 +431,6 @@ export function DynamicGroupsTable() {
 
       {/* Data Table */}
       <VirtualTable
-        height="min(37.5rem, calc(100dvh - 18.5rem))"
         table={table}
         ariaLabel="Dynamic computer groups"
         emptyTitle="No dynamic groups yet"
@@ -488,7 +487,7 @@ function MembersList({ groupId }: { groupId: Id<"dynamic_computer_groups"> }) {
   const table = useReactTable({ data: query.results, columns, getCoreRowModel: getCoreRowModel(), getRowId: (row) => row.computerId });
   return (
     <VirtualTable
-      height={575}
+      height={300}
       table={table}
       ariaLabel="Dynamic group members"
       emptyMessage="No members match the group rules."
