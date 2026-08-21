@@ -29,7 +29,7 @@ import { useState } from "react";
 type RowOptionsProps = {
   appId: string;
   onEditAction?: () => void;
-  onCompleteAction?: () => Promise<unknown> | void;
+  onCompleteAction?: () => Promise<void> | void;
 };
 
 export default function AppsRowOptions({

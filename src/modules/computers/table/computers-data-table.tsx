@@ -24,16 +24,27 @@ export function ComputersTable() {
   });
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-3">
       <div className="flex items-center gap-2">
-        <InputGroup className="max-w-62.5">
-          <InputGroupAddon><SearchIcon /></InputGroupAddon>
-          <InputGroupInput placeholder="Search computers" value={state.inputValue} onChange={(event) => state.setInputValue(event.target.value)} />
+        <InputGroup className="w-full max-w-xs">
+          <InputGroupAddon>
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            placeholder="Search name or user…"
+            value={state.inputValue}
+            onChange={(event) => state.setInputValue(event.target.value)}
+          />
         </InputGroup>
         {state.hasActiveFilters ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={state.handleResetFilters} aria-label="Reset filters">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={state.handleResetFilters}
+                aria-label="Reset filters"
+              >
                 <XIcon />
               </Button>
             </TooltipTrigger>
@@ -42,7 +53,6 @@ export function ComputersTable() {
         ) : null}
       </div>
       <VirtualTable
-        height={575}
         table={table}
         pinnedStartColumns={2}
         pinnedEndColumns={1}

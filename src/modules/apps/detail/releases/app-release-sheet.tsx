@@ -52,7 +52,6 @@ import {
 import { uploadFileToConvex } from "@/lib/convex-upload";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const assignmentSchema = z.object({
@@ -194,14 +193,12 @@ const toDropzonePreview = (
     return undefined;
   }
 
-  return [
-    {
-      name: file.name,
-      size: file.size,
-      type: file.type ?? "application/octet-stream",
-      lastModified: 0,
-    } as unknown as File,
-  ];
+  const preview = new File([], file.name, {
+    type: file.type ?? "application/octet-stream",
+    lastModified: 0,
+  });
+  Object.defineProperty(preview, "size", { value: file.size });
+  return [preview];
 };
 
 const mapReleaseToFormValues = (release: any) => {
@@ -298,10 +295,10 @@ const mapReleaseToFormValues = (release: any) => {
   const requirement = release.release_requirements?.[0];
   const win32Rel = Array.isArray(release.win32_releases)
     ? release.win32_releases[0]
-    : (release.win32_releases as any);
+    : release.win32_releases;
   const wingetRel = Array.isArray(release.winget_releases)
     ? release.winget_releases[0]
-    : (release.winget_releases as any);
+    : release.winget_releases;
 
   return {
     type: (release.installer_type || "win32") as "win32" | "winget",
@@ -1364,8 +1361,10 @@ export function AppReleaseSheet({
 
                       <div className="space-y-2">
                         {detectionsFields.map((field, index) => (
-                          <Card key={field.id} className="border-border/60">
-                            <CardContent className="p-3 flex items-center justify-between">
+                          <div
+                            key={field.id}
+                            className="flex items-center justify-between rounded-sm border bg-card p-3"
+                          >
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
                                   <Badge
@@ -1408,11 +1407,10 @@ export function AppReleaseSheet({
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </div>
-                            </CardContent>
-                          </Card>
+                          </div>
                         ))}
                         {detectionsFields.length === 0 && (
-                          <div className="text-sm text-muted-foreground text-center py-6 border rounded-md border-dashed">
+                          <div className="text-sm text-muted-foreground text-center py-6 rounded-sm border border-dashed">
                             No detection rules.
                           </div>
                         )}
@@ -1478,7 +1476,7 @@ export function AppReleaseSheet({
                                           <span className="flex items-center gap-2">
                                             {g.displayName}
                                             <span
-                                              className={`text-xs px-1.5 py-0.5 rounded ${g.type === "dynamic" ? "bg-blue-500/20 text-blue-400" : "bg-gray-500/20 text-gray-400"}`}
+                                              className={`text-xs px-1.5 py-0.5 rounded ${g.type === "dynamic" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
                                             >
                                               {g.type}
                                             </span>
@@ -1595,7 +1593,7 @@ export function AppReleaseSheet({
                                           <span className="flex items-center gap-2">
                                             {g.displayName}
                                             <span
-                                              className={`text-xs px-1.5 py-0.5 rounded ${g.type === "dynamic" ? "bg-blue-500/20 text-blue-400" : "bg-gray-500/20 text-gray-400"}`}
+                                              className={`text-xs px-1.5 py-0.5 rounded ${g.type === "dynamic" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
                                             >
                                               {g.type}
                                             </span>

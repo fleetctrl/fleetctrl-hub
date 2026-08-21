@@ -12,7 +12,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
 			className="toaster group"
 			toastOptions={{
 				classNames: {
-					toast: "!rounded-sm !border-2 !border-border !shadow-md",
+					toast: "!rounded-sm !border !border-border !shadow-md",
 				},
 			}}
 			{...props}

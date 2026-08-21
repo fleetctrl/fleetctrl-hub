@@ -19,7 +19,7 @@ export type StaticGroupRow = {
 
 export type StaticGroupsTableMeta = {
   onEdit: (groupId: string) => void;
-  onActionComplete?: () => Promise<unknown> | void;
+  onActionComplete?: () => Promise<void> | void;
 };
 
 export const staticGroupsTableColumns: ColumnDef<StaticGroupRow>[] = [

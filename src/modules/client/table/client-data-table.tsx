@@ -8,7 +8,6 @@ import {
 import { Upload, Github } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -246,24 +245,19 @@ export function ClientUpdatesTable() {
         </div>
       </div>
 
-      <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
-        <CardContent className="py-3">
-          <CardDescription>
-            Clients report their version via{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
-              X-Client-Version
-            </code>{" "}
-            header. When outdated, they receive update instructions via{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
-              X-Client-Update
-            </code>{" "}
-            response header.
-          </CardDescription>
-        </CardContent>
-      </Card>
+      <p className="rounded-sm border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
+        Clients report their version via{" "}
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
+          X-Client-Version
+        </code>{" "}
+        header. When outdated, they receive update instructions via{" "}
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
+          X-Client-Update
+        </code>{" "}
+        response header.
+      </p>
 
       <VirtualTable
-        height={575}
         table={table}
         ariaLabel="Client updates"
         emptyMessage="No client versions uploaded yet. Upload one to enable automatic updates."

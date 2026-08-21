@@ -8,6 +8,7 @@
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
+import type { Doc } from "./_generated/dataModel";
 
 // ========================================
 // Public Queries
@@ -296,7 +297,7 @@ export const edit = withAuthMutation({
         }
 
         // Update group
-        const updates: Record<string, unknown> = {};
+        const updates: Partial<Pick<Doc<"computer_groups">, "display_name" | "description">> = {};
         if (displayName !== undefined) updates.display_name = displayName;
         if (description !== undefined) updates.description = description;
 

@@ -40,8 +40,7 @@ const groupFormSchema = z.object({
 
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
-export function useStaticGroupsTable({
-}: Record<string, never> = {}) {
+export function useStaticGroupsTable() {
   const groupsQuery = useAuthPaginatedQuery(api.staticGroups.getTableDataPaginated, {}, { initialNumItems: MEMBER_PAGE_SIZE });
   const groups = groupsQuery.results;
   const [dialogState, setDialogState] = useState<DialogState | null>(null);

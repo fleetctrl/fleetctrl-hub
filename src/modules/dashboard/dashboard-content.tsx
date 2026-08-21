@@ -23,16 +23,10 @@ import { useAuthQuery } from "@/hooks/use-auth-query";
 import { VirtualTable } from "@/components/virtual-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { relativeTime } from "@/lib/utils";
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
 
@@ -76,7 +70,7 @@ const recentComputerColumns: ColumnDef<ComputerRow>[] = [
       const online = isComputerOnline(row.original.lastConnection);
 
       return (
-        <Badge variant={online ? "default" : "secondary"}>
+        <Badge variant={online ? "success" : "outline"}>
           {online ? "Online" : "Offline"}
         </Badge>
       );
@@ -88,7 +82,9 @@ const recentComputerColumns: ColumnDef<ComputerRow>[] = [
     size: 80,
     cell: ({ row }) => (
       <div className="text-right text-muted-foreground">
-        {formatRelativeTime(row.original.lastConnection)}
+        {row.original.lastConnection
+          ? relativeTime(row.original.lastConnection)
+          : "Never"}
       </div>
     ),
   },
@@ -112,40 +108,37 @@ function RecentComputersTable({ computers }: { computers: ComputerRow[] }) {
       hasMore={false}
       onLoadMore={() => {}}
       height="19.5rem"
-      className="rounded-none border-0 border-t"
+      className="rounded-none border-0"
     />
   );
-}
-
-function formatRelativeTime(timestamp?: number) {
-  if (!timestamp) {
-    return "Never";
-  }
-
-  const diffMs = Date.now() - timestamp;
-  const minutes = Math.max(0, Math.floor(diffMs / 60000));
-
-  if (minutes < 1) {
-    return "Just now";
-  }
-
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 function isComputerOnline(lastConnection?: number) {
   return (
     typeof lastConnection === "number" &&
     Date.now() - lastConnection < ONLINE_THRESHOLD_MS
+  );
+}
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex min-w-0 flex-col overflow-hidden rounded-sm border bg-card">
+      <div className="flex flex-col gap-0.5 border-b px-4 py-3">
+        <h2 className="text-sm font-medium">{title}</h2>
+        {description ? (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -178,7 +171,7 @@ function DashboardSkeleton() {
           <Skeleton className="h-9 w-24" />
         </div>
       </div>
-      <div className="grid rounded-md border sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid divide-y overflow-hidden rounded-sm border bg-card sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="flex min-h-32 flex-col gap-4 p-4">
             <Skeleton className="h-4 w-24" />
@@ -284,7 +277,7 @@ export function DashboardContent() {
         </div>
       </div>
 
-      <Card className="grid overflow-hidden rounded-md sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid divide-y overflow-hidden rounded-sm border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
         <Metric
           title="Computers"
           value={totalComputers.toString()}
@@ -309,17 +302,14 @@ export function DashboardContent() {
           detail={`${enrollmentTokenRows.length} total keys`}
           icon={KeyRoundIcon}
         />
-      </Card>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Fleet Health</CardTitle>
-            <CardDescription>
-              Current device reachability and client rollout.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5">
+        <Section
+          title="Fleet Health"
+          description="Current device reachability and client rollout."
+        >
+          <div className="flex flex-col gap-5 p-4">
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium">Online coverage</span>
@@ -369,20 +359,15 @@ export function DashboardContent() {
                 {totalGroups} groups / {appRows.length} apps
               </span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Computers</CardTitle>
-            <CardDescription>
-              Devices ordered by their latest client contact.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <RecentComputersTable computers={recentComputers} />
-          </CardContent>
-        </Card>
+        <Section
+          title="Recent Computers"
+          description="Devices ordered by their latest client contact."
+        >
+          <RecentComputersTable computers={recentComputers} />
+        </Section>
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ type StepProps = React.PropsWithChildren<
 
 export type CustomMutationResult = {
   mutate: () => void;
-  mutateAsync: () => Promise<unknown>;
+  mutateAsync: () => Promise<void>;
   isPending: boolean;
   isError: boolean;
   isSuccess: boolean;

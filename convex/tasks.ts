@@ -9,6 +9,7 @@ import { internalMutation } from "./functions";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
 import { normalizeTableId } from "./lib/idNormalization";
+import type { Doc } from "./_generated/dataModel";
 
 const taskStatusValidator = v.union(
     v.literal("PENDING"),
@@ -105,11 +106,11 @@ export const updateStatus = internalMutation({
         }
 
         const now = Date.now();
-        const updates: Record<string, unknown> = {
+        const updates: Partial<Doc<"tasks">> = {
             status,
         };
 
-        if (error !== undefined) {
+        if (error != null) {
             updates.error = error;
         }
 

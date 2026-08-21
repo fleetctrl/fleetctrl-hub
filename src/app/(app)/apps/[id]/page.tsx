@@ -12,7 +12,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
@@ -162,11 +161,9 @@ export default function AppDetailPage() {
           {activeView === "overview" && (
             <>
               {/* Essentials Section */}
-              <Card className="border-none shadow-none bg-transparent">
-                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xl font-semibold">
-                    Essentials
-                  </CardTitle>
+              <section>
+                <div className="flex flex-row items-center justify-between pb-2">
+                  <h2 className="text-xl font-semibold">Essentials</h2>
                   <Button
                     variant="outline"
                     size="sm"
@@ -175,8 +172,8 @@ export default function AppDetailPage() {
                     <Pen className="w-4 h-4 mr-2" />
                     Edit
                   </Button>
-                </CardHeader>
-                <CardContent className="px-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
                   <div>
                     <div className="text-sm text-muted-foreground">
                       Publisher
@@ -221,8 +218,8 @@ export default function AppDetailPage() {
                       {app.description || "-"}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </section>
 
               <EditAppSheet
                 app={{
@@ -236,11 +233,9 @@ export default function AppDetailPage() {
               />
 
               {/* Releases Section */}
-              <Card className="border-none shadow-none bg-transparent">
-                <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xl font-semibold">
-                    Releases
-                  </CardTitle>
+              <section>
+                <div className="flex flex-row items-center justify-between pb-2">
+                  <h2 className="text-xl font-semibold">Releases</h2>
                   {canAddRelease && (
                     <Button
                       variant="outline"
@@ -251,8 +246,8 @@ export default function AppDetailPage() {
                       Add Release
                     </Button>
                   )}
-                </CardHeader>
-                <CardContent className="px-0">
+                </div>
+                <div>
                   <AppReleasesTable
                     releases={releases ?? []}
                     appId={appId}
@@ -262,8 +257,8 @@ export default function AppDetailPage() {
                     hasMore={releasesQuery.status === "CanLoadMore"}
                     onLoadMore={() => releasesQuery.loadMore(20)}
                   />
-                </CardContent>
-              </Card>
+                </div>
+              </section>
 
               <AppReleaseSheet
                 appId={appId}
@@ -277,11 +272,11 @@ export default function AppDetailPage() {
           )}
 
           {activeView === "deviceStatus" && (
-            <Card className="border-none shadow-none bg-transparent">
-              <CardHeader className="px-0 pt-0 pb-2">
-                <CardTitle>Device install status</CardTitle>
-              </CardHeader>
-              <CardContent className="px-0 space-y-4">
+            <section>
+              <h2 className="pb-2 text-xl font-semibold">
+                Device install status
+              </h2>
+              <div className="space-y-4">
                 {deviceInstallStatus.isSummaryLoading ? (
                   <div className="text-sm text-muted-foreground">
                     Loading status summary...
@@ -348,22 +343,17 @@ export default function AppDetailPage() {
                   hasMore={deviceInstallStatus.hasMore}
                   onLoadMore={deviceInstallStatus.loadMore}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </section>
           )}
 
           {activeView === "properties" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Properties</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  App properties configuration will be here.
-                </p>
-                {/* TODO: Add form to edit app properties */}
-              </CardContent>
-            </Card>
+            <section className="rounded-sm border bg-card p-4">
+              <h2 className="pb-2 font-medium">Properties</h2>
+              <p className="text-muted-foreground">
+                App properties configuration will be here.
+              </p>
+            </section>
           )}
         </div>
       </div>

@@ -23,8 +23,8 @@ export function KeysTable() {
     <div className="flex w-full flex-col gap-5">
       <CreateNewKeyDialog />
       <VirtualTable
-        height={580}
         table={table}
+        pinnedEndColumns={1}
         ariaLabel="Enrollment keys"
         emptyMessage="No enrollment keys found."
         isInitialLoading={query.status === "LoadingFirstPage"}

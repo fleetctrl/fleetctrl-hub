@@ -26,13 +26,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Item, ItemContent } from "@/components/ui/item";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -127,14 +120,12 @@ const toDropzonePreview = (
     return undefined;
   }
 
-  return [
-    {
-      name: file.name,
-      size: file.size,
-      type: file.type ?? "application/octet-stream",
-      lastModified: Date.now(),
-    } as unknown as File,
-  ];
+  const preview = new File([], file.name, {
+    type: file.type ?? "application/octet-stream",
+    lastModified: Date.now(),
+  });
+  Object.defineProperty(preview, "size", { value: file.size });
+  return [preview];
 };
 
 export function AppCreateForm() {
@@ -1151,17 +1142,17 @@ function DetectionListForm({
       return "—";
     }
 
-    const map: Record<string, string> = {
-      version_equal: "=",
-      version_equal_or_higher: "≥",
-      version_equal_or_lower: "≤",
-      version_higher: ">",
-      version_lower: "<",
-      exists: "Exists",
-      string: "String",
-    };
+    const labels = new Map([
+      ["version_equal", "="],
+      ["version_equal_or_higher", "≥"],
+      ["version_equal_or_lower", "≤"],
+      ["version_higher", ">"],
+      ["version_lower", "<"],
+      ["exists", "Exists"],
+      ["string", "String"],
+    ]);
 
-    return map[raw] ?? raw.replaceAll("_", " ");
+    return labels.get(raw) ?? raw.replaceAll("_", " ");
   };
 
   return (
@@ -1184,11 +1175,11 @@ function DetectionListForm({
             const formattedCondition = formatConditionLabel(conditionLabel);
 
             return (
-              <Card
+              <div
                 key={field.id}
-                className="relative border-border/60 bg-muted/30"
+                className="relative overflow-hidden rounded-sm border bg-muted/30"
               >
-                <CardHeader className="space-y-3 px-4 py-3 pb-3">
+                <div className="space-y-3 px-4 py-3 pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       {isFile ? (
@@ -1225,14 +1216,14 @@ function DetectionListForm({
                       </Button>
                     </div>
                   </div>
-                  <CardTitle className="text-base font-semibold break-all">
+                  <p className="break-all text-base font-semibold">
                     {primaryValue || "Not configured"}
-                  </CardTitle>
-                  <CardDescription className="capitalize">
+                  </p>
+                  <p className="text-sm capitalize text-muted-foreground">
                     {isFile ? "File path" : "Registry key"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 border-t border-border/60 bg-background/80 px-4 py-3 text-sm sm:grid-cols-2">
+                  </p>
+                </div>
+                <div className="grid gap-4 border-t border-border/60 bg-background/80 px-4 py-3 text-sm sm:grid-cols-2">
                   <div>
                     <p className="text-muted-foreground">Condition</p>
                     <p className="font-medium capitalize">
@@ -1253,12 +1244,12 @@ function DetectionListForm({
                       <p className="font-medium">Check for presence only</p>
                     </div>
                   ) : null}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })
         ) : (
-          <div className="flex items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
+          <div className="flex items-center justify-center rounded-sm border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
             No detections yet. Add one to get started.
           </div>
         )}
@@ -1675,12 +1666,12 @@ function AssignmentStep() {
     const handleRemove = type === "install" ? removeInstall : removeUninstall;
 
     return (
-      <Card className="border-border/60">
-        <CardHeader className="space-y-3">
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <section className="overflow-hidden rounded-sm border bg-card">
+        <div className="space-y-1 border-b px-4 py-3">
+          <h3 className="text-sm font-medium">{title}</h3>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <div className="space-y-4 p-4">
           {fields.length ? (
             fields.map((field, index) => {
               const currentMode = values?.[index]?.mode ?? "include";
@@ -1690,7 +1681,7 @@ function AssignmentStep() {
               return (
                 <div
                   key={field.id}
-                  className="rounded-lg border border-border/70 bg-muted/20 p-4 space-y-2"
+                  className="rounded-sm border border-border/70 bg-muted/20 p-4 space-y-2"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-xs uppercase text-muted-foreground">
@@ -1735,7 +1726,7 @@ function AssignmentStep() {
               );
             })
           ) : (
-            <div className="rounded-lg border border-dashed border-border/60 bg-background/60 p-4 text-sm text-muted-foreground">
+            <div className="rounded-sm border border-dashed border-border/60 bg-background/60 p-4 text-sm text-muted-foreground">
               No groups added yet.
             </div>
           )}
@@ -1747,8 +1738,8 @@ function AssignmentStep() {
             <Plus className="mr-2 h-4 w-4" />
             Add group
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     );
   };
 
@@ -1840,7 +1831,7 @@ function AssignmentStep() {
                                 <span className="flex items-center gap-2">
                                   {group.displayName}
                                   <span
-                                    className={`text-xs px-1.5 py-0.5 rounded ${group.type === "dynamic" ? "bg-blue-500/20 text-blue-400" : "bg-gray-500/20 text-gray-400"}`}
+                                    className={`rounded-sm px-1.5 py-0.5 text-xs ${group.type === "dynamic" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
                                   >
                                     {group.type}
                                   </span>

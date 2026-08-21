@@ -17,7 +17,7 @@ export type ClientUpdateRow = {
 };
 
 export type ClientUpdatesTableMeta = {
-  onActionComplete?: () => Promise<unknown> | void;
+  onActionComplete?: () => Promise<void> | void;
 };
 
 const formatBytes = (bytes: number): string => {

@@ -1,7 +1,11 @@
-
 import { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
+
+import { Badge } from "@/components/ui/badge";
 import { VirtualSortableHeader } from "@/components/virtual-table";
+import { cn, relativeTime } from "@/lib/utils";
 import RowOptions from "./computers-row-options";
+
 export type computer = {
   id: string;
   rustdeskID?: number;
@@ -14,35 +18,49 @@ export type computer = {
   clientVersion?: string;
   intuneId?: string;
 };
-import Link from "next/link";
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
+const ONLINE_WINDOW = 5 * 60 * 1000;
 
 export const computersColumns: ColumnDef<computer>[] = [
   {
     accessorKey: "lastConnection",
-    size: 35,
-    header: "",
+    size: 140,
+    header: "Status",
     cell: ({ row }) => {
       const isOnline =
         typeof row.original.lastConnection === "number" &&
-        Date.now() - row.original.lastConnection < 5 * 60 * 1000;
+        Date.now() - row.original.lastConnection < ONLINE_WINDOW;
 
       return (
-        <span
-          className={`mx-auto block size-2.5 rounded-full ${isOnline ? "animate-pulse bg-green-500" : "bg-red-500"}`}
-          title={isOnline ? "Online" : "Offline"}
-          aria-label={isOnline ? "Online" : "Offline"}
-        />
+        <span className="flex items-center gap-2">
+          <span
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              isOnline ? "bg-success" : "bg-muted-foreground/40",
+            )}
+            title={isOnline ? "Online" : "Offline"}
+            aria-label={isOnline ? "Online" : "Offline"}
+          />
+          <span
+            className={cn(
+              "truncate text-xs",
+              isOnline ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {isOnline ? "Online" : relativeTime(row.original.lastConnection)}
+          </span>
+        </span>
       );
     },
   },
   {
     accessorKey: "name",
-    size: 230,
+    size: 240,
     header: ({ column, table }) => {
-      const isSearchActive = Boolean((table.options.meta as { isSearchActive?: boolean } | undefined)?.isSearchActive);
+      const isSearchActive = Boolean(
+        (table.options.meta as { isSearchActive?: boolean } | undefined)
+          ?.isSearchActive,
+      );
       return (
         <VirtualSortableHeader
           column={column}
@@ -55,22 +73,20 @@ export const computersColumns: ColumnDef<computer>[] = [
     cell: ({ row }) => (
       <Link
         href={`/computers/${row.original.id}`}
-        className="font-medium hover:underline"
+        className="font-medium hover:text-primary hover:underline underline-offset-4"
       >
         {row.original.name}
       </Link>
     ),
   },
   {
-    accessorKey: "rustdeskID",
-    size: 110,
-    header: "RustDesk ID",
-  },
-  {
     accessorKey: "os",
-    size: 230,
+    size: 220,
     header: ({ column, table }) => {
-      const isSearchActive = Boolean((table.options.meta as { isSearchActive?: boolean } | undefined)?.isSearchActive);
+      const isSearchActive = Boolean(
+        (table.options.meta as { isSearchActive?: boolean } | undefined)
+          ?.isSearchActive,
+      );
       return (
         <VirtualSortableHeader
           column={column}
@@ -80,31 +96,63 @@ export const computersColumns: ColumnDef<computer>[] = [
         />
       );
     },
+    cell: ({ row }) =>
+      row.original.os ? (
+        <span className="truncate">
+          {row.original.os}
+          {row.original.osVersion ? (
+            <span className="text-muted-foreground">
+              {" "}
+              {row.original.osVersion}
+            </span>
+          ) : null}
+        </span>
+      ) : (
+        "—"
+      ),
   },
   {
-    accessorKey: "clientVersion",
-    size: 70,
-    header: "Client",
-    cell: ({ row }) => row.original.clientVersion || "—",
+    accessorKey: "rustdeskID",
+    size: 110,
+    header: "RustDesk ID",
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.rustdeskID ?? "—"}</span>
+    ),
   },
   {
     accessorKey: "loginUser",
-    size: 180,
+    size: 160,
     header: "Login User",
+    cell: ({ row }) => (
+      <span className="truncate text-muted-foreground">
+        {row.original.loginUser || "—"}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "clientVersion",
+    size: 90,
+    header: "Client",
+    cell: ({ row }) =>
+      row.original.clientVersion ? (
+        <Badge variant="outline" className="tabular-nums">
+          v{row.original.clientVersion.replace(/^v/, "")}
+        </Badge>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
   },
   {
     id: "actions",
-    size: 60,
+    size: 56,
     enableHiding: false,
-    cell: ({ row }) => {
-      return (
-        <span className="mx-auto block">
-          <RowOptions
+    cell: ({ row }) => (
+      <span className="mx-auto block">
+        <RowOptions
           rustdeskId={row.original.rustdeskID}
           computerId={row.original.id}
         />
-        </span>
-      );
-    },
+      </span>
+    ),
   },
 ];

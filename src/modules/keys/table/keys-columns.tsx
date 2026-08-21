@@ -15,7 +15,7 @@ export type Key = {
 };
 
 export type KeysTableMeta = {
-  onActionComplete?: () => Promise<unknown> | void;
+  onActionComplete?: () => Promise<void> | void;
 };
 
 export const keysColumns: ColumnDef<Key>[] = [
@@ -27,7 +27,7 @@ export const keysColumns: ColumnDef<Key>[] = [
       return (
         <div className="flex flex-col">
           <span>{row.original.name}</span>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted-foreground">
             {row.original.tokenFragment}
           </span>
         </div>
@@ -54,7 +54,11 @@ export const keysColumns: ColumnDef<Key>[] = [
     size: 64,
     enableHiding: false,
     cell: ({ row }) => {
-      return <RowOptions tokenID={row.original.id} />;
+      return (
+        <span className="mx-auto block">
+          <RowOptions tokenID={row.original.id} />
+        </span>
+      );
     },
   },
 ];

@@ -11,6 +11,7 @@ import { internal } from "./_generated/api";
 import { paginationOptsValidator } from "convex/server";
 import { internalMutation } from "./functions";
 import { normalizeTableId } from "./lib/idNormalization";
+import type { Doc } from "./_generated/dataModel";
 
 // ========================================
 // Public Queries
@@ -145,7 +146,7 @@ export const rustdeskSync = internalMutation({
             throw new Error("Computer not found");
         }
 
-        const updates: Record<string, unknown> = {
+        const updates: Partial<Doc<"computers">> = {
             // Keep connection freshness on every sync call.
             last_connection: Date.now(),
         };
@@ -153,10 +154,7 @@ export const rustdeskSync = internalMutation({
 
         if (data.rustdesk_id !== undefined) {
             // Handle RustDesk ID being sent as string
-            let rid = data.rustdesk_id;
-            if (typeof rid === "string") {
-                rid = parseInt(rid, 10);
-            }
+            const rid = Number(data.rustdesk_id);
             if (!isNaN(rid) && computer.rustdesk_id !== rid) {
                 updates.rustdesk_id = rid;
             }
@@ -280,10 +278,9 @@ export const updateClientVersion = internalMutation({
 
         if (computer) {
             const clientVersionChanged = computer.client_version !== clientVersion;
-            await ctx.db.patch("computers", computer._id, {
-                ...(clientVersionChanged ? { client_version: clientVersion } : {}),
-                last_connection: Date.now(),
-            });
+            const updates: Partial<Doc<"computers">> = { last_connection: Date.now() };
+            if (clientVersionChanged) updates.client_version = clientVersion;
+            await ctx.db.patch("computers", computer._id, updates);
 
             if (clientVersionChanged) {
                 await ctx.scheduler.runAfter(0, internal.groups.refreshComputerMemberships, {
