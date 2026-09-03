@@ -248,6 +248,19 @@ export const remove = withAuthMutation({
             await ctx.db.delete("dynamic_group_members", membership._id);
         }
 
+        // App install states (must go before computer delete, otherwise
+        // orphaned rows remain; the delete trigger also covers this, but
+        // keep the mutation self-contained so it works even if trigger
+        // ordering changes).
+        const installs = await ctx.db
+            .query("computer_apps_installs")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", id))
+            .collect();
+
+        for (const install of installs) {
+            await ctx.db.delete("computer_apps_installs", install._id);
+        }
+
         // Delete computer
         await ctx.db.delete("computers", id);
 
