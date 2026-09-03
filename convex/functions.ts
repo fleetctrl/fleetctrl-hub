@@ -12,16 +12,18 @@ import { computerSearchText } from "./lib/tableKeys";
 // start using Triggers, with table types from schema.ts
 const triggers = new Triggers<DataModel>();
 
-// Keep computer the aggregate count in sync
+// Keep computer the aggregate count in sync.
+// Use idempotent variants so a drifted/missing aggregate entry
+// can never break computer insert/delete (seen in production).
 triggers.register("computers", async (ctx, change) => {
     if (change.operation === "insert") {
-        await computerCountAggregate.insert(ctx, {
+        await computerCountAggregate.insertIfDoesNotExist(ctx, {
             namespace: null,
             key: change.id.toString(),
             id: change.id.toString(),
         });
     } else if (change.operation === "delete") {
-        await computerCountAggregate.delete(ctx, {
+        await computerCountAggregate.deleteIfExists(ctx, {
             namespace: null,
             key: change.id.toString(),
             id: change.id.toString(),
@@ -85,7 +87,9 @@ triggers.register("computers", async (ctx, change) => {
     }
 });
 
-// Keep install status aggregate counts in sync per (app, status)
+// Keep install status aggregate counts in sync per (app, status).
+// Use idempotent variants so a drifted/missing aggregate entry
+// can never break install writes or computer deletion.
 triggers.register("computer_apps_installs", async (ctx, change) => {
     let newAppId: Id<"apps"> | undefined;
     let oldAppId: Id<"apps"> | undefined;
@@ -96,7 +100,7 @@ triggers.register("computer_apps_installs", async (ctx, change) => {
                 return;
             }
 
-            await installStatusAggregate.insert(ctx, {
+            await installStatusAggregate.insertIfDoesNotExist(ctx, {
                 namespace: [newAppId, change.newDoc.status],
                 key: null,
                 id: change.id.toString(),
@@ -108,7 +112,7 @@ triggers.register("computer_apps_installs", async (ctx, change) => {
                 return;
             }
 
-            await installStatusAggregate.delete(ctx, {
+            await installStatusAggregate.deleteIfExists(ctx, {
                 namespace: [oldAppId, change.oldDoc.status],
                 key: null,
                 id: change.id.toString(),
@@ -131,14 +135,14 @@ triggers.register("computer_apps_installs", async (ctx, change) => {
 
             const existingDoc = await ctx.db.get("computer_apps_installs", change.id);
             if (existingDoc) {
-                await installStatusAggregate.delete(ctx, {
+                await installStatusAggregate.deleteIfExists(ctx, {
                     namespace: [newAppId, oldStatus],
                     key: null,
                     id: change.id.toString(),
                 });
             }
 
-            await installStatusAggregate.insert(ctx, {
+            await installStatusAggregate.insertIfDoesNotExist(ctx, {
                 namespace: [newAppId, newStatus],
                 key: null,
                 id: change.id.toString(),
