@@ -1,4 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
+import { useCurrentTime } from "@/hooks/use-current-time";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -26,10 +27,11 @@ export const computersColumns: ColumnDef<computer>[] = [
     accessorKey: "lastConnection",
     size: 140,
     header: "Status",
-    cell: ({ row }) => {
+    cell: function StatusCell({ row }) {
+      const now = useCurrentTime();
       const isOnline =
         typeof row.original.lastConnection === "number" &&
-        Date.now() - row.original.lastConnection < ONLINE_WINDOW;
+        now - row.original.lastConnection < ONLINE_WINDOW;
 
       return (
         <span className="flex items-center gap-2">

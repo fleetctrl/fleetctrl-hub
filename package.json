@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "test:sync": "vitest run tests/computers.test.ts",
     "test:docker-build": "bash ./scripts/test-docker-build.sh",
     "test:docker-deployment": "bash ./scripts/test-docker-deployment.sh",
     "lint": "oxlint",
@@ -73,13 +74,15 @@
     "@types/node": "^20.19.38",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "convex-test": "^0.0.41",
     "eslint": "^9.39.4",
     "eslint-config-next": "15.3.1",
     "oxlint": "^1.79.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.4",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

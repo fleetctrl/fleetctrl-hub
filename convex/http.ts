@@ -5,6 +5,7 @@
  * Clients can continue using the same endpoints with no changes.
  */
 
+import { inventorySchema } from "./lib/hardware";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { httpRouter } from "convex/server";
@@ -549,46 +550,25 @@ protectedApi.get("/client/download/:versionId", async (c) => {
   return c.redirect(downloadUrl as string, 307);
 });
 
-protectedApi.patch("/computer/rustdesk-sync", async (c) => {
-  const computerId = c.var.computerId;
-  const body = await c.req.json();
-
-  const clientVersion = c.req.header("X-Client-Version");
-
-  const payload: Record<string, string | number> = {};
-
-  if (body.rustdesk_id !== undefined) {
-    payload.rustdesk_id = body.rustdesk_id;
-  }
-  if (body.name !== undefined) {
-    payload.name = body.name;
-  }
-  if (body.ip !== undefined) {
-    payload.ip = body.ip;
-  }
-  if (body.os !== undefined) {
-    payload.os = body.os;
-  }
-  if (body.os_version !== undefined) {
-    payload.os_version = body.os_version;
-  }
-  if (body.login_user !== undefined) {
-    payload.login_user = body.login_user;
-  }
-  if (body.intune_id !== undefined) {
-    payload.intune_id = body.intune_id;
-  }
-
-  const effectiveClientVersion = clientVersion || body.client_version;
-  if (effectiveClientVersion !== undefined) {
-    payload.client_version = effectiveClientVersion;
-  }
-
-  await c.env.ctx.runMutation(internal.computers.rustdeskSync, {
-    computerId,
-    data: payload,
+protectedApi.post("/computer/heartbeat", async (c) => {
+  await c.env.ctx.runMutation(internal.computers.heartbeat, {
+    computerId: c.var.computerId,
   });
+  return c.json({ status: "ok" });
+});
 
+// Keep the old route for existing clients during a gradual rollout.
+protectedApi.on("PATCH", ["/computer/rustdesk-sync", "/computer/hardware-sync"], async (c) => {
+  const parsed = inventorySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid inventory payload" }, 400);
+  const data = parsed.data;
+  const clientVersion = c.req.header("X-Client-Version");
+  if (clientVersion) data.client_version = clientVersion;
+  await c.env.ctx.runMutation(internal.computers.rustdeskSync, {
+    computerId: c.var.computerId,
+    data,
+    legacyPresence: c.req.path.endsWith("/rustdesk-sync"),
+  });
   return c.json({ status: "ok" });
 });
 

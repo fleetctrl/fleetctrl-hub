@@ -1,4 +1,5 @@
 "use client";
+import { useCurrentTime } from "@/hooks/use-current-time";
 import { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +88,7 @@ const taskStatusVariant = {
 } satisfies Record<string, "success" | "warning" | "destructive" | "secondary">;
 
 export default function ComputerDetailTabs({ detail }: Props) {
+  const now = useCurrentTime();
   if (detail.status === "loading") {
     return (
       <div className="flex w-full flex-col gap-6 py-6">
@@ -120,7 +122,7 @@ export default function ComputerDetailTabs({ detail }: Props) {
 
   const isOnline =
     typeof computer.lastConnection === "number" &&
-    Date.now() - computer.lastConnection < ONLINE_WINDOW;
+    now - computer.lastConnection < ONLINE_WINDOW;
 
   return (
     <div className="flex w-full flex-col gap-6 py-6">
@@ -181,6 +183,23 @@ export default function ComputerDetailTabs({ detail }: Props) {
               </DetailRow>
               <DetailRow label="Client version">
                 {computer.clientVersion ?? "—"}
+              </DetailRow>
+            </dl>
+          </section>
+
+          <section>
+            <SectionTitle>Hardware</SectionTitle>
+            <dl>
+              <DetailRow label="Processor">{computer.hardware?.cpu_name ?? "—"}</DetailRow>
+              <DetailRow label="Cores / logical CPUs">
+                {computer.hardware ? `${computer.hardware.cpu_cores} / ${computer.hardware.cpu_logical_processors}` : "—"}
+              </DetailRow>
+              <DetailRow label="RAM">{formatBytes(computer.hardware?.ram_bytes)}</DetailRow>
+              <DetailRow label="Windows drive">{computer.hardware?.system_drive ?? "—"}</DetailRow>
+              <DetailRow label="Drive capacity">{formatBytes(computer.hardware?.system_drive_total_bytes)}</DetailRow>
+              <DetailRow label="Free space">{formatBytes(computer.hardware?.system_drive_free_bytes)}</DetailRow>
+              <DetailRow label="Last inventory">
+                {computer.lastInventoryAt ? new Date(computer.lastInventoryAt).toLocaleString("cs") : "—"}
               </DetailRow>
             </dl>
           </section>
@@ -260,6 +279,10 @@ export default function ComputerDetailTabs({ detail }: Props) {
       </Tabs>
     </div>
   );
+}
+
+function formatBytes(bytes: number | undefined) {
+  return bytes === undefined ? "—" : `${(bytes / 1024 ** 3).toLocaleString(undefined, { maximumFractionDigits: 1 })} GiB`;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
