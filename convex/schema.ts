@@ -1,4 +1,5 @@
 import { defineSchema, defineTable } from "convex/server";
+import { hardwareValidator } from "./lib/hardware";
 import { v } from "convex/values";
 
 export default defineSchema({
@@ -17,6 +18,8 @@ export default defineSchema({
         login_user: v.optional(v.string()),
         client_version: v.optional(v.string()),
         last_connection: v.optional(v.number()),
+        last_inventory_at: v.optional(v.number()),
+        hardware: v.optional(hardwareValidator),
         intune_id: v.optional(v.string()),
         search_text: v.optional(v.string()),
     })

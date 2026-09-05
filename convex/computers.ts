@@ -4,6 +4,7 @@
  * Handles computer CRUD operations.
  */
 
+import { hardwareValidator } from "./lib/hardware";
 import { internalQuery } from "./_generated/server";
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
@@ -106,6 +107,8 @@ export const getById = withAuthQuery({
             loginUser: computer.login_user,
             clientVersion: computer.client_version,
             lastConnection: computer.last_connection,
+            lastInventoryAt: computer.last_inventory_at,
+            hardware: computer.hardware,
             intuneId: computer.intune_id,
             createdAt: computer._creationTime,
         };
@@ -116,13 +119,27 @@ export const getById = withAuthQuery({
 // Public Mutations
 // ========================================
 
+// Only the authenticated device's server-side presence timestamp is updated.
+export const heartbeat = internalMutation({
+    args: { computerId: v.string() },
+    handler: async (ctx, { computerId }) => {
+        const id = normalizeTableId(ctx.db, "computers", computerId, "computer ID");
+        const computer = await ctx.db.get("computers", id);
+        if (!computer) throw new Error("Computer not found");
+        await ctx.db.patch("computers", id, { last_connection: Date.now() });
+        return { success: true };
+    },
+});
+
 /**
  * Update computer with RustDesk sync data.
  */
 export const rustdeskSync = internalMutation({
     args: {
+        legacyPresence: v.optional(v.boolean()),
         computerId: v.string(),
         data: v.object({
+            hardware: v.optional(hardwareValidator),
             rustdesk_id: v.optional(v.union(v.number(), v.string())),
             name: v.optional(v.string()),
             ip: v.optional(v.string()),
@@ -133,7 +150,7 @@ export const rustdeskSync = internalMutation({
             intune_id: v.optional(v.string()),
         }),
     },
-    handler: async (ctx, { computerId, data }) => {
+    handler: async (ctx, { computerId, data, legacyPresence }) => {
         const normalizedComputerId = normalizeTableId(
             ctx.db,
             "computers",
@@ -147,9 +164,11 @@ export const rustdeskSync = internalMutation({
         }
 
         const updates: Partial<Doc<"computers">> = {
-            // Keep connection freshness on every sync call.
-            last_connection: Date.now(),
+            // Inventory and presence have independent timestamps.
+            last_inventory_at: Date.now(),
         };
+        if (legacyPresence !== false) updates.last_connection = Date.now();
+        if (data.hardware !== undefined) updates.hardware = data.hardware;
         let shouldRefreshDynamicGroups = false;
 
         if (data.rustdesk_id !== undefined) {

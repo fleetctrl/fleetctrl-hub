@@ -1,4 +1,5 @@
 "use client";
+import { useCurrentTime } from "@/hooks/use-current-time";
 
 import type { ComponentType, SVGProps } from "react";
 import Link from "next/link";
@@ -66,8 +67,9 @@ const recentComputerColumns: ColumnDef<ComputerRow>[] = [
     id: "status",
     header: "Status",
     size: 110,
-    cell: ({ row }) => {
-      const online = isComputerOnline(row.original.lastConnection);
+    cell: function StatusCell({ row }) {
+      const now = useCurrentTime();
+      const online = isComputerOnline(row.original.lastConnection, now);
 
       return (
         <Badge variant={online ? "success" : "outline"}>
@@ -113,10 +115,10 @@ function RecentComputersTable({ computers }: { computers: ComputerRow[] }) {
   );
 }
 
-function isComputerOnline(lastConnection?: number) {
+function isComputerOnline(lastConnection: number | undefined, now: number) {
   return (
     typeof lastConnection === "number" &&
-    Date.now() - lastConnection < ONLINE_THRESHOLD_MS
+    now - lastConnection < ONLINE_THRESHOLD_MS
   );
 }
 
@@ -189,6 +191,7 @@ function DashboardSkeleton() {
 }
 
 export function DashboardContent() {
+  const now = useCurrentTime();
   const computers = useAuthQuery(api.computers.list);
   const apps = useAuthQuery(api.apps.getTableData);
   const staticGroups = useAuthQuery(api.staticGroups.list);
@@ -218,7 +221,7 @@ export function DashboardContent() {
 
   const totalComputers = computerRows.length;
   const onlineComputers = computerRows.filter((computer) =>
-    isComputerOnline(computer.lastConnection),
+    isComputerOnline(computer.lastConnection, now),
   ).length;
   const onlinePercentage =
     totalComputers > 0
