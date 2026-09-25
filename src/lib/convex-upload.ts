@@ -27,7 +27,11 @@ export async function uploadFileToConvex(
     if (!sanitizedType) {
         sanitizedType = "application/octet-stream";
     }
-    const contentType = sanitizedType;
+    // Browsers often label MSI installers as generic binary data. Preserve the
+    // installer type in storage so existing clients can launch them with msiexec.
+    const contentType = file.name.toLowerCase().endsWith(".msi")
+        ? "application/x-msi"
+        : sanitizedType;
 
     // 3. Upload File
     const result = await fetch(postUrl, {
