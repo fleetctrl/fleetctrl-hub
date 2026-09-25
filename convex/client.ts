@@ -30,8 +30,14 @@ export const getActiveVersion = internalQuery({
             return null;
         }
 
+        // Existing clients choose msiexec when the advertised download ID ends
+        // in .msi. Storage redirects can return application/octet-stream even
+        // for MSI files, so preserve the installer type in the download ID.
+        const isMsi = activeVersion.file_name?.trim().toLowerCase().endsWith(".msi")
+            || activeVersion.mime_type?.toLowerCase().includes("msi");
+
         return {
-            id: activeVersion._id,
+            id: isMsi ? `${activeVersion._id}.msi` : activeVersion._id,
             version: activeVersion.version,
             hash: activeVersion.hash,
         };
@@ -93,7 +99,9 @@ export const getVersionById = internalQuery({
         const normalizedVersionId = maybeNormalizeTableId(
             ctx.db,
             "client_updates",
-            versionId
+            // Accept the download alias advertised to MSI clients while
+            // retaining support for URLs containing the original document ID.
+            versionId.replace(/\.msi$/i, "")
         );
 
         return normalizedVersionId
