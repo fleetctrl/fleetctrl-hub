@@ -32,16 +32,24 @@ services:
 
   # One-shot init container: creates S3 buckets required by Convex.
   rustfs-init:
-    image: minio/mc:latest
+    image: amazon/aws-cli:latest
+    environment:
+      - AWS_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      - AWS_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY:-rustfsadmin}
+      - AWS_REGION=us-east-1
+      - AWS_ENDPOINT_URL_S3=http://rustfs:9000
+      - AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+      - AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        until mc alias set rustfs http://rustfs:9000 "${RUSTFS_ACCESS_KEY:-rustfsadmin}" "${RUSTFS_SECRET_KEY:-rustfsadmin}"; do
+        aws configure set default.s3.addressing_style path
+        until aws s3api list-buckets > /dev/null; do
           echo "Waiting for RustFS S3 API..."
           sleep 2
         done
         for bucket in convex-snapshot-exports convex-snapshot-imports convex-modules convex-user-files convex-search-indexes; do
-          mc mb --ignore-existing rustfs/$$bucket
+          aws s3api head-bucket --bucket "$$bucket" 2>/dev/null || aws s3api create-bucket --bucket "$$bucket" || exit 1
         done
         echo "All buckets ready."
     restart: "no"
