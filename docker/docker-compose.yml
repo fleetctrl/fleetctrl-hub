@@ -32,7 +32,7 @@ services:
 
   # One-shot init container: creates S3 buckets required by Convex.
   rustfs-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
