@@ -236,7 +236,7 @@ export function DynamicGroupsTable() {
     try {
       setIsRefreshing(true);
       await refreshGroups();
-      toast.success("Memberships refreshed");
+      toast.success("Membership refresh started");
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "An error occurred";

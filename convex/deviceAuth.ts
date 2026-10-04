@@ -18,7 +18,10 @@ import {
     hashToken,
     getRefreshTokenExpiry,
     getAccessTokenTTL,
+    isRefreshTokenStale,
+    REVOKED_REFRESH_TOKEN_RETENTION_MS,
 } from "./lib/jwt";
+import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { maybeNormalizeTableId } from "./lib/idNormalization";
 
@@ -282,12 +285,19 @@ export const rotateRefreshTokenAndCreateSession = internalMutation({
                 grace_until: now + graceTTL,
             });
         } else {
-            if (!rt.grace_until || now > rt.grace_until) {
-                throw new Error("Refresh token not in grace period");
-            }
+            const reuseError =
+                !rt.grace_until || now > rt.grace_until
+                    ? "Refresh token not in grace period"
+                    : rt.last_used_at
+                        ? "Refresh token grace already used"
+                        : null;
 
-            if (rt.last_used_at) {
-                throw new Error("Refresh token grace already used");
+            if (reuseError) {
+                // A rotated token was presented again: treat it as stolen and end every
+                // session for the device. Return instead of throwing so the revocation
+                // commits; the device can still re-authenticate via /token/recover.
+                await revokeActiveTokensForComputer(ctx, rt.computer_id);
+                return { ok: false as const, error: reuseError };
             }
 
             await ctx.db.patch("refresh_tokens", rt._id, {
@@ -303,48 +313,90 @@ export const rotateRefreshTokenAndCreateSession = internalMutation({
             expires_at: newRefreshTokenExpiresAt,
         });
 
-        return { computerId: rt.computer_id, jkt: rt.jkt };
+        return { ok: true as const, computerId: rt.computer_id, jkt: rt.jkt };
     },
 });
+
+async function revokeActiveTokensForComputer(
+    ctx: MutationCtx,
+    computerId: Id<"computers">
+) {
+    const now = Date.now();
+    let revoked = 0;
+    for await (const token of ctx.db
+        .query("refresh_tokens")
+        .withIndex("by_computer_status", (q) =>
+            q.eq("computer_id", computerId).eq("status", "ACTIVE")
+        )) {
+        // grace_until marks when the token stopped being valid, for retention cleanup.
+        await ctx.db.patch("refresh_tokens", token._id, { status: "REVOKED", grace_until: now });
+        revoked++;
+    }
+    return revoked;
+}
 
 export const revokeAllActiveTokens = internalMutation({
     args: { computerId: v.id("computers") },
     handler: async (ctx, { computerId }) => {
-        const activeTokens = await ctx.db
-            .query("refresh_tokens")
-            .withIndex("by_computer_status", (q) =>
-                q.eq("computer_id", computerId).eq("status", "ACTIVE")
-            )
-            .collect();
-
-        for (const token of activeTokens) {
-            await ctx.db.patch("refresh_tokens", token._id, { status: "REVOKED" });
-        }
-
-        return { revoked: activeTokens.length };
+        return { revoked: await revokeActiveTokensForComputer(ctx, computerId) };
     },
 });
 
+const TOKEN_CLEANUP_BATCH = 500;
+
+/**
+ * Delete refresh tokens that can never be used again. Every refresh rotates the
+ * token, so without this the table grows by ~96 rows per device per day.
+ * Processes one batch and reschedules itself while there is more to do.
+ */
 export const cleanupExpiredTokens = internalMutation({
+    args: {},
     handler: async (ctx) => {
         const now = Date.now();
-        let updated = 0;
+        let deleted = 0;
 
-        // Find active tokens that have expired
-        const expired = await ctx.db
+        const expiredActive = await ctx.db
             .query("refresh_tokens")
             .withIndex("by_status_expires_at", (q) =>
                 q.eq("status", "ACTIVE").lt("expires_at", now)
             )
-            .take(100);
+            .take(TOKEN_CLEANUP_BATCH);
 
-        for (const token of expired) {
-            await ctx.db.patch("refresh_tokens", token._id, { status: "EXPIRED" });
-            updated++;
+        const legacyExpired = await ctx.db
+            .query("refresh_tokens")
+            .withIndex("by_status", (q) => q.eq("status", "EXPIRED"))
+            .take(TOKEN_CLEANUP_BATCH);
+
+        // A token is revoked after it was created, so anything still in retention
+        // was created within the window too; only older rows can be stale.
+        const revokedCandidates = await ctx.db
+            .query("refresh_tokens")
+            .withIndex("by_status", (q) =>
+                q
+                    .eq("status", "REVOKED")
+                    .lt("_creationTime", now - REVOKED_REFRESH_TOKEN_RETENTION_MS)
+            )
+            .take(TOKEN_CLEANUP_BATCH);
+
+        for (const token of [...expiredActive, ...legacyExpired, ...revokedCandidates]) {
+            if (isRefreshTokenStale(token, now)) {
+                await ctx.db.delete("refresh_tokens", token._id);
+                deleted++;
+            }
         }
 
-        console.log(`[Token Cleanup] Marked ${updated} tokens as expired`);
-        return { updated };
+        // Only continue if this pass made progress, so long-retained rows at the
+        // front of the revoked range can't cause an endless reschedule loop.
+        const hasMore =
+            expiredActive.length === TOKEN_CLEANUP_BATCH ||
+            legacyExpired.length === TOKEN_CLEANUP_BATCH ||
+            revokedCandidates.length === TOKEN_CLEANUP_BATCH;
+        if (hasMore && deleted > 0) {
+            await ctx.scheduler.runAfter(0, internal.deviceAuth.cleanupExpiredTokens, {});
+        }
+
+        console.log(`[Token Cleanup] Deleted ${deleted} stale refresh tokens`);
+        return { deleted };
     },
 });
 
@@ -413,7 +465,9 @@ export const refreshTokens = internalAction({
         const newRefreshToken = generateRefreshToken();
         const newRefreshTokenHash = await hashToken(newRefreshToken);
 
-        const session: { computerId: Id<"computers">; jkt: string } = await ctx.runMutation(
+        const session:
+            | { ok: true; computerId: Id<"computers">; jkt: string }
+            | { ok: false; error: string } = await ctx.runMutation(
             internal.deviceAuth.rotateRefreshTokenAndCreateSession,
             {
                 refreshTokenHash,
@@ -422,6 +476,10 @@ export const refreshTokens = internalAction({
                 newRefreshTokenExpiresAt: getRefreshTokenExpiry(),
             }
         );
+
+        if (!session.ok) {
+            throw new Error(session.error);
+        }
 
         const subject = `device:${session.computerId}`;
         const { token: accessToken } = await issueAccessToken(subject, session.jkt);

@@ -68,7 +68,7 @@ export const getByComputer = withAuthQuery({
             createdAt: task._creationTime,
             status: task.status,
             taskType: task.task_type,
-            taskData: task.task_data,
+            // task_data is intentionally not returned: it can hold secrets (SET_PASSWD).
             error: task.error,
             startedAt: task.started_at,
             finishAt: task.finish_at,
@@ -116,6 +116,10 @@ export const updateStatus = internalMutation({
 
         if (status === "SUCCESS" || status === "ERROR") {
             updates.finish_at = now;
+            // The device has consumed the secret; don't keep it at rest.
+            if (task.task_type === "SET_PASSWD") {
+                updates.task_data = undefined;
+            }
         } else if (status === "IN_PROGRESS") {
             updates.started_at = now;
         }

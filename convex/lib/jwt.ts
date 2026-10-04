@@ -132,6 +132,29 @@ export function getRefreshTokenExpiry(): number {
 }
 
 /**
+ * How long a rotated refresh token is kept after its grace period, so that a
+ * late reuse can still be recognised (and the device's sessions revoked).
+ */
+export const REVOKED_REFRESH_TOKEN_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a refresh token row is no longer useful and can be deleted.
+ */
+export function isRefreshTokenStale(
+    token: { status: string; expires_at: number; grace_until?: number },
+    now: number
+): boolean {
+    switch (token.status) {
+        case "ACTIVE":
+            return token.expires_at < now;
+        case "EXPIRED":
+            return true;
+        default:
+            return (token.grace_until ?? 0) + REVOKED_REFRESH_TOKEN_RETENTION_MS < now;
+    }
+}
+
+/**
  * Returns the access token TTL in seconds.
  *
  * @returns TTL in seconds

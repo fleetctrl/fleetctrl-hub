@@ -34,6 +34,17 @@ export interface DPoPResult {
     ath?: string;
 }
 
+const DPOP_CLOCK_SKEW_MS = 2 * 60 * 1000;
+const DPOP_MAX_AGE_MS = 15 * 60 * 1000;
+
+/**
+ * The time after which a proof is rejected as stale anyway, so its jti no
+ * longer needs to be remembered for replay protection.
+ */
+export function dpopReplayWindowEnd(result: DPoPResult): number {
+    return result.issuedAt.getTime() + DPOP_MAX_AGE_MS;
+}
+
 /**
  * Validates a DPoP proof token.
  * Implements RFC 9449 DPoP validation.
@@ -100,14 +111,11 @@ export async function verifyDPoP(
     // 7. Validate timing (iat freshness)
     const now = Date.now();
     const iat = claims.iat * 1000;
-    const clockSkew = 2 * 60 * 1000; // 2 minutes
-    const maxAge = 15 * 60 * 1000; // 15 minutes
-
-    if (iat > now + clockSkew) {
+    if (iat > now + DPOP_CLOCK_SKEW_MS) {
         throw new Error("DPoP proof from the future");
     }
 
-    if (now - iat > maxAge) {
+    if (now - iat > DPOP_MAX_AGE_MS) {
         throw new Error("Stale DPoP proof");
     }
 

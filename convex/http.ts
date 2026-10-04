@@ -9,22 +9,18 @@ import { inventorySchema } from "./lib/hardware";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
+import { httpAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { verifyDPoP, computeATH } from "./lib/dpop";
-import { checkAndStoreJti } from "../src/lib/jtiStore";
+import { verifyDPoP, computeATH, dpopReplayWindowEnd, type DPoPResult } from "./lib/dpop";
 import { verifyAccessToken } from "./lib/jwt";
 import { authComponent, createAuth } from "./auth";
 import { createMiddleware } from "hono/factory";
+import type { Context } from "hono";
 
 // Define the environment for Hono (ctx from Convex)
 type Env = {
   Bindings: {
-    ctx: {
-      runQuery: (query: any, args: any) => Promise<any>;
-      runMutation: (mutation: any, args: any) => Promise<any>;
-      runAction: (action: any, args: any) => Promise<any>;
-    };
+    ctx: ActionCtx;
   };
   Variables: {
     computerId: string;
@@ -32,6 +28,51 @@ type Env = {
 };
 
 const app = new Hono<Env>();
+
+class ReplayedProofError extends Error {
+  constructor() {
+    super("Replayed DPoP proof");
+  }
+}
+
+/**
+ * Verifies the request's DPoP proof against the expected method and URL and
+ * records its jti so the same proof cannot be used twice.
+ * Returns null if the DPoP header is missing.
+ */
+async function verifyRequestDPoP(c: Context<Env>): Promise<DPoPResult | null> {
+  const dpopHeader = c.req.header("DPoP");
+  if (!dpopHeader) {
+    return null;
+  }
+
+  const url = new URL(c.req.url);
+  const apiUrl = process.env.API_URL;
+
+  // Use API_URL as base (includes /api path) and append request pathname
+  let expectedUrl: string;
+  if (apiUrl) {
+    const apiBase = apiUrl.replace(/\/$/, ""); // remove trailing slash
+    expectedUrl = `${apiBase}${url.pathname}`;
+  } else {
+    url.search = "";
+    url.hash = "";
+    expectedUrl = url.href;
+  }
+
+  const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);
+
+  const isFresh = await c.env.ctx.runMutation(internal.dpopJtis.consume, {
+    jkt: dpopResult.jkt,
+    jti: dpopResult.jti,
+    expiresAt: dpopReplayWindowEnd(dpopResult),
+  });
+  if (!isFresh) {
+    throw new ReplayedProofError();
+  }
+
+  return dpopResult;
+}
 const installStateStatuses = new Set([
   "PENDING",
   "INSTALLING",
@@ -46,6 +87,15 @@ type InstallStateStatus =
   | "INSTALLED"
   | "ERROR"
   | "UNINSTALLED";
+
+const taskStatuses = new Set([
+  "PENDING",
+  "IN_PROGRESS",
+  "SUCCESS",
+  "ERROR",
+] as const);
+
+type TaskStatus = "PENDING" | "IN_PROGRESS" | "SUCCESS" | "ERROR";
 
 // ========================================
 // Middleware
@@ -72,10 +122,9 @@ app.use(
 // DPoP Authentication Middleware
 const dpopAuth = createMiddleware<Env>(async (c, next) => {
   try {
-    const dpopHeader = c.req.header("DPoP");
     const authHeader = c.req.header("Authorization");
 
-    if (!dpopHeader) {
+    if (!c.req.header("DPoP")) {
       return c.json({ error: "Missing DPoP header" }, 401);
     }
 
@@ -84,28 +133,11 @@ const dpopAuth = createMiddleware<Env>(async (c, next) => {
     }
 
     const accessToken = authHeader.slice(7);
-    const url = new URL(c.req.url);
-    const apiUrl = process.env.API_URL;
 
-    // Use API_URL as base (includes /api path) and append request pathname
-    let expectedUrl: string;
-    if (apiUrl) {
-      const apiBase = apiUrl.replace(/\/$/, ""); // remove trailing slash
-      expectedUrl = `${apiBase}${url.pathname}`;
-    } else {
-      url.search = "";
-      url.hash = "";
-      expectedUrl = url.href;
-    }
-
-    // Verify DPoP proof
-    const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);
-
-    // Check JTI for replay
-    try {
-      checkAndStoreJti(dpopResult.jti);
-    } catch {
-      return c.json({ error: "Replayed DPoP proof" }, 401);
+    // Verify DPoP proof and check JTI for replay
+    const dpopResult = await verifyRequestDPoP(c);
+    if (!dpopResult) {
+      return c.json({ error: "Missing DPoP header" }, 401);
     }
 
     // Verify access token
@@ -208,34 +240,9 @@ app.post("/enroll", async (c) => {
 
     let effectiveJkt = jkt;
     if (device_id) {
-      const dpopHeader = c.req.header("DPoP");
-      if (!dpopHeader) {
+      const dpopResult = await verifyRequestDPoP(c);
+      if (!dpopResult) {
         return c.json({ error: "Missing DPoP header" }, 401);
-      }
-
-      const url = new URL(c.req.url);
-      const apiUrl = process.env.API_URL;
-
-      let expectedUrl: string;
-      if (apiUrl) {
-        const apiBase = apiUrl.replace(/\/$/, "");
-        expectedUrl = `${apiBase}${url.pathname}`;
-      } else {
-        url.search = "";
-        url.hash = "";
-        expectedUrl = url.href;
-      }
-
-      const dpopResult = await verifyDPoP(
-        dpopHeader,
-        c.req.method,
-        expectedUrl,
-      );
-
-      try {
-        checkAndStoreJti(dpopResult.jti);
-      } catch {
-        return c.json({ error: "Replayed DPoP proof" }, 401);
       }
 
       if (effectiveJkt && effectiveJkt !== dpopResult.jkt) {
@@ -268,6 +275,9 @@ app.post("/enroll", async (c) => {
       201,
     );
   } catch (error: unknown) {
+    if (error instanceof ReplayedProofError) {
+      return c.json({ error: error.message }, 401);
+    }
     const message =
       error instanceof Error ? error.message : "Enrollment failed";
     return c.json({ error: message }, 400);
@@ -306,33 +316,10 @@ app.post("/token/refresh", async (c) => {
       return c.json({ error: "Missing refresh_token" }, 400);
     }
 
-    // We verify DPoP manually for recovery because it's slightly different flow (no access token yet, just proof)
-    const dpopHeader = c.req.header("DPoP");
-    if (!dpopHeader) {
+    // No access token yet, just a proof of key possession
+    const dpopResult = await verifyRequestDPoP(c);
+    if (!dpopResult) {
       return c.json({ error: "Missing DPoP header" }, 401);
-    }
-
-    const url = new URL(c.req.url);
-    const apiUrl = process.env.API_URL;
-
-    let expectedUrl: string;
-    if (apiUrl) {
-      const apiBase = apiUrl.replace(/\/$/, "");
-      expectedUrl = `${apiBase}${url.pathname}`;
-    } else {
-      url.search = "";
-      url.hash = "";
-      expectedUrl = url.href;
-    }
-
-    // Verify DPoP proof
-    const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);
-
-    // Check JTI for replay
-    try {
-      checkAndStoreJti(dpopResult.jti);
-    } catch {
-      return c.json({ error: "Replayed DPoP proof" }, 401);
     }
 
     const result = await c.env.ctx.runAction(
@@ -356,33 +343,10 @@ app.post("/token/refresh", async (c) => {
  */
 app.post("/token/recover", async (c) => {
   try {
-    // We verify DPoP manually for recovery because it's slightly different flow (no access token yet, just proof)
-    const dpopHeader = c.req.header("DPoP");
-    if (!dpopHeader) {
+    // No access token yet, just a proof of key possession
+    const dpopResult = await verifyRequestDPoP(c);
+    if (!dpopResult) {
       return c.json({ error: "Missing DPoP header" }, 401);
-    }
-
-    const url = new URL(c.req.url);
-    const apiUrl = process.env.API_URL;
-
-    let expectedUrl: string;
-    if (apiUrl) {
-      const apiBase = apiUrl.replace(/\/$/, "");
-      expectedUrl = `${apiBase}${url.pathname}`;
-    } else {
-      url.search = "";
-      url.hash = "";
-      expectedUrl = url.href;
-    }
-
-    // Verify DPoP proof
-    const dpopResult = await verifyDPoP(dpopHeader, c.req.method, expectedUrl);
-
-    // Check JTI for replay
-    try {
-      checkAndStoreJti(dpopResult.jti);
-    } catch {
-      return c.json({ error: "Replayed DPoP proof" }, 401);
     }
 
     const result = await c.env.ctx.runAction(internal.deviceAuth.recover, {
@@ -423,11 +387,14 @@ protectedApi.patch("/task/:taskId", async (c) => {
   if (!status) {
     return c.json({ error: "Missing status" }, 400);
   }
+  if (!taskStatuses.has(status as TaskStatus)) {
+    return c.json({ error: "Invalid status" }, 400);
+  }
 
   await c.env.ctx.runMutation(internal.tasks.updateStatus, {
     taskId,
     computerId,
-    status,
+    status: status as TaskStatus,
     error: error || null,
   });
 

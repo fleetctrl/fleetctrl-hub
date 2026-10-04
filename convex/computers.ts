@@ -119,6 +119,12 @@ export const getById = withAuthQuery({
 // Public Mutations
 // ========================================
 
+// Clients heartbeat every minute and the UI treats a device as online for 5 minutes
+// after its last check-in. Writing at most every 3 minutes keeps the status correct
+// (worst case ~4 minutes stale) while avoiding a write, and a re-run of every query
+// that reads this computer, on each heartbeat.
+const HEARTBEAT_WRITE_INTERVAL_MS = 3 * 60 * 1000;
+
 // Only the authenticated device's server-side presence timestamp is updated.
 export const heartbeat = internalMutation({
     args: { computerId: v.string() },
@@ -126,7 +132,10 @@ export const heartbeat = internalMutation({
         const id = normalizeTableId(ctx.db, "computers", computerId, "computer ID");
         const computer = await ctx.db.get("computers", id);
         if (!computer) throw new Error("Computer not found");
-        await ctx.db.patch("computers", id, { last_connection: Date.now() });
+        const now = Date.now();
+        if (now - (computer.last_connection ?? 0) >= HEARTBEAT_WRITE_INTERVAL_MS) {
+            await ctx.db.patch("computers", id, { last_connection: now });
+        }
         return { success: true };
     },
 });

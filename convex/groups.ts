@@ -6,7 +6,7 @@
  */
 import { withAuthQuery, withAuthMutation } from "./lib/withAuth";
 import { v } from "convex/values";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -21,52 +21,68 @@ async function refreshSingleGroupMembership(
     group: Doc<"dynamic_computer_groups">,
     computers: Doc<"computers">[]
 ) {
-    const existing = await ctx.db
+    // Index existing members by computer; any duplicate rows get removed below.
+    const existingByComputer = new Map<Id<"computers">, Id<"dynamic_group_members">>();
+    const toRemove: Id<"dynamic_group_members">[] = [];
+    for await (const member of ctx.db
         .query("dynamic_group_members")
-        .withIndex("by_group_id", (q) => q.eq("group_id", group._id))
-        .collect();
-
-    for (const member of existing) {
-        await ctx.db.delete("dynamic_group_members", member._id);
+        .withIndex("by_group_id", (q) => q.eq("group_id", group._id))) {
+        if (existingByComputer.has(member.computer_id)) {
+            toRemove.push(member._id);
+        } else {
+            existingByComputer.set(member.computer_id, member._id);
+        }
     }
 
     const parsedRuleExpression = parseRuleExpression(group.rule_expression);
     const evaluatedAt = Date.now();
     let added = 0;
 
+    // Only write the difference, so unchanged memberships don't churn and
+    // don't invalidate every query reading them.
     for (const computer of computers) {
-        if (evaluateRule(parsedRuleExpression, computer, evaluatedAt)) {
+        const matches = evaluateRule(parsedRuleExpression, computer, evaluatedAt);
+        const memberId = existingByComputer.get(computer._id);
+        if (matches && !memberId) {
             await ctx.db.insert("dynamic_group_members", {
                 group_id: group._id,
                 computer_id: computer._id,
                 added_at: evaluatedAt,
             });
             added++;
+        } else if (!matches && memberId) {
+            toRemove.push(memberId);
         }
+        existingByComputer.delete(computer._id);
+    }
+
+    // Members whose computer no longer exists.
+    toRemove.push(...existingByComputer.values());
+
+    for (const memberId of toRemove) {
+        await ctx.db.delete("dynamic_group_members", memberId);
     }
 
     await ctx.db.patch("dynamic_computer_groups", group._id, {
         last_evaluated_at: evaluatedAt,
     });
 
-    return { added, removed: existing.length };
+    return { added, removed: toRemove.length };
 }
 
-async function refreshAllGroupMemberships(
-    ctx: MutationCtx
-) {
-    const groups = await ctx.db.query("dynamic_computer_groups").collect();
-    const computers = await ctx.db.query("computers").collect();
-    let totalAdded = 0;
-    let totalRemoved = 0;
-
-    for (const group of groups) {
-        const result = await refreshSingleGroupMembership(ctx, group, computers);
-        totalAdded += result.added;
-        totalRemoved += result.removed;
+/**
+ * Schedule one refresh per group, so each group gets its own transaction
+ * instead of the whole fleet × all groups having to fit into one.
+ */
+async function scheduleAllGroupRefreshes(ctx: MutationCtx) {
+    let groups = 0;
+    for await (const group of ctx.db.query("dynamic_computer_groups")) {
+        await ctx.scheduler.runAfter(0, internal.groups.refreshGroupMembership, {
+            groupId: group._id,
+        });
+        groups++;
     }
-
-    return { groups: groups.length, added: totalAdded, removed: totalRemoved };
+    return { groups };
 }
 
 // ========================================
@@ -83,34 +99,48 @@ export const refreshComputerMemberships = internalMutation({
         const computer = await ctx.db.get("computers", computerId);
         if (!computer) return { added: 0, removed: 0 };
 
-        // Remove existing memberships
-        const existing = await ctx.db
+        // Index existing memberships by group; any duplicate rows get removed below.
+        const existingByGroup = new Map<Id<"dynamic_computer_groups">, Id<"dynamic_group_members">>();
+        const toRemove: Id<"dynamic_group_members">[] = [];
+        for await (const member of ctx.db
             .query("dynamic_group_members")
-            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))
-            .collect();
-
-        for (const member of existing) {
-            await ctx.db.delete("dynamic_group_members", member._id);
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", computerId))) {
+            if (existingByGroup.has(member.group_id)) {
+                toRemove.push(member._id);
+            } else {
+                existingByGroup.set(member.group_id, member._id);
+            }
         }
 
-        // Evaluate all dynamic groups
-        const groups = await ctx.db.query("dynamic_computer_groups").collect();
+        // Evaluate all dynamic groups and only write the difference
         let added = 0;
         const evaluatedAt = Date.now();
 
-        for (const group of groups) {
+        for await (const group of ctx.db.query("dynamic_computer_groups")) {
             const parsedRuleExpression = parseRuleExpression(group.rule_expression);
-            if (evaluateRule(parsedRuleExpression, computer, evaluatedAt)) {
+            const matches = evaluateRule(parsedRuleExpression, computer, evaluatedAt);
+            const memberId = existingByGroup.get(group._id);
+            if (matches && !memberId) {
                 await ctx.db.insert("dynamic_group_members", {
                     group_id: group._id,
                     computer_id: computerId,
                     added_at: evaluatedAt,
                 });
                 added++;
+            } else if (!matches && memberId) {
+                toRemove.push(memberId);
             }
+            existingByGroup.delete(group._id);
         }
 
-        return { added, removed: existing.length };
+        // Memberships of groups that no longer exist.
+        toRemove.push(...existingByGroup.values());
+
+        for (const memberId of toRemove) {
+            await ctx.db.delete("dynamic_group_members", memberId);
+        }
+
+        return { added, removed: toRemove.length };
     },
 });
 
@@ -133,24 +163,24 @@ export const refreshGroupMembership = internalMutation({
  * Called by cron job to handle time-based rules.
  */
 export const refreshAllDynamicGroups = internalMutation({
+    args: {},
     handler: async (ctx) => {
-        const result = await refreshAllGroupMemberships(ctx);
+        const result = await scheduleAllGroupRefreshes(ctx);
 
-        console.log(
-            `[Dynamic Groups] Refreshed ${result.groups} groups. Added: ${result.added}, Removed: ${result.removed}`
-        );
+        console.log(`[Dynamic Groups] Scheduled refresh of ${result.groups} groups`);
         return result;
     },
 });
 
 /**
  * Public mutation to refresh all dynamic groups.
- * Called from admin UI.
+ * Called from admin UI. Memberships update shortly after, as each group's
+ * scheduled refresh runs.
  */
 export const refreshAll = withAuthMutation({
-    handler: async (ctx): Promise<{ groups: number; added: number; removed: number }> => {
-        const result = await ctx.runMutation(internal.groups.refreshAllDynamicGroups, {});
-        return result;
+    args: {},
+    handler: async (ctx) => {
+        return await scheduleAllGroupRefreshes(ctx);
     },
 });
 

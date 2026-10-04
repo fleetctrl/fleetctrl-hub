@@ -5,6 +5,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "test": "vitest run tests",
     "test:sync": "vitest run tests/computers.test.ts",
     "test:docker-build": "bash ./scripts/test-docker-build.sh",
     "test:docker-deployment": "bash ./scripts/test-docker-deployment.sh",

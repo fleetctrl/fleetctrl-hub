@@ -52,7 +52,10 @@ const getTrustedOrigins = () => {
     return origins;
 };
 
-export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
+export const isRegistrationOpen = (hasUsers: boolean) =>
+    !hasUsers || process.env.ALLOW_REGISTRATION === "true";
+
+export const createAuthOptions =(ctx: GenericCtx<DataModel>) => {
     return {
         baseURL: getBaseUrl(),
         basePath: "/auth",
@@ -67,8 +70,13 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
         hooks: {
             before: createAuthMiddleware(async (ctx) => {
                 if (ctx.path === "/sign-up/email") {
-                    const allowRegistration = process.env.ALLOW_REGISTRATION !== "false";
-                    if (!allowRegistration) {
+                    // Closed by default: only the first (bootstrap) admin may sign up
+                    // unless ALLOW_REGISTRATION is explicitly "true".
+                    const existingUsers = await ctx.context.adapter.findMany({
+                        model: "user",
+                        limit: 1,
+                    });
+                    if (!isRegistrationOpen(existingUsers.length > 0)) {
                         throw new APIError("BAD_REQUEST", {
                             message: "Registration is disabled",
                         });

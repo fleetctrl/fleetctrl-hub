@@ -12,20 +12,33 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// JTI Anti-Replay is handled in-memory (see src/lib/jtiStore.ts)
+// ========================================
+// DPoP JTI Cleanup
+// ========================================
+
+/**
+ * Forget DPoP proof IDs once the proofs would be rejected as stale anyway.
+ */
+crons.interval(
+    "cleanup expired dpop jtis",
+    { minutes: 10 },
+    internal.dpopJtis.cleanupExpired,
+    {}
+);
 
 // ========================================
 // Refresh Token Cleanup
 // ========================================
 
 /**
- * Cleanup expired refresh tokens daily at 3:00 UTC.
- * Marks ACTIVE tokens as EXPIRED if past their expiry date.
+ * Delete expired and long-rotated refresh tokens every hour.
+ * The job reschedules itself in batches when there is a backlog.
  */
-crons.daily(
+crons.interval(
     "cleanup expired refresh tokens",
-    { hourUTC: 3, minuteUTC: 0 },
-    internal.deviceAuth.cleanupExpiredTokens
+    { hours: 1 },
+    internal.deviceAuth.cleanupExpiredTokens,
+    {}
 );
 
 // ========================================
@@ -33,7 +46,7 @@ crons.daily(
 // ========================================
 
 /**
- * Refresh all dynamic group memberships every 15 minutes.
+ * Refresh all dynamic group memberships every hour.
  * This handles time-based rules (olderThanDays, newerThanDays, etc.)
  * that can't be evaluated via triggers alone.
  */

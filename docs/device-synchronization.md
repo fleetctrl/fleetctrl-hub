@@ -6,7 +6,7 @@ New clients send these requests on startup and then independently:
 
 | Endpoint | Interval | Effect |
 | --- | --- | --- |
-| `POST /computer/heartbeat` | 1 minute | Updates only `last_connection` using server time; no request body required. |
+| `POST /computer/heartbeat` | 1 minute | Updates only `last_connection` using server time, at most once every 3 minutes per device; no request body required. |
 | `PATCH /computer/hardware-sync` | 1 hour | Updates device inventory and `last_inventory_at`, leaving presence unchanged. |
 
 Both routes use the existing bearer token + DPoP authentication. Device identity comes from the verified token, never from the request body. Manual client device/full synchronization also refreshes inventory. The UI marks devices offline after five minutes without a check-in and reevaluates presence every 30 seconds.

@@ -402,7 +402,7 @@ cmd_convex_push() {
   BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
   JWT_SECRET=${JWT_SECRET}
   API_URL=${API_URL:-${SITE_URL}/api}
-  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
   CONVEX_SITE_INTERNAL_URL_FOR_CONVEX=${CONVEX_SITE_INTERNAL_URL_FOR_CONVEX:-http://127.0.0.1:3211}
 
   for var in \
@@ -468,11 +468,12 @@ cmd_setup() {
   CONVEX_URL="http://convex:3210"
   CONVEX_SITE_INTERNAL_URL="http://convex:3211"
 
-  read -p "$(echo -e ${BOLD} Allow user registration? [Y/n]: ${NC})" ALLOW_REGISTRATION_INPUT
-  if [[ "${ALLOW_REGISTRATION_INPUT}" =~ ^[Nn]$ ]]; then
-    ALLOW_REGISTRATION=false
-  else
+  # The first admin can always sign up; this only controls sign-ups after that.
+  read -p "$(echo -e ${BOLD} Allow further user registration after the first admin? [y/N]: ${NC})" ALLOW_REGISTRATION_INPUT
+  if [[ "${ALLOW_REGISTRATION_INPUT}" =~ ^[Yy]$ ]]; then
     ALLOW_REGISTRATION=true
+  else
+    ALLOW_REGISTRATION=false
   fi
   NEXT_PUBLIC_ALLOW_REGISTRATION=$ALLOW_REGISTRATION
 
@@ -656,7 +657,7 @@ cmd_setup() {
   BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
   JWT_SECRET=${JWT_SECRET}
   API_URL=${API_URL:-${SITE_URL}/api}
-  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
   CONVEX_SITE_INTERNAL_URL_FOR_CONVEX=${CONVEX_SITE_INTERNAL_URL_FOR_CONVEX:-http://127.0.0.1:3211}
 
   for var in \
@@ -781,7 +782,7 @@ cmd_update() {
 
   echo -e "${BLUE}▶ Syncing Convex environment variables...${NC}"
   API_URL=${API_URL:-${SITE_URL}/api}
-  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+  ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
 
   for var in "SITE_URL=$SITE_URL" "API_URL=$API_URL" "ALLOW_REGISTRATION=$ALLOW_REGISTRATION"; do
     run_convex_migration npx convex env set "$var" \

@@ -9,7 +9,6 @@ COPY docker/migration/package.json docker/migration/pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 
 COPY convex ./convex
-COPY src/lib/jtiStore.ts ./src/lib/jtiStore.ts
 COPY docker/scripts/migration.sh ./migration.sh
 
 CMD ["./migration.sh"]

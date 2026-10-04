@@ -15,8 +15,9 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
+import { useQuery } from "convex/react";
 import { authClient } from "@/lib/auth-client";
-import { env } from "@/lib/env";
+import { api } from "@/convex/_generated/api";
 
 // Zod schema for sign in/sign up form
 const authFormSchema = z.object({
@@ -34,8 +35,8 @@ export default function SignInPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCheckingSession, setIsCheckingSession] = useState(true);
 
-    // Check if registration is allowed
-    const allowRegistration = env.NEXT_PUBLIC_ALLOW_REGISTRATION === "true";
+    // The server decides: open for the first admin, otherwise only if ALLOW_REGISTRATION=true
+    const allowRegistration = useQuery(api.users.registrationOpen) === true;
 
     const { data: session, isPending, refetch } = authClient.useSession();
 

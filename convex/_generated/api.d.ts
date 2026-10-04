@@ -15,6 +15,7 @@ import type * as clientUpdates from "../clientUpdates.js";
 import type * as computers from "../computers.js";
 import type * as crons from "../crons.js";
 import type * as deviceAuth from "../deviceAuth.js";
+import type * as dpopJtis from "../dpopJtis.js";
 import type * as enrollmentTokens from "../enrollmentTokens.js";
 import type * as functions from "../functions.js";
 import type * as groups from "../groups.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   computers: typeof computers;
   crons: typeof crons;
   deviceAuth: typeof deviceAuth;
+  dpopJtis: typeof dpopJtis;
   enrollmentTokens: typeof enrollmentTokens;
   functions: typeof functions;
   groups: typeof groups;

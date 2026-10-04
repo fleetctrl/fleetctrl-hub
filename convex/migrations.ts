@@ -5,6 +5,7 @@ import { internalMutation } from "./functions";
 import { installStatusAggregate, InstallStatus } from "./lib/aggregate/installAggregate";
 import { computerCountAggregate } from "./lib/aggregate/computerAggregate";
 import { computerSearchText, versionSortKey } from "./lib/tableKeys";
+import { isRefreshTokenStale } from "./lib/jwt";
 
 export const migrations = new Migrations<DataModel>(components.migrations, {
     internalMutation,
@@ -64,7 +65,31 @@ export const backfillClientUpdateVersionSortKey = migrations.define({
     migrateOne: (_, update) => ({ version_sort_key: versionSortKey(update.version) }),
 });
 
-export const runVirtualTableBackfills = migrations.runner([
+// Passwords used to be kept forever in finished SET_PASSWD tasks.
+export const scrubFinishedPasswordTasks = migrations.define({
+    table: "tasks",
+    migrateOne: (_, task) => {
+        if (
+            task.task_type === "SET_PASSWD" &&
+            (task.status === "SUCCESS" || task.status === "ERROR") &&
+            task.task_data !== undefined
+        ) {
+            return { task_data: undefined };
+        }
+    },
+});
+
+// Rotated refresh tokens used to be kept forever.
+export const deleteStaleRefreshTokens = migrations.define({
+    table: "refresh_tokens",
+    migrateOne: async (ctx, token) => {
+        if (isRefreshTokenStale(token, Date.now())) {
+            await ctx.db.delete("refresh_tokens", token._id);
+        }
+    },
+});
+
+export const runVirtualTableBackfills =migrations.runner([
     internal.migrations.backfillComputerSearchText,
     internal.migrations.backfillReleaseVersionSortKey,
     internal.migrations.backfillClientUpdateVersionSortKey,
@@ -77,4 +102,6 @@ export const runAll = migrations.runner([
     internal.migrations.backfillComputerSearchText,
     internal.migrations.backfillReleaseVersionSortKey,
     internal.migrations.backfillClientUpdateVersionSortKey,
+    internal.migrations.scrubFinishedPasswordTasks,
+    internal.migrations.deleteStaleRefreshTokens,
 ]);

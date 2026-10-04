@@ -66,7 +66,14 @@ export default defineSchema({
         .index("by_computer_status", ["computer_id", "status"])
         .index("by_status_expires_at", ["status", "expires_at"]),
 
-    // JTI anti-replay is now handled in-memory (see src/lib/jtiStore.ts)
+    // DPoP proof IDs seen recently, for replay protection (see convex/dpopJtis.ts)
+    dpop_jtis: defineTable({
+        jkt: v.string(),
+        jti: v.string(),
+        expires_at: v.number(),
+    })
+        .index("by_jkt_and_jti", ["jkt", "jti"])
+        .index("by_expires_at", ["expires_at"]),
 
     // ========================================
     // TASKS
