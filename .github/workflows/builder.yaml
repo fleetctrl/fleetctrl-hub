@@ -36,19 +36,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read version from package.json
+      - name: Resolve version from release tag
         id: get_version
         run: |
-          VERSION=$(jq -r '.version' ./package.json)
-          RELEASE_TAG="${{ github.event.release.tag_name }}"
-          FULL_VERSION="${RELEASE_TAG#v}"
+          TAG="${{ github.event.release.tag_name }}"
 
-          if [ -z "$FULL_VERSION" ]; then
-            FULL_VERSION="$VERSION"
+          # workflow_dispatch: use the selected ref if it is a tag
+          if [ -z "$TAG" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
           fi
 
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "FULL_VERSION=$FULL_VERSION" >> "$GITHUB_ENV"
+          if [ -z "$TAG" ]; then
+            echo "::error::No release tag found. Publish a release or run the workflow on a tag."
+            exit 1
+          fi
+
+          echo "FULL_VERSION=${TAG#v}" >> "$GITHUB_ENV"
 
       - name: Compute image coordinates (GHCR)
         id: coords
