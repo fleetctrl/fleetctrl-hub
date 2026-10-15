@@ -503,10 +503,11 @@ protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
   const computerId = c.var.computerId;
   const releaseId = c.req.param("releaseId");
   const body = await c.req.json();
-  const { status, installed_at, last_seen_at } = body as {
+  const { status, installed_at, last_seen_at, reinstall_requested_at } = body as {
     status?: string;
     installed_at?: number;
     last_seen_at?: number;
+    reinstall_requested_at?: number;
   };
 
   if (!status) {
@@ -522,6 +523,7 @@ protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
     status: status as InstallStateStatus,
     installedAt: installed_at,
     lastSeenAt: last_seen_at,
+    reinstallRequestedAt: reinstall_requested_at,
   });
 
   return c.json({ status: "ok" });

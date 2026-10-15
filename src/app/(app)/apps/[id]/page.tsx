@@ -21,6 +21,7 @@ import { AppReleaseSheet } from "@/modules/apps/detail/releases/app-release-shee
 import { AppReleasesTable } from "@/modules/apps/detail/releases/app-releases-table";
 import { useDeviceInstallStatus } from "@/modules/apps/hooks/use-device-install-status";
 import { DeviceInstallStatusTable } from "@/modules/apps/table/device-install-status-table";
+import { ReinstallAppButton } from "@/modules/apps/detail/reinstall-app-button";
 import { parseAsString, useQueryStates } from "nuqs";
 
 export default function AppDetailPage() {
@@ -164,14 +165,17 @@ export default function AppDetailPage() {
               <section>
                 <div className="flex flex-row items-center justify-between pb-2">
                   <h2 className="text-xl font-semibold">Essentials</h2>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowEditSheet(true)}
-                  >
-                    <Pen className="w-4 h-4 mr-2" />
-                    Edit
-                  </Button>
+                  <div className="flex gap-2">
+                    <ReinstallAppButton appId={normalizedAppId} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowEditSheet(true)}
+                    >
+                      <Pen className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
                   <div>

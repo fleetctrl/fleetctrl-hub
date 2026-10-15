@@ -214,6 +214,16 @@ export const getAssigned = internalQuery({
             )
         );
 
+        const installs = await ctx.db
+            .query("computer_apps_installs")
+            .withIndex("by_computer_id", (q) => q.eq("computer_id", normalizedComputerId))
+            .collect();
+        const reinstallRequests = new Map(
+            installs
+                .filter((install) => install.reinstall_requested_at !== undefined)
+                .map((install) => [install.app_id.toString(), install.reinstall_requested_at])
+        );
+
         const result = apps.map((app) => {
             const appReleases = releases.filter(
                 (r) => r.app_id.toString() === app._id.toString()
@@ -224,6 +234,7 @@ export const getAssigned = internalQuery({
                 display_name: app.display_name,
                 publisher: app.publisher,
                 auto_update: app.auto_update,
+                reinstall_requested_at: reinstallRequests.get(app._id.toString()),
                 releases: appReleases.map((release) => {
                     const metadata = releaseMetadata.get(release._id.toString());
                     const assignment = releaseAssignments.find(
@@ -487,8 +498,9 @@ export const updateInstallState = internalMutation({
         ),
         installedAt: v.optional(v.number()),
         lastSeenAt: v.optional(v.number()),
+        reinstallRequestedAt: v.optional(v.number()),
     },
-    handler: async (ctx, { computerId, releaseId, status, installedAt, lastSeenAt }) => {
+    handler: async (ctx, { computerId, releaseId, status, installedAt, lastSeenAt, reinstallRequestedAt }) => {
         const normalizedComputerId = normalizeTableId(
             ctx.db,
             "computers",
@@ -534,6 +546,11 @@ export const updateInstallState = internalMutation({
             last_seen_at: lastSeenAt ?? now,
             ...(nextInstalledAt !== undefined
                 ? { installed_at: nextInstalledAt }
+                : {}),
+            // Only clear the request the client actually handled; a newer request made meanwhile stays pending.
+            ...(reinstallRequestedAt !== undefined &&
+            existing?.reinstall_requested_at === reinstallRequestedAt
+                ? { reinstall_requested_at: undefined }
                 : {}),
         };
 
@@ -961,6 +978,7 @@ export const getDeviceInstallStatus = withAuthQuery({
                     installedAt: install.installed_at,
                     lastSeenAt: install.last_seen_at,
                     statusUpdatedAt: install.status_updated_at,
+                    reinstallRequestedAt: install.reinstall_requested_at,
                 };
             });
 
@@ -1002,6 +1020,7 @@ export const getDeviceInstallStatusPaginated = withAuthQuery({
                     installedAt: install.installed_at,
                     lastSeenAt: install.last_seen_at,
                     statusUpdatedAt: install.status_updated_at,
+                    reinstallRequestedAt: install.reinstall_requested_at,
                 };
             })
         );
@@ -1027,6 +1046,45 @@ export const getDeviceInstallStatusSummary = withAuthQuery({
                 {} as Record<InstallStatus, number>,
             ),
         };
+    },
+});
+
+const REINSTALLABLE_STATUSES = new Set<Doc<"computer_apps_installs">["status"]>(["INSTALLED", "ERROR"]);
+
+/**
+ * Ask the client to uninstall and install the app again on one computer.
+ */
+export const requestReinstall = withAuthMutation({
+    args: { installId: v.id("computer_apps_installs") },
+    handler: async (ctx, { installId }) => {
+        const install = await ctx.db.get("computer_apps_installs", installId);
+        if (!install) throw new Error("Install record not found");
+        if (!REINSTALLABLE_STATUSES.has(install.status)) {
+            throw new Error("Only installed or failed apps can be reinstalled");
+        }
+        await ctx.db.patch("computer_apps_installs", installId, { reinstall_requested_at: Date.now() });
+        return { success: true };
+    },
+});
+
+/**
+ * Ask every computer that has the app installed (or failed to install it) to reinstall it.
+ */
+export const requestReinstallForApp = withAuthMutation({
+    args: { appId: v.id("apps") },
+    handler: async (ctx, { appId }) => {
+        const installs = await ctx.db
+            .query("computer_apps_installs")
+            .withIndex("by_app_id", (q) => q.eq("app_id", appId))
+            .collect();
+        const now = Date.now();
+        let requested = 0;
+        for (const install of installs) {
+            if (!REINSTALLABLE_STATUSES.has(install.status)) continue;
+            await ctx.db.patch("computer_apps_installs", install._id, { reinstall_requested_at: now });
+            requested++;
+        }
+        return { requested };
     },
 });
 
