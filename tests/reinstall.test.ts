@@ -3,6 +3,7 @@ import aggregateTest from "@convex-dev/aggregate/test";
 import { describe, expect, test } from "vitest";
 import { api, internal } from "../convex/_generated/api";
 import schema from "../convex/schema";
+import { normalizeInstallError } from "../convex/lib/installError";
 
 const modules = import.meta.glob("../convex/**/!(*.*.*)*.*s");
 
@@ -79,5 +80,29 @@ describe("app reinstall requests", () => {
         await expect(
             t.withIdentity({ subject: "admin" }).mutation(api.apps.requestReinstall, { installId })
         ).rejects.toThrow("no longer assigned");
+    });
+});
+
+describe("install error details", () => {
+    test("error reports store the message and later states clear it", async () => {
+        const { t, computerId, releaseId, installId } = await setup();
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "ERROR", error: "  install failed: exit code 1603  " });
+        expect((await t.run((ctx) => ctx.db.get(installId)))?.error).toBe("install failed: exit code 1603");
+
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "INSTALLED" });
+        expect((await t.run((ctx) => ctx.db.get(installId)))?.error).toBeUndefined();
+    });
+
+    test("oversized and blank messages are normalized before reaching the mutation", () => {
+        expect(normalizeInstallError("x".repeat(2 * 1024 * 1024))).toHaveLength(2000);
+        expect(normalizeInstallError("   ")).toBeUndefined();
+        expect(normalizeInstallError(undefined)).toBeUndefined();
+    });
+
+    test("error reports without a message leave no stale details", async () => {
+        const { t, computerId, releaseId, installId } = await setup();
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "ERROR", error: "first failure" });
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "ERROR" });
+        expect((await t.run((ctx) => ctx.db.get(installId)))?.error).toBeUndefined();
     });
 });

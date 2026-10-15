@@ -6,6 +6,7 @@
  */
 
 import { inventorySchema } from "./lib/hardware";
+import { normalizeInstallError } from "./lib/installError";
 import { z } from "zod";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -505,6 +506,9 @@ const installStateBodySchema = z.object({
   installed_at: z.number().optional(),
   last_seen_at: z.number().optional(),
   reinstall_requested_at: z.number().optional(),
+  // Why the release ended in ERROR; sent by clients that support error reporting.
+  // Normalized here so an oversized message cannot make the mutation reject the whole state report.
+  error: z.string().optional().transform(normalizeInstallError),
 });
 
 protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
@@ -514,7 +518,7 @@ protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "Invalid install state payload" }, 400);
   }
-  const { status, installed_at, last_seen_at, reinstall_requested_at } = parsed.data;
+  const { status, installed_at, last_seen_at, reinstall_requested_at, error } = parsed.data;
 
   if (!status) {
     return c.json({ error: "Missing status" }, 400);
@@ -530,6 +534,7 @@ protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
     installedAt: installed_at,
     lastSeenAt: last_seen_at,
     reinstallRequestedAt: reinstall_requested_at,
+    error,
   });
 
   return c.json({ status: "ok" });

@@ -13,6 +13,7 @@ import { type Doc, Id } from "./_generated/dataModel";
 import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
 import { internalMutation } from "./functions";
 import { normalizeTableId } from "./lib/idNormalization";
+import { normalizeInstallError } from "./lib/installError";
 import { versionSortKey } from "./lib/tableKeys";
 
 const APP_RELEASE_PREVIEW_LIMIT = 10;
@@ -499,8 +500,9 @@ export const updateInstallState = internalMutation({
         installedAt: v.optional(v.number()),
         lastSeenAt: v.optional(v.number()),
         reinstallRequestedAt: v.optional(v.number()),
+        error: v.optional(v.string()),
     },
-    handler: async (ctx, { computerId, releaseId, status, installedAt, lastSeenAt, reinstallRequestedAt }) => {
+    handler: async (ctx, { computerId, releaseId, status, installedAt, lastSeenAt, reinstallRequestedAt, error }) => {
         const normalizedComputerId = normalizeTableId(
             ctx.db,
             "computers",
@@ -544,6 +546,8 @@ export const updateInstallState = internalMutation({
             release_id: normalizedReleaseId,
             status_updated_at: now,
             last_seen_at: lastSeenAt ?? now,
+            // The error only describes the current ERROR state; any other status clears it.
+            error: status === "ERROR" ? normalizeInstallError(error) : undefined,
             ...(nextInstalledAt !== undefined
                 ? { installed_at: nextInstalledAt }
                 : {}),
@@ -979,6 +983,7 @@ export const getDeviceInstallStatus = withAuthQuery({
                     lastSeenAt: install.last_seen_at,
                     statusUpdatedAt: install.status_updated_at,
                     reinstallRequestedAt: install.reinstall_requested_at,
+                    error: install.error,
                 };
             });
 
@@ -1021,6 +1026,7 @@ export const getDeviceInstallStatusPaginated = withAuthQuery({
                     lastSeenAt: install.last_seen_at,
                     statusUpdatedAt: install.status_updated_at,
                     reinstallRequestedAt: install.reinstall_requested_at,
+                    error: install.error,
                 };
             })
         );
