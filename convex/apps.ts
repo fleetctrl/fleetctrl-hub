@@ -13,6 +13,7 @@ import { type Doc, Id } from "./_generated/dataModel";
 import { installStatusAggregate, INSTALL_STATUSES, InstallStatus } from "./lib/aggregate/installAggregate";
 import { internalMutation } from "./functions";
 import { normalizeTableId } from "./lib/idNormalization";
+import { normalizeInstallError } from "./lib/installError";
 import { versionSortKey } from "./lib/tableKeys";
 
 const APP_RELEASE_PREVIEW_LIMIT = 10;
@@ -484,13 +485,6 @@ export const getAuthorizedScript = internalQuery({
             : null;
     },
 });
-
-const MAX_INSTALL_ERROR_LENGTH = 2000;
-
-function normalizeInstallError(error: string | undefined) {
-    const trimmed = error?.trim();
-    return trimmed ? trimmed.slice(0, MAX_INSTALL_ERROR_LENGTH) : undefined;
-}
 
 export const updateInstallState = internalMutation({
     args: {

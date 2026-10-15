@@ -6,6 +6,7 @@
  */
 
 import { inventorySchema } from "./lib/hardware";
+import { normalizeInstallError } from "./lib/installError";
 import { z } from "zod";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -506,7 +507,8 @@ const installStateBodySchema = z.object({
   last_seen_at: z.number().optional(),
   reinstall_requested_at: z.number().optional(),
   // Why the release ended in ERROR; sent by clients that support error reporting.
-  error: z.string().optional(),
+  // Normalized here so an oversized message cannot make the mutation reject the whole state report.
+  error: z.string().optional().transform(normalizeInstallError),
 });
 
 protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
