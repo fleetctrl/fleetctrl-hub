@@ -81,3 +81,21 @@ describe("app reinstall requests", () => {
         ).rejects.toThrow("no longer assigned");
     });
 });
+
+describe("install error details", () => {
+    test("error reports store the message and later states clear it", async () => {
+        const { t, computerId, releaseId, installId } = await setup();
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "ERROR", error: "  install failed: exit code 1603  " });
+        expect((await t.run((ctx) => ctx.db.get(installId)))?.error).toBe("install failed: exit code 1603");
+
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "INSTALLED" });
+        expect((await t.run((ctx) => ctx.db.get(installId)))?.error).toBeUndefined();
+    });
+
+    test("error reports without a message leave no stale details", async () => {
+        const { t, computerId, releaseId, installId } = await setup();
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "ERROR", error: "first failure" });
+        await t.mutation(internal.apps.updateInstallState, { computerId, releaseId, status: "ERROR" });
+        expect((await t.run((ctx) => ctx.db.get(installId)))?.error).toBeUndefined();
+    });
+});
