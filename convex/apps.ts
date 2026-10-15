@@ -1051,6 +1051,28 @@ export const getDeviceInstallStatusSummary = withAuthQuery({
 
 const REINSTALLABLE_STATUSES = new Set<Doc<"computer_apps_installs">["status"]>(["INSTALLED", "ERROR"]);
 
+async function getActiveReleaseIds(ctx: AssignmentLookupCtx, appId: Id<"apps">) {
+    const releases = await ctx.db
+        .query("releases")
+        .withIndex("by_app_id", (q) => q.eq("app_id", appId))
+        .collect();
+    return new Set(releases.filter((release) => !release.disabled_at).map((release) => release._id.toString()));
+}
+
+// Mirrors getAssigned: the client only sees (and can acknowledge) reinstall requests for apps it is currently assigned.
+async function isAppAssignedToComputer(
+    ctx: AssignmentLookupCtx,
+    computerId: Id<"computers">,
+    activeReleaseIds: Set<string>
+) {
+    const assignments = await getReleaseAssignmentsForComputer(ctx, computerId);
+    return assignments.some(
+        (assignment) =>
+            assignment.assign_type !== "exclude" &&
+            activeReleaseIds.has(assignment.release_id.toString())
+    );
+}
+
 /**
  * Ask the client to uninstall and install the app again on one computer.
  */
@@ -1062,13 +1084,17 @@ export const requestReinstall = withAuthMutation({
         if (!REINSTALLABLE_STATUSES.has(install.status)) {
             throw new Error("Only installed or failed apps can be reinstalled");
         }
+        const activeReleaseIds = await getActiveReleaseIds(ctx, install.app_id);
+        if (!(await isAppAssignedToComputer(ctx, install.computer_id, activeReleaseIds))) {
+            throw new Error("App is no longer assigned to this computer");
+        }
         await ctx.db.patch("computer_apps_installs", installId, { reinstall_requested_at: Date.now() });
         return { success: true };
     },
 });
 
 /**
- * Ask every computer that has the app installed (or failed to install it) to reinstall it.
+ * Ask every computer that is still assigned the app and has it installed (or failed to install it) to reinstall it.
  */
 export const requestReinstallForApp = withAuthMutation({
     args: { appId: v.id("apps") },
@@ -1077,10 +1103,12 @@ export const requestReinstallForApp = withAuthMutation({
             .query("computer_apps_installs")
             .withIndex("by_app_id", (q) => q.eq("app_id", appId))
             .collect();
+        const activeReleaseIds = await getActiveReleaseIds(ctx, appId);
         const now = Date.now();
         let requested = 0;
         for (const install of installs) {
             if (!REINSTALLABLE_STATUSES.has(install.status)) continue;
+            if (!(await isAppAssignedToComputer(ctx, install.computer_id, activeReleaseIds))) continue;
             await ctx.db.patch("computer_apps_installs", install._id, { reinstall_requested_at: now });
             requested++;
         }

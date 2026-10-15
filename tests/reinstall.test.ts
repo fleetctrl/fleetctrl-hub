@@ -55,4 +55,29 @@ describe("app reinstall requests", () => {
         expect((await t.run((ctx) => ctx.db.get(installId)))?.reinstall_requested_at).toBeGreaterThan(100);
         expect((await t.run((ctx) => ctx.db.get(pendingId)))?.reinstall_requested_at).toBeUndefined();
     });
+
+    test("unassigned devices are not targeted", async () => {
+        const { t, appId, releaseId, installId } = await setup();
+        const orphanId = await t.run(async (ctx) => {
+            const computerId = await ctx.db.insert("computers", { name: "left-group" });
+            return ctx.db.insert("computer_apps_installs", { computer_id: computerId, app_id: appId, release_id: releaseId, status: "INSTALLED" });
+        });
+        const admin = t.withIdentity({ subject: "admin" });
+
+        const result = await admin.mutation(api.apps.requestReinstallForApp, { appId });
+        expect(result.requested).toBe(1);
+        expect((await t.run((ctx) => ctx.db.get(orphanId)))?.reinstall_requested_at).toBeUndefined();
+
+        await expect(admin.mutation(api.apps.requestReinstall, { installId: orphanId })).rejects.toThrow("no longer assigned");
+        await admin.mutation(api.apps.requestReinstall, { installId });
+        expect((await t.run((ctx) => ctx.db.get(installId)))?.reinstall_requested_at).toBeGreaterThan(100);
+    });
+
+    test("disabled releases do not count as an assignment", async () => {
+        const { t, releaseId, installId } = await setup();
+        await t.run((ctx) => ctx.db.patch(releaseId, { disabled_at: 1 }));
+        await expect(
+            t.withIdentity({ subject: "admin" }).mutation(api.apps.requestReinstall, { installId })
+        ).rejects.toThrow("no longer assigned");
+    });
 });
