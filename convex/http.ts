@@ -6,6 +6,7 @@
  */
 
 import { inventorySchema } from "./lib/hardware";
+import { z } from "zod";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { httpRouter } from "convex/server";
@@ -499,15 +500,21 @@ protectedApi.get("/apps/script/download/:scriptId", async (c) => {
   return c.redirect(downloadUrl as string, 307);
 });
 
+const installStateBodySchema = z.object({
+  status: z.string().optional(),
+  installed_at: z.number().optional(),
+  last_seen_at: z.number().optional(),
+  reinstall_requested_at: z.number().optional(),
+});
+
 protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
   const computerId = c.var.computerId;
   const releaseId = c.req.param("releaseId");
-  const body = await c.req.json();
-  const { status, installed_at, last_seen_at } = body as {
-    status?: string;
-    installed_at?: number;
-    last_seen_at?: number;
-  };
+  const parsed = installStateBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "Invalid install state payload" }, 400);
+  }
+  const { status, installed_at, last_seen_at, reinstall_requested_at } = parsed.data;
 
   if (!status) {
     return c.json({ error: "Missing status" }, 400);
@@ -522,6 +529,7 @@ protectedApi.patch("/apps/release/:releaseId/state", async (c) => {
     status: status as InstallStateStatus,
     installedAt: installed_at,
     lastSeenAt: last_seen_at,
+    reinstallRequestedAt: reinstall_requested_at,
   });
 
   return c.json({ status: "ok" });

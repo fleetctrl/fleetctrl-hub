@@ -240,6 +240,8 @@ export default defineSchema({
         installed_at: v.optional(v.number()),
         last_seen_at: v.optional(v.number()),
         status_updated_at: v.optional(v.number()),
+        // Set by an admin to make the client uninstall and install the app again; cleared when the client acknowledges it.
+        reinstall_requested_at: v.optional(v.number()),
     })
         .index("by_computer_id", ["computer_id"])
         .index("by_app_id", ["app_id"])
