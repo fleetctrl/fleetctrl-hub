@@ -1,4 +1,4 @@
-import { KeysTable } from "../../../modules/keys/table/keys-data-table";
+import { KeysTable } from "@/features/device-auth/ui";
 import PageWrapper from "@/components/page-wrapper";
 import {
   Breadcrumb,

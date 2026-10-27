@@ -23,19 +23,9 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV SKIP_ENV_VALIDATION=true
 
-    # Arguments for build
-    ARG CONVEX_SITE_URL
-    ARG NEXT_PUBLIC_CONVEX_URL
-    ARG NEXT_PUBLIC_CONVEX_SITE_URL
-    ARG NEXT_PUBLIC_SITE_URL
-    ARG NEXT_PUBLIC_ALLOW_REGISTRATION
-
-    # Set environment variables for build
-    # ENV CONVEX_SITE_URL=_CONVEX_SITE_URL_
-    ENV NEXT_PUBLIC_CONVEX_URL=_NEXT_PUBLIC_CONVEX_URL_
-    ENV NEXT_PUBLIC_CONVEX_SITE_URL=_NEXT_PUBLIC_CONVEX_SITE_URL_
-    ENV NEXT_PUBLIC_SITE_URL=_NEXT_PUBLIC_SITE_URL_
-    ENV NEXT_PUBLIC_ALLOW_REGISTRATION=_NEXT_PUBLIC_ALLOW_REGISTRATION_
+# Placeholders, replaced with the runtime values by docker/scripts/entrypoint.sh
+ENV NEXT_PUBLIC_SITE_URL=_NEXT_PUBLIC_SITE_URL_
+ENV NEXT_PUBLIC_ALLOW_REGISTRATION=_NEXT_PUBLIC_ALLOW_REGISTRATION_
 
 RUN pnpm build
 
@@ -59,8 +49,6 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/convex ./convex
-COPY --from=builder --chown=nextjs:nodejs /app/src/lib ./src/lib
 
 USER nextjs
 

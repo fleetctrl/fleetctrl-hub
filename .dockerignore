@@ -4,7 +4,8 @@ node_modules
 .pnp
 .pnp.js
 
-# Next.js build output
+# Build output
+dist
 .next
 out
 tsconfig.tsbuildinfo

@@ -5,7 +5,7 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 import PageWrapper from "@/components/page-wrapper";
-import { GroupsTabs } from "@/modules/groups/groups-tabs";
+import { GroupsTabs } from "@/features/groups/ui";
 
 export default async function GroupsPage() {
   return (

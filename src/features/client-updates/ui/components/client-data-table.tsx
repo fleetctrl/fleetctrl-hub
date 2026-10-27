@@ -1,0 +1,263 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import { Upload, Github } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+import {
+  clientColumns,
+  type ClientUpdateRow,
+  type ClientUpdatesTableMeta,
+} from "./client-table-columns";
+import { toast } from "sonner";
+import { uploadFile as uploadStoredFile } from "@/features/files/ui";
+import { VirtualTable } from "@/components/virtual-table";
+import { useActiveClientUpdate, useClientUpdatesPaginated, useCreateClientUpdate } from "../api";
+
+const PAGE_SIZE = 50;
+
+const formatDateTime = (timestamp: number) =>
+  new Date(timestamp).toLocaleString("cs-CZ", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+export function ClientUpdatesTable() {
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [version, setVersion] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const query = useClientUpdatesPaginated({ initialNumItems: PAGE_SIZE });
+  const clientUpdates = query.results;
+  const activeUpdate = useActiveClientUpdate();
+
+  const createUpdate = useCreateClientUpdate();
+
+  const resetForm = () => {
+    setUploadFile(null);
+    setVersion("");
+    setNotes("");
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFile || !version.trim()) {
+      toast.error("Please provide a file and version");
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const uploadedFile = await uploadStoredFile(uploadFile);
+
+      await createUpdate({
+        version: version.trim(),
+        storageId: uploadedFile.storageId,
+        hash: uploadedFile.hash,
+        byte_size: uploadedFile.size,
+        file_name: uploadedFile.name,
+        mime_type: uploadedFile.type,
+        notes: notes.trim() || undefined,
+      });
+
+      toast.success("Client version uploaded successfully");
+      setUploadDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Compare semantic versions
+  const compareSemver = (a: string, b: string): number => {
+    const normalize = (v: string) =>
+      v
+        .replace(/^v/i, "")
+        .split(/[.-]/)
+        .map((p) => parseInt(p, 10) || 0);
+    const partsA = normalize(a);
+    const partsB = normalize(b);
+    const maxLen = Math.max(partsA.length, partsB.length);
+
+    for (let i = 0; i < maxLen; i++) {
+      const numA = partsA[i] ?? 0;
+      const numB = partsB[i] ?? 0;
+      if (numA !== numB) return numA - numB;
+    }
+    return 0;
+  };
+
+  const rows: ClientUpdateRow[] = useMemo(() => {
+    if (!clientUpdates) return [];
+    return clientUpdates
+      .map((update) => ({
+        id: update._id,
+        version: update.version,
+        hash: update.hash,
+        byte_size: update.byte_size,
+        file_name: update.file_name ?? null,
+        mime_type: update.mime_type ?? null,
+        is_active: update.is_active,
+        notes: update.notes ?? null,
+        createdAtFormatted: formatDateTime(update._creationTime),
+      }))
+      .sort((a, b) => compareSemver(b.version, a.version));
+  }, [clientUpdates]);
+
+  const table = useReactTable<ClientUpdateRow>({
+    data: rows,
+    columns: clientColumns,
+    getCoreRowModel: getCoreRowModel(),
+    meta: {
+      onActionComplete: () => {
+        // No-op for Convex (automatic reactivity)
+      },
+    } satisfies ClientUpdatesTableMeta,
+  });
+
+  const activeVersion = activeUpdate
+    ? { version: activeUpdate.version }
+    : undefined;
+
+  return (
+    <div className="flex w-full flex-col gap-4 pb-10">
+      <div className="flex flex-col items-center gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">FleetCtrl Client Updates</h2>
+          <p className="text-sm text-muted-foreground flex flex-col">
+            <span>
+              Manage client versions for automatic updates on enrolled
+              computers.
+            </span>
+            {activeVersion && (
+              <span className="font-medium text-green-600">
+                Active: {activeVersion.version}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <a
+              href="https://github.com/fleetctrl/fleetctrl-client/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Github className="mr-2 h-4 w-4" />
+              GitHub Releases
+            </a>
+          </Button>
+          <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Version
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Upload Client Version</DialogTitle>
+                <DialogDescription>
+                  Upload a new FleetCtrl client binary. The hash will be
+                  calculated automatically for integrity verification.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="version">Version</Label>
+                  <Input
+                    id="version"
+                    placeholder="v0.4.1"
+                    value={version}
+                    onChange={(e) => setVersion(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="file">Binary File</Label>
+                  <Input
+                    id="file"
+                    type="file"
+                    accept=".exe,.msi"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  />
+                  {uploadFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {uploadFile.name} (
+                      {(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="notes">Release Notes (optional)</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="What's new in this version..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setUploadDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpload}
+                  disabled={isUploading || !uploadFile || !version.trim()}
+                >
+                  {isUploading ? "Uploading..." : "Upload"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <p className="rounded-sm border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
+        Clients report their version via{" "}
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
+          X-Client-Version
+        </code>{" "}
+        header. When outdated, they receive update instructions via{" "}
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
+          X-Client-Update
+        </code>{" "}
+        response header.
+      </p>
+
+      <VirtualTable
+        table={table}
+        ariaLabel="Client updates"
+        emptyMessage="No client versions uploaded yet. Upload one to enable automatic updates."
+        isInitialLoading={query.status === "LoadingFirstPage"}
+        isLoadingMore={query.status === "LoadingMore"}
+        hasMore={query.status === "CanLoadMore"}
+        onLoadMore={() => query.loadMore(PAGE_SIZE)}
+      />
+    </div>
+  );
+}

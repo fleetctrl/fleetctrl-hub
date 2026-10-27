@@ -25,10 +25,10 @@ RUSTFS_API_PORT="${TEST_DOCKER_RUSTFS_API_PORT:-${DEFAULT_RUSTFS_API_PORT}}"
 RUSTFS_CONSOLE_PORT="${TEST_DOCKER_RUSTFS_CONSOLE_PORT:-${DEFAULT_RUSTFS_CONSOLE_PORT}}"
 BASE_URL="${TEST_DOCKER_BASE_URL:-https://localhost:${HTTPS_PORT}}"
 
-CONVEX_CONTAINER_NAME="${CONVEX_CONTAINER_NAME:-${PROJECT_NAME}-convex}"
+API_CONTAINER_NAME="${API_CONTAINER_NAME:-${PROJECT_NAME}-api}"
 HUB_CONTAINER_NAME="${HUB_CONTAINER_NAME:-${PROJECT_NAME}-hub}"
-MIGRATION_CONTAINER_NAME="${MIGRATION_CONTAINER_NAME:-${PROJECT_NAME}-convex-migration}"
 PROXY_CONTAINER_NAME="${PROXY_CONTAINER_NAME:-${PROJECT_NAME}-proxy}"
+API_IMAGE="${API_IMAGE:-${PROJECT_NAME}-api:smoke}"
 
 RUN_DIR="$(mktemp -d "${TMP_ROOT}/${PROJECT_NAME}.XXXXXX")"
 ENV_FILE="${RUN_DIR}/docker.env"
@@ -42,6 +42,8 @@ ANON_HEADERS="${RUN_DIR}/anon.headers"
 PAGE_HEADERS="${RUN_DIR}/page.headers"
 PAGE_BODY="${RUN_DIR}/page.body"
 COOKIE_JAR="${RUN_DIR}/cookies.txt"
+API_BODY="${RUN_DIR}/api.body"
+UPLOAD_FILE="${RUN_DIR}/upload.bin"
 
 ESC=$(printf '\033')
 RESET="${ESC}[0m"
@@ -58,6 +60,10 @@ STEP_ANON_REDIRECT="[ ]"
 STEP_SIGNUP="[ ]"
 STEP_SIGNIN="[ ]"
 STEP_AUTH_PROTECTED="[ ]"
+STEP_ADMIN_API="[ ]"
+STEP_UPLOAD="[ ]"
+STEP_PRESENCE="[ ]"
+STEP_DEVICE_API="[ ]"
 
 # The ephemeral curl container may run as a non-root user, so make the mounted
 # artifact directory writable before using -D/-o with bind-mounted paths.
@@ -71,6 +77,7 @@ touch \
   "${ANON_HEADERS}" \
   "${PAGE_HEADERS}" \
   "${PAGE_BODY}" \
+  "${API_BODY}" \
   "${COOKIE_JAR}"
 chmod 0666 \
   "${SIGNUP_HEADERS}" \
@@ -81,6 +88,7 @@ chmod 0666 \
   "${ANON_HEADERS}" \
   "${PAGE_HEADERS}" \
   "${PAGE_BODY}" \
+  "${API_BODY}" \
   "${COOKIE_JAR}"
 
 cleanup() {
@@ -107,10 +115,10 @@ trap cleanup EXIT HUP INT TERM
 compose() {
   DOCKER_ENV_FILE="${ENV_FILE}" \
   CADDYFILE_PATH="${CADDYFILE_PATH}" \
-  CONVEX_CONTAINER_NAME="${CONVEX_CONTAINER_NAME}" \
+  API_CONTAINER_NAME="${API_CONTAINER_NAME}" \
   HUB_CONTAINER_NAME="${HUB_CONTAINER_NAME}" \
-  MIGRATION_CONTAINER_NAME="${MIGRATION_CONTAINER_NAME}" \
   PROXY_CONTAINER_NAME="${PROXY_CONTAINER_NAME}" \
+  API_IMAGE="${API_IMAGE}" \
   docker compose \
     --project-name "${PROJECT_NAME}" \
     --env-file "${ENV_FILE}" \
@@ -119,7 +127,9 @@ compose() {
 }
 
 curl_run() {
+  # Run as the invoking user, so the cookie jar curl rewrites stays readable by this script.
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --network host \
     -v "${RUN_DIR}:${RUN_DIR}" \
     "${CURL_IMAGE}" \
@@ -128,12 +138,6 @@ curl_run() {
 
 write_env_file() {
   cat > "${ENV_FILE}" <<EOF
-CONVEX_URL=http://convex:3210
-CONVEX_DATA_DIR=convex-data
-NEXT_PUBLIC_CONVEX_URL=${BASE_URL}
-NEXT_PUBLIC_CONVEX_SITE_URL=${BASE_URL}
-CONVEX_SITE_URL=${BASE_URL}
-CONVEX_SITE_INTERNAL_URL=http://convex:3211
 SITE_URL=${BASE_URL}
 NEXT_PUBLIC_SITE_URL=${BASE_URL}
 PROXY_HTTP_PORT=${HTTP_PORT}
@@ -148,7 +152,8 @@ JWT_SECRET=test-jwt-secret-0123456789abcdef
 API_URL=${BASE_URL}/api
 ALLOW_REGISTRATION=true
 NEXT_PUBLIC_ALLOW_REGISTRATION=true
-CONVEX_DEPLOY_KEY=placeholder-admin-key
+POSTGRES_USER=fleetctrl
+POSTGRES_DB=fleetctrl
 POSTGRES_PASSWORD=test-postgres-password
 POSTGRES_DATA_DIR=postgres_data
 RUSTFS_ACCESS_KEY=rustfsadmin
@@ -156,6 +161,7 @@ RUSTFS_SECRET_KEY=rustfs-secret-key
 RUSTFS_SERVER_DOMAINS=localhost,rustfs
 RUSTFS_DATA_DIR=rustfs-data
 RUSTFS_CONSOLE_ENABLE=true
+S3_BUCKET=fleetctrl-files
 EOF
 }
 
@@ -189,28 +195,6 @@ wait_for_https() {
 
   echo "Proxy did not start responding on ${BASE_URL}" >&2
   return 1
-}
-
-generate_admin_key() {
-  compose exec -T convex ./generate_admin_key.sh \
-    | tr -d '\r' \
-    | awk '/^convex-self-hosted\|/ { key=$0 } END { print key }'
-}
-
-set_convex_env() {
-  assignment="$1"
-  compose run --rm --no-deps convex-migration \
-    npx convex env set "${assignment}" \
-    --url "http://convex:3210" \
-    --admin-key "${ADMIN_KEY}" >/dev/null
-}
-
-deploy_convex() {
-  compose run --rm --no-deps convex-migration \
-    npx convex deploy \
-    --url "http://convex:3210" \
-    --admin-key "${ADMIN_KEY}" \
-    --yes >/dev/null
 }
 
 assert_http_code() {
@@ -253,45 +237,32 @@ print_success_summary() {
   printf '  %sTest user:%s %s\n' "${DIM}" "${RESET}" "${TEST_EMAIL}"
   printf '\n'
   printf '%sChecklist%s\n' "${BOLD}" "${RESET}"
-  printf '  %s %s Convex dependencies started\n' "${GREEN}" "${STEP_DEPENDENCIES}${RESET}"
-  printf '  %s %s Hub and migration images built\n' "${GREEN}" "${STEP_BUILD}${RESET}"
-  printf '  %s %s Convex environment synced and deployed\n' "${GREEN}" "${STEP_DEPLOY}${RESET}"
+  printf '  %s %s Hub and API images built\n' "${GREEN}" "${STEP_BUILD}${RESET}"
+  printf '  %s %s Postgres migrated, RustFS bucket created, API healthy\n' "${GREEN}" "${STEP_DEPENDENCIES}${RESET}"
+  printf '  %s %s All services behind Caddy\n' "${GREEN}" "${STEP_DEPLOY}${RESET}"
   printf '  %s %s Public sign-in page reachable\n' "${GREEN}" "${STEP_SIGNIN_PAGE}${RESET}"
   printf '  %s %s Anonymous access redirected\n' "${GREEN}" "${STEP_ANON_REDIRECT}${RESET}"
   printf '  %s %s User registration works\n' "${GREEN}" "${STEP_SIGNUP}${RESET}"
   printf '  %s %s Sign-in persists session cookie\n' "${GREEN}" "${STEP_SIGNIN}${RESET}"
   printf '  %s %s Authenticated protected access works\n' "${GREEN}" "${STEP_AUTH_PROTECTED}${RESET}"
+  printf '  %s %s Admin API requires a session and serves data\n' "${GREEN}" "${STEP_ADMIN_API}${RESET}"
+  printf '  %s %s File upload streams to RustFS with a server-side hash\n' "${GREEN}" "${STEP_UPLOAD}${RESET}"
+  printf '  %s %s Presence stream (SSE) is not buffered by Caddy\n' "${GREEN}" "${STEP_PRESENCE}${RESET}"
+  printf '  %s %s Device API answers with the v2 contract\n' "${GREEN}" "${STEP_DEVICE_API}${RESET}"
   printf '\n'
 }
 
 write_env_file
 copy_caddyfile
 
-echo "Starting Convex dependencies for Docker deployment smoke test..."
-compose up -d rustfs rustfs-init convex
-wait_for_health "${CONVEX_CONTAINER_NAME}" "Convex backend"
-STEP_DEPENDENCIES="[x]"
-
-ADMIN_KEY="$(generate_admin_key)"
-if [ -z "${ADMIN_KEY}" ]; then
-  echo "Failed to generate a Convex admin key" >&2
-  exit 1
-fi
-sed -i "s/^CONVEX_DEPLOY_KEY=.*/CONVEX_DEPLOY_KEY=${ADMIN_KEY}/" "${ENV_FILE}"
-
-echo "Building and starting the remaining Docker deployment services..."
-compose build hub convex-migration
-compose up -d hub proxy
+echo "Building hub and API images..."
+compose build hub api
 STEP_BUILD="[x]"
 
-echo "Syncing Convex environment and deploying functions..."
-set_convex_env "SITE_URL=${BASE_URL}"
-set_convex_env "BETTER_AUTH_SECRET=test-better-auth-secret-0123456789abcdef"
-set_convex_env "JWT_SECRET=test-jwt-secret-0123456789abcdef"
-set_convex_env "API_URL=${BASE_URL}/api"
-set_convex_env "ALLOW_REGISTRATION=true"
-set_convex_env "CONVEX_SITE_INTERNAL_URL=http://127.0.0.1:3211"
-deploy_convex
+echo "Starting the Docker deployment (Postgres, RustFS, migrations, API, hub, proxy)..."
+compose up -d
+wait_for_health "${API_CONTAINER_NAME}" "API"
+STEP_DEPENDENCIES="[x]"
 STEP_DEPLOY="[x]"
 
 wait_for_https
@@ -357,5 +328,44 @@ protected_code="$(curl_run -ksS \
   "${BASE_URL}/dashboard")"
 assert_http_code "${protected_code}" "200" "Authenticated protected request"
 STEP_AUTH_PROTECTED="[x]"
+
+echo "Checking the admin API..."
+anon_api_code="$(curl_run -ksS -o /dev/null -w '%{http_code}' "${BASE_URL}/api/admin/computers/all")"
+assert_http_code "${anon_api_code}" "401" "Admin API without a session"
+admin_code="$(curl_run -ksS -b "${COOKIE_JAR}" -o "${API_BODY}" -w '%{http_code}' "${BASE_URL}/api/admin/computers/all")"
+assert_http_code "${admin_code}" "200" "Admin API with a session"
+assert_contains "${API_BODY}" "^\\[" "Computer list"
+STEP_ADMIN_API="[x]"
+
+echo "Uploading a file through the admin API..."
+head -c 3145728 /dev/urandom > "${UPLOAD_FILE}"
+chmod 0644 "${UPLOAD_FILE}"
+upload_code="$(curl_run -ksS -b "${COOKIE_JAR}" -o "${API_BODY}" -w '%{http_code}' \
+  -X PUT -H "Content-Type: application/octet-stream" -H "X-File-Name: smoke.msi" \
+  --data-binary "@${UPLOAD_FILE}" "${BASE_URL}/api/admin/files")"
+assert_http_code "${upload_code}" "201" "File upload"
+expected_sha="$(sha256sum "${UPLOAD_FILE}" | cut -d' ' -f1)"
+assert_contains "${API_BODY}" "${expected_sha}" "Upload response (server-computed SHA-256)"
+assert_contains "${API_BODY}" "application/x-msi" "Upload response (MSI content type)"
+STEP_UPLOAD="[x]"
+
+echo "Checking the presence stream..."
+curl_run -ksS -N -b "${COOKIE_JAR}" --max-time 3 -o "${API_BODY}" "${BASE_URL}/api/admin/computers/presence" || true
+assert_contains "${API_BODY}" ": connected" "Presence stream"
+STEP_PRESENCE="[x]"
+
+echo "Checking the device API..."
+health_code="$(curl_run -ksS -o "${API_BODY}" -w '%{http_code}' "${BASE_URL}/api/health")"
+assert_http_code "${health_code}" "200" "Device API health"
+assert_contains "${API_BODY}" '"status":"ok"' "Device API health"
+version_code="$(curl_run -ksS -o "${API_BODY}" -w '%{http_code}' "${BASE_URL}/api/client/version")"
+assert_http_code "${version_code}" "200" "Client version"
+enrolled_code="$(curl_run -ksS -o "${API_BODY}" -w '%{http_code}' "${BASE_URL}/api/devices/unknown-device/is-enrolled")"
+assert_http_code "${enrolled_code}" "404" "is-enrolled for an unknown device"
+assert_contains "${API_BODY}" '"is_enrolled":false' "is-enrolled for an unknown device"
+tasks_code="$(curl_run -ksS -o "${API_BODY}" -w '%{http_code}' "${BASE_URL}/api/tasks")"
+assert_http_code "${tasks_code}" "401" "Protected device route without DPoP"
+assert_contains "${API_BODY}" "Missing DPoP header" "Protected device route without DPoP"
+STEP_DEVICE_API="[x]"
 
 print_success_summary

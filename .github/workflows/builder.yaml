@@ -18,7 +18,7 @@ jobs:
 
     env:
       IMAGE_NAME: fleetctrl-hub
-      MIGRATION_IMAGE_NAME: fleetctrl-convex-migration
+      API_IMAGE_NAME: fleetctrl-api
       # GHCR
       GHCR_REGISTRY: ghcr.io
 
@@ -58,7 +58,7 @@ jobs:
           echo "OWNER_LC=$OWNER_LC" >> "$GITHUB_ENV"
 
           echo "GHCR_IMAGE=${{ env.GHCR_REGISTRY }}/$OWNER_LC/${{ env.IMAGE_NAME }}" >> "$GITHUB_ENV"
-          echo "GHCR_MIGRATION_IMAGE=${{ env.GHCR_REGISTRY }}/$OWNER_LC/${{ env.MIGRATION_IMAGE_NAME }}" >> "$GITHUB_ENV"
+          echo "GHCR_API_IMAGE=${{ env.GHCR_REGISTRY }}/$OWNER_LC/${{ env.API_IMAGE_NAME }}" >> "$GITHUB_ENV"
 
       - name: Build and push app (GHCR)
         uses: docker/build-push-action@v6
@@ -76,15 +76,17 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ env.FULL_VERSION }}
 
-      - name: Build and push convex-migration image (GHCR)
+      # Device API, Better Auth and admin API; also runs db-migrate and the Convex importer.
+      # (fleetctrl-convex-migration is no longer built: v2 installs keep their pinned tag for the export.)
+      - name: Build and push API image (GHCR)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.convex-migration
+          file: ./Dockerfile.api
           push: true
           tags: |
-            ${{ env.GHCR_MIGRATION_IMAGE }}:${{ env.FULL_VERSION }}
-            ${{ env.GHCR_MIGRATION_IMAGE }}:latest
+            ${{ env.GHCR_API_IMAGE }}:${{ env.FULL_VERSION }}
+            ${{ env.GHCR_API_IMAGE }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

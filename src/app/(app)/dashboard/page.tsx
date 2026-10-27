@@ -1,6 +1,6 @@
 "use server";
 import PageWrapper from "@/components/page-wrapper";
-import { DashboardContent } from "../../../modules/dashboard/dashboard-content";
+import { DashboardContent } from "@/features/dashboard/ui";
 import {
   Breadcrumb,
   BreadcrumbItem,

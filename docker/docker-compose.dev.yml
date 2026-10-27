@@ -1,0 +1,56 @@
+# Local development dependencies: Postgres and RustFS only. Run the API (`pnpm dev:api`) and the
+# dashboard (`pnpm dev`) on the host against them; see README.md.
+name: fleetctrl-dev
+services:
+  postgres:
+    image: postgres:17.9
+    environment:
+      POSTGRES_USER: fleetctrl
+      POSTGRES_PASSWORD: fleetctrl
+      POSTGRES_DB: fleetctrl
+    ports:
+      - "${DEV_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - dev-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleetctrl -d fleetctrl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    ports:
+      - "${DEV_RUSTFS_PORT:-9100}:9000"
+    volumes:
+      - dev-rustfs:/data
+    command: ["--address", ":9000", "--access-key", "rustfsadmin", "--secret-key", "rustfsadmin", "/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rustfs-init:
+    image: amazon/aws-cli:latest
+    environment:
+      - AWS_ACCESS_KEY_ID=rustfsadmin
+      - AWS_SECRET_ACCESS_KEY=rustfsadmin
+      - AWS_REGION=us-east-1
+      - AWS_ENDPOINT_URL_S3=http://rustfs:9000
+      - AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+      - AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        aws configure set default.s3.addressing_style path
+        until aws s3api list-buckets > /dev/null; do sleep 2; done
+        aws s3api head-bucket --bucket fleetctrl-files 2>/dev/null || aws s3api create-bucket --bucket fleetctrl-files
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  dev-postgres:
+  dev-rustfs:

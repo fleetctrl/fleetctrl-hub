@@ -3,8 +3,7 @@ import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
-import { getToken } from "@/lib/auth-server";
+import { QueryProvider } from "@/lib/api/query-provider";
 import { env } from "@/lib/env";
 
 const defaultUrl = env.VERCEL_URL
@@ -20,18 +19,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Get initial token for SSR
-  const initialToken = await getToken();
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ConvexClientProvider initialToken={initialToken}>
+        <QueryProvider>
           <NuqsAdapter>
             <Toaster />
             <ThemeProvider
@@ -43,7 +39,7 @@ export default async function RootLayout({
               {children}
             </ThemeProvider>
           </NuqsAdapter>
-        </ConvexClientProvider>
+        </QueryProvider>
       </body>
     </html>
   );

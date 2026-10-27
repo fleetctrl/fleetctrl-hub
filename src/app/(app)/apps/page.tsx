@@ -5,7 +5,7 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 import PageWrapper from "@/components/page-wrapper";
-import { AppsTable } from "@/modules/apps/table/apps-table";
+import { AppsTable } from "@/features/apps/ui";
 
 export default async function AppsPage() {
   return (

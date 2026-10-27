@@ -1,191 +1,90 @@
-# Local Docker Environment
+# Docker Environment
 
-This directory contains a fully local setup for the Fleetctrl Hub, including a self-hosted Convex instance and an HTTPS proxy provided by Caddy.
+This directory contains the Docker setup for FleetCtrl Hub: the dashboard, the API, PostgreSQL, RustFS and a Caddy
+proxy that terminates HTTPS.
 
 ## Services
 
-- **Hub**: The Next.js application (production build).
-- **Convex**: A self-hosted instance of the Convex backend.
-- **RustFS**: S3-compatible object storage used by Convex for file and snapshot storage.
-- **Proxy**: Caddy handling HTTPS termination and routing.
-- **Convex Migration**: A utility container for running Convex deployment, env sync, backup, restore, and migration commands.
+- **hub**: the Next.js dashboard (UI only).
+- **api**: the Hono API: device API (`/api/*`), Better Auth (`/auth/*`) and the dashboard's admin API (`/api/admin/*`).
+- **db-migrate**: one-shot container (API image) that applies the SQL migrations before the API starts.
+- **postgres**: PostgreSQL 17; the API uses the `fleetctrl` database.
+- **rustfs** / **rustfs-init**: S3-compatible storage for installers, scripts and client updates (bucket `fleetctrl-files`).
+  RustFS is internal: the API streams downloads to devices.
+- **proxy**: Caddy. `/auth*` goes to the API unchanged, `/api*` goes to the API with `/api` stripped, everything else
+  goes to the hub. Devices sign DPoP proofs for `API_URL` + path, so this layout must not change.
 
-## Prerequisites
+Files:
 
-- Docker and Docker Compose installed.
+- `docker-compose.production.yml`: published images (`ghcr.io/fleetctrl/fleetctrl-hub`, `ghcr.io/fleetctrl/fleetctrl-api`).
+- `docker-compose.yml`: builds both images from this repository.
+- `docker-compose.dev.yml`: only Postgres and RustFS, for running the API and dashboard on the host (see the main README).
 
-## Usage
-
-### Production Setup via curl
-
-If you only want to run the production Docker stack, use the bootstrap script. It downloads the required files into a fresh directory and prints the setup command to run next.
+## Production Setup via curl
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | bash
-```
-
-Notes:
-
-- The script creates a `fleetctrl-hub` directory in your current location and downloads the required files into it.
-- It stores `docker-compose.production.yml` as `docker-compose.yml`, because `manage.sh` expects Docker Compose's default filename.
-- It downloads both `Caddyfile.proxy` and `Caddyfile.standalone`; the setup flow copies the correct file to `Caddyfile`.
-
-Then run:
-
-```bash
 cd fleetctrl-hub
 ./manage.sh setup
 ```
 
-To change the installation directory:
+The script downloads `docker-compose.production.yml` as `docker-compose.yml` (manage.sh uses Compose's default file
+name), both Caddyfiles, `.env.example` and `manage.sh`. Setup asks for the site URL, ports, storage directories and the
+TLS mode, generates the secrets, and starts everything. To install elsewhere, set `INSTALL_DIR=my-fleetctrl`.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/fleetctrl/fleetctrl-hub/main/docker/install.sh | INSTALL_DIR=my-fleetctrl bash
-```
+## manage.sh
 
-### Local Dev Mode (No Rebuild on Code Change)
+| Command | What it does |
+| --- | --- |
+| `setup` | First-time installation and configuration |
+| `update` | Backup, pull newer images (or offer to update pinned tags), restart; migrations run automatically |
+| `backup` | `pg_dump` of the `fleetctrl` database plus a copy of the bucket, into `backups/backup-<date>/` |
+| `restore` | Restores one of those backups (replaces the current data) |
+| `migrate-from-convex` | Upgrades a v2 (Convex) installation to v3, see below |
+| `rollback-to-convex` | Returns to v2 after an upgrade; changes made on v3 are lost |
+| `cleanup-convex` | Removes the Convex container, volume, database and buckets once v3 is confirmed |
+| `self-update` | Downloads the latest `manage.sh` |
 
-Use the dev override compose file to run Next.js in watch mode with source mounted from your host.
-
-```bash
-cd docker
-./dev.sh up
-```
-
-Notes:
-
-- `hub` runs `pnpm dev` inside the container (hot reload enabled).
-- Source code is mounted via bind volume, so code changes are reflected immediately.
-- Open the app via proxy at `https://localhost` (or your configured `SITE_URL`).
-- First start may take longer because dependencies are installed into the `hub-node-modules` volume.
-
-Useful commands:
-
-- `./dev.sh up --build` rebuild image layers if needed.
-- `./dev.sh up --sync-convex` also sync env variables to Convex and deploy functions/schema.
-- `./dev.sh sync-convex` run Convex env sync + deploy without restarting the whole stack.
-- `./dev.sh logs hub` follow app logs.
-- `./dev.sh down` stop the dev stack.
-
-### Automated Setup (Recommended)
-
-Run the setup script to initialize the environment, generate necessary keys, and deploy the Convex schema automatically.
-
-```bash
-./setup.sh
-```
-
-This script will:
-
-1. Create `.env` from `.env.example` if missing.
-2. Start all services.
-3. Wait for Convex backend to be ready.
-4. Generate an Admin Key from the Convex backend.
-5. Save the Admin Key to `.env` (as `CONVEX_DEPLOY_KEY`, which the `convex-migration` container maps to `CONVEX_SELF_HOSTED_ADMIN_KEY`).
-6. Set required environment variables on the Convex backend.
-7. Deploy the Convex schema and functions from the local source code to the containerized backend.
-
-### Manual Usage
-
-1.  Navigate to the `docker` directory:
-
-    ```bash
-    cd docker
-    ```
-
-2.  Create the environment file:
-
-    ```bash
-    cp .env.example .env
-    ```
-
-3.  Start the services:
-
-    ```bash
-    docker compose up -d
-    ```
-
-    This starts RustFS, waits for the required S3 buckets to be created, and only then starts Convex.
-
-4.  Deploy Schema:
-    You need to generate an admin key and run the deploy command.
-
-    ```bash
-    # Generate Key
-    KEY=$(docker compose exec -T convex ./generate_admin_key.sh | tr -d '\r' | tail -n 1)
-
-    # Deploy
-    docker compose exec convex-migration npx convex deploy --url http://convex:3210 --admin-key $KEY --yes
-    ```
-
-5.  Access the application:
-    - **Hub**: [https://localhost](https://localhost)
-    - **Convex API**: [https://localhost/api](https://localhost/api)
-    - **Convex Admin**: [https://convex.localhost](https://convex.localhost)
-
-## Update
-
-Run the update command to update the environment, generate necessary keys, and deploy the Convex schema automatically.
-
-```bash
-./manage.sh update
-```
-
-This script will:
-
-1. Check the Fleetctrl image tag pinned in `docker-compose.yml`.
-2. Pull fresh images automatically when the tag is `latest`, or offer to update pinned version tags when a newer release is available.
-3. Start all services.
-4. Deploy the Convex schema and functions to the containerized backend.
-
-To update only the management script itself, run:
+## Upgrading from v2 (Convex)
 
 ```bash
 ./manage.sh self-update
+./manage.sh migrate-from-convex
 ```
 
-## Convex Push
+1. Exports Convex with file storage (`npx convex export --include-file-storage`) while v2 is still running.
+2. Stops the hub and the proxy. Devices back off and retry.
+3. Saves `docker-compose.yml`, `Caddyfile` and `.env` as `*.v2.bak` and writes the v3 versions. Postgres keeps its
+   existing volume and superuser (`POSTGRES_USER=convex`); v3 uses a new `fleetctrl` database next to Convex's.
+4. Creates and migrates the `fleetctrl` database, runs the importer with `--dry-run`, shows the report and asks before
+   importing. Conflicts that need a decision (for example two group assignments for the same release) are listed and
+   only resolved with your confirmation.
+5. Starts v3, runs smoke checks, waits for a device to check in, then stops Convex (its data stays for rollback).
 
-Use this when you only need to deploy Convex schema and functions without running the full update or setup.
+Admins sign in again after the upgrade. Avoid enrolling devices and changing settings until you confirm the upgrade:
+`./manage.sh rollback-to-convex` restores the v2 files and data, and anything written on v3 is lost. When v3 works,
+run `./manage.sh cleanup-convex`.
+
+The importer can also be run by hand, from the API image:
 
 ```bash
-./manage.sh push
+docker compose run --rm --no-deps --user root -v "$PWD/../convex/backups:/backups" api \
+  node import-convex.js --zip /backups/<export>.zip --dry-run
 ```
+
+`--files-only` copies the files to the bucket ahead of the cutover (they are immutable), so the import at cutover only
+copies new ones.
 
 ## Configuration
 
-- **Hub**: Configured in `docker-compose.yml`. Use `.env` to adjust variables.
-- **Persistence**: Convex data is stored in the `convex-data` Docker volume. Caddy certificates are in `caddy_data`.
+- `.env` holds the configuration (see `.env.example`). Never change `API_URL` or `JWT_SECRET` on an existing
+  installation: deployed devices are bound to them.
+- Persistence: `postgres_data` and `rustfs-data` volumes (or the directories chosen during setup); Caddy certificates
+  in `caddy_data`.
 
-## Troubleshooting
+## Testing the Docker setup
 
-- **Certificate Warnings**: Normalized for self-signed certificates (Caddy auto-generates them).
-- **Convex Connection**: If Hub logs errors about connecting to Convex, ensure `CONVEX_URL` is correct and the initial schema deployment (step 4 / setup script) succeeded.
-- **Invalid Convex deploy key / requests to `api.convex.dev`**: In the Docker setup, `convex-migration` must use the self-hosted variables `CONVEX_SELF_HOSTED_URL` and `CONVEX_SELF_HOSTED_ADMIN_KEY`. Passing `CONVEX_DEPLOY_KEY` directly into that container makes the CLI try the hosted Convex cloud flow instead.
-- **Rebuilding**: If you change the code, you need to rebuild the containers:
-  ```bash
-  docker compose build
-  docker compose up -d
-  ```
-  To quickly verify that the custom application images still build locally without starting the whole stack, run:
-  ```bash
-  pnpm test:docker-build
-  ```
-  This smoke test always builds with `--no-cache --pull`, so it validates a clean build path instead of reusing previous layers.
-  To validate the full Docker deployment path, including container startup, auth registration, auth login, and access to protected routes, run:
-  ```bash
-  pnpm test:docker-deployment
-  ```
-  This smoke test starts a nested Docker Compose runner, which then brings up an isolated deployment stack inside Docker, deploys Convex functions, and exercises the deployed application over HTTPS.
-  For local development without rebuilding on each code change, use:
-  ```bash
-  ./dev.sh up
-  ```
-  For env/schema sync to Convex during dev:
-  ```bash
-  ./dev.sh up --sync-convex
-  ```
-  And potentially re-run deployment if schema changed:
-  ```bash
-  ./dev.sh sync-convex
-  ```
+```bash
+pnpm test:docker-build        # builds both images from scratch
+pnpm test:docker-deployment   # starts an isolated stack and checks auth, admin API, uploads, presence and the device API over HTTPS
+```

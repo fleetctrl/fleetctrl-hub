@@ -15,7 +15,7 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/features/auth/ui";
 import { env } from "@/lib/env";
 
 // Zod schema for sign in/sign up form

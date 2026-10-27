@@ -22,6 +22,7 @@
     }
   ],
   "rules": {
+    "anti-slop/feature-boundaries": "error",
     "anti-slop/no-chained-type-assertions": "error",
     "anti-slop/no-conditional-empty-object-spread": "off",
     "anti-slop/no-known-value-widening": "error",

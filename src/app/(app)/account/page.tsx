@@ -1,7 +1,6 @@
 "use server";
 
-import { AccountPasswordForm } from "@/modules/account/account-password-form";
-import { AccountProfileForm } from "@/modules/account/account-profile-form";
+import { AccountPasswordForm, AccountProfileForm } from "@/features/auth/ui";
 import PageWrapper from "@/components/page-wrapper";
 import {
   Breadcrumb,

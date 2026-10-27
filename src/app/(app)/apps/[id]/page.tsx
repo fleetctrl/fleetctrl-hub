@@ -1,8 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAuthPaginatedQuery, useAuthQuery } from "@/hooks/use-auth-query";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import PageWrapper from "@/components/page-wrapper";
 import {
   Breadcrumb,
@@ -15,24 +12,27 @@ import {
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-import { EditAppSheet } from "@/modules/apps/detail/releases/app-edit-app-sheet";
 import { Pen, Plus } from "lucide-react";
-import { AppReleaseSheet } from "@/modules/apps/detail/releases/app-release-sheet";
-import { AppReleasesTable } from "@/modules/apps/detail/releases/app-releases-table";
-import { useDeviceInstallStatus } from "@/modules/apps/hooks/use-device-install-status";
-import { DeviceInstallStatusTable } from "@/modules/apps/table/device-install-status-table";
-import { ReinstallAppButton } from "@/modules/apps/detail/reinstall-app-button";
+import {
+  AppReleaseSheet,
+  AppReleasesTable,
+  DeviceInstallStatusTable,
+  EditAppSheet,
+  ReinstallAppButton,
+  useApp,
+  useDeviceInstallStatus,
+  useReleasesPaginated,
+} from "@/features/apps/ui";
 import { parseAsString, useQueryStates } from "nuqs";
 
 export default function AppDetailPage() {
   const params = useParams();
   const appId = params.id as string;
-  const normalizedAppId = appId as Id<"apps">;
 
-  const app = useAuthQuery(api.apps.getById, { id: normalizedAppId });
-  const releasesQuery = useAuthPaginatedQuery(api.apps.getReleasesPaginated, { appId: normalizedAppId }, { initialNumItems: 20 });
+  const app = useApp(appId);
+  const releasesQuery = useReleasesPaginated(appId, { initialNumItems: 20 });
   const releases = releasesQuery.results;
-  const deviceInstallStatus = useDeviceInstallStatus(normalizedAppId);
+  const deviceInstallStatus = useDeviceInstallStatus(appId);
 
   // console.log("Device install status:", deviceInstallStatus);
 
@@ -166,7 +166,7 @@ export default function AppDetailPage() {
                 <div className="flex flex-row items-center justify-between pb-2">
                   <h2 className="text-xl font-semibold">Essentials</h2>
                   <div className="flex gap-2">
-                    <ReinstallAppButton appId={normalizedAppId} />
+                    <ReinstallAppButton appId={appId} />
                     <Button
                       variant="outline"
                       size="sm"

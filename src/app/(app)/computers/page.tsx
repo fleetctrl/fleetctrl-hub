@@ -1,5 +1,5 @@
 import PageWrapper from "@/components/page-wrapper";
-import { ComputersTable } from "../../../modules/computers/table/computers-data-table";
+import { ComputersTable } from "@/features/computers/ui";
 import {
   Breadcrumb,
   BreadcrumbItem,
