@@ -53,7 +53,7 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
-docker/Caddyfile
+!docker/Caddyfile
 docker/Caddyfile.*
 !docker/Caddyfile.standalone
 !docker/Caddyfile.proxy

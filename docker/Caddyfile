@@ -1,0 +1,27 @@
+{
+    # Disable automatic HTTPS when behind external reverse proxy
+    auto_https off
+    # Trust proxy headers from private networks
+    servers {
+        trusted_proxies static private_ranges
+    }
+}
+
+:80 {
+    # No TLS - external reverse proxy handles HTTPS
+
+    # Better Auth for the dashboard (API service). No prefix is stripped.
+    handle /auth* {
+        reverse_proxy api:3001
+    }
+
+    # Device API and admin API (API service). `/api` is stripped: devices sign DPoP proofs for
+    # API_URL + path, so this layout must not change. Event streams are flushed immediately.
+    handle /api* {
+        uri strip_prefix /api
+        reverse_proxy api:3001
+    }
+
+    # Dashboard (Next.js)
+    reverse_proxy hub:3000
+}
